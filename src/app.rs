@@ -19,6 +19,7 @@ use eframe::egui::{
 
 const MIN_BRUSH_SIZE: f32 = 6.0;
 const MAX_BRUSH_SIZE: f32 = 96.0;
+const MAX_COLOR_SWATCH_SIZE: f32 = 56.0;
 const MAX_PAINT_POINTS_PER_DISPLAY: usize = 20_000;
 
 #[derive(Debug, Clone)]
@@ -136,6 +137,24 @@ impl ColoringState {
         self.slider_dragging.fill(false);
     }
 
+    fn update_dragged_brush_size(
+        &mut self,
+        display_index: usize,
+        position: Pos2,
+        track: Rect,
+    ) -> bool {
+        if !self
+            .slider_dragging
+            .get(display_index)
+            .copied()
+            .unwrap_or(false)
+        {
+            return false;
+        }
+        self.brush_size = brush_size_for(position, track);
+        true
+    }
+
     fn clear(&mut self) {
         for strokes in &mut self.strokes {
             strokes.clear();
@@ -167,8 +186,8 @@ fn coloring_layout(display: Vec2) -> ColoringLayout {
     let margin = 12.0;
     let gap = 6.0;
     let clear_width = 112.0_f32.min((display.x * 0.18).max(72.0));
-    let swatch_size =
-        ((display.x - margin * 2.0 - clear_width - gap * 12.0) / 12.0).clamp(12.0, 42.0);
+    let swatch_size = ((display.x - margin * 2.0 - clear_width - gap * 12.0) / 12.0)
+        .clamp(12.0, MAX_COLOR_SWATCH_SIZE);
     let total_width = swatch_size * 12.0 + gap * 12.0 + clear_width;
     let start_x = ((display.x - total_width) / 2.0).max(4.0);
     let swatch_top = (display.y - margin - swatch_size).max(0.0);
@@ -385,6 +404,18 @@ impl BabySmashApp {
         );
     }
 
+    fn draw_brush_cursor(&self, painter: &Painter, position: Pos2) {
+        let selected = COLORS[self.coloring.selected_color];
+        let radius = self.coloring.brush_size / 2.0;
+        painter.circle_filled(
+            position,
+            radius,
+            Color32::from_rgba_unmultiplied(selected.rgb[0], selected.rgb[1], selected.rgb[2], 42),
+        );
+        painter.circle_stroke(position, radius, Stroke::new(3.0, Color32::BLACK));
+        painter.circle_stroke(position, radius, Stroke::new(1.0, Color32::WHITE));
+    }
+
     fn render_viewport(&mut self, ui: &mut Ui, display_index: usize) {
         let now = Instant::now();
         let rect = ui.max_rect();
@@ -416,18 +447,6 @@ impl BabySmashApp {
         }
         if let Some(display) = self.game.displays.get(display_index) {
             render::draw_pointer_effects(ui.painter(), &display.pointer, now);
-            if !self.options_open
-                && let Some(position) = display.pointer.position
-            {
-                if self.settings.cursor_effect == CursorEffect::Coloring {
-                    ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
-                } else {
-                    ui.ctx().set_cursor_icon(egui::CursorIcon::None);
-                    render::draw_cursor(ui.painter(), position, self.settings.cursor_style);
-                }
-            } else if self.options_open {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
-            }
         }
 
         if display_index == 0 {
@@ -445,8 +464,26 @@ impl BabySmashApp {
                 secondary,
             );
         }
+        let pointer_position = self
+            .game
+            .displays
+            .get(display_index)
+            .and_then(|display| display.pointer.position);
+        if self.options_open {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
+        } else if let Some(position) = pointer_position {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::None);
+            if self.settings.cursor_effect == CursorEffect::Coloring {
+                self.draw_brush_cursor(ui.painter(), position);
+            }
+        }
+
         if self.settings.cursor_effect == CursorEffect::Coloring {
             self.draw_coloring_controls(ui.painter(), rect.size());
+        } else if !self.options_open
+            && let Some(position) = pointer_position
+        {
+            render::draw_cursor(ui.painter(), position, self.settings.cursor_style);
         }
     }
 
@@ -455,9 +492,11 @@ impl BabySmashApp {
             return;
         };
         let layout = coloring_layout(display.size);
-        if self.coloring.slider_dragging[display_index] {
-            self.coloring.brush_size = brush_size_for(position, layout.slider_track);
-        } else if self.coloring.active_strokes[display_index].is_some() {
+        if !self
+            .coloring
+            .update_dragged_brush_size(display_index, position, layout.slider_track)
+            && self.coloring.active_strokes[display_index].is_some()
+        {
             if coloring_control_at(position, &layout) == ColoringControl::Canvas {
                 self.coloring.extend_stroke(display_index, position);
             } else {
@@ -501,7 +540,11 @@ impl BabySmashApp {
             ColoringControl::BrushSlider => {
                 self.coloring.end_stroke(display_index);
                 self.coloring.slider_dragging[display_index] = true;
-                self.coloring.brush_size = brush_size_for(position, layout.slider_track);
+                self.coloring.update_dragged_brush_size(
+                    display_index,
+                    position,
+                    layout.slider_track,
+                );
             }
             ColoringControl::Panel => self.coloring.end_stroke(display_index),
         }
@@ -544,23 +587,22 @@ impl BabySmashApp {
                     ..
                 } => {
                     let selected = physical_key.unwrap_or(key);
-                    let key_name = if matches!(
-                        selected,
-                        Key::Num0
-                            | Key::Num1
-                            | Key::Num2
-                            | Key::Num3
-                            | Key::Num4
-                            | Key::Num5
-                            | Key::Num6
-                            | Key::Num7
-                            | Key::Num8
-                            | Key::Num9
-                    ) {
-                        pressed_numpad_key().unwrap_or(selected.name())
-                    } else {
-                        selected.name()
+                    let digit = match selected {
+                        Key::Num0 => Some(0),
+                        Key::Num1 => Some(1),
+                        Key::Num2 => Some(2),
+                        Key::Num3 => Some(3),
+                        Key::Num4 => Some(4),
+                        Key::Num5 => Some(5),
+                        Key::Num6 => Some(6),
+                        Key::Num7 => Some(7),
+                        Key::Num8 => Some(8),
+                        Key::Num9 => Some(9),
+                        _ => None,
                     };
+                    let key_name = digit
+                        .and_then(pressed_numpad_key)
+                        .unwrap_or(selected.name());
                     self.process_key(key_name);
                 }
                 Event::PointerMoved(position) => {
@@ -955,6 +997,13 @@ pub fn display_configs(windowed: bool) -> Vec<DisplayConfig> {
         .into_iter()
         .map(|display| {
             let scale = display.scale_factor.max(1.0);
+            // eframe enables winit's shadow for undecorated Windows windows. Its one-pixel
+            // non-client strip would otherwise sit on the monitor's top row and swallow input.
+            let top_overscan_pixels = if cfg!(target_os = "windows") {
+                1.0
+            } else {
+                0.0
+            };
             DisplayConfig {
                 id: display.id,
                 name: if display.friendly_name.is_empty() {
@@ -962,7 +1011,10 @@ pub fn display_configs(windowed: bool) -> Vec<DisplayConfig> {
                 } else {
                     display.friendly_name
                 },
-                position: [display.x as f32 / scale, display.y as f32 / scale],
+                position: [
+                    display.x as f32 / scale,
+                    (display.y as f32 - top_overscan_pixels) / scale,
+                ],
                 size: vec2(display.width as f32 / scale, display.height as f32 / scale),
                 primary: display.is_primary,
                 kiosk: true,
@@ -991,6 +1043,7 @@ mod tests {
     fn coloring_layout_exposes_all_swatches_and_clear_button() {
         let layout = coloring_layout(vec2(1280.0, 800.0));
         assert_eq!(layout.swatches.len(), COLORS.len());
+        assert_eq!(layout.swatches[0].width(), MAX_COLOR_SWATCH_SIZE);
         for (index, swatch) in layout.swatches.iter().enumerate() {
             assert_eq!(
                 coloring_control_at(swatch.center(), &layout),
@@ -1014,6 +1067,27 @@ mod tests {
             brush_size_for(layout.slider_track.center_top(), layout.slider_track),
             MAX_BRUSH_SIZE
         );
+    }
+
+    #[test]
+    fn dragging_brush_slider_updates_the_live_brush_size() {
+        let layout = coloring_layout(vec2(1280.0, 800.0));
+        let mut coloring = ColoringState::new(1);
+        coloring.slider_dragging[0] = true;
+
+        assert!(coloring.update_dragged_brush_size(
+            0,
+            layout.slider_track.center_top(),
+            layout.slider_track,
+        ));
+        assert_eq!(coloring.brush_size, MAX_BRUSH_SIZE);
+
+        assert!(coloring.update_dragged_brush_size(
+            0,
+            layout.slider_track.center_bottom(),
+            layout.slider_track,
+        ));
+        assert_eq!(coloring.brush_size, MIN_BRUSH_SIZE);
     }
 
     #[test]
