@@ -16,9 +16,10 @@ mod keyboard {
         System::LibraryLoader::GetModuleHandleW,
         UI::{
             Input::KeyboardAndMouse::{
-                GetAsyncKeyState, VK_BACK, VK_CONTROL, VK_ESCAPE, VK_F4, VK_HELP, VK_LCONTROL,
-                VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU, VK_PAUSE, VK_RCONTROL, VK_RMENU, VK_RSHIFT,
-                VK_RWIN, VK_SNAPSHOT, VK_SPACE, VK_TAB,
+                GetAsyncKeyState, VK_BACK, VK_CLEAR, VK_CONTROL, VK_DOWN, VK_END, VK_ESCAPE, VK_F4,
+                VK_HELP, VK_HOME, VK_INSERT, VK_LCONTROL, VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN,
+                VK_MENU, VK_NEXT, VK_PAUSE, VK_PRIOR, VK_RCONTROL, VK_RIGHT, VK_RMENU, VK_RSHIFT,
+                VK_RWIN, VK_SNAPSHOT, VK_SPACE, VK_TAB, VK_UP,
             },
             WindowsAndMessaging::{
                 CallNextHookEx, HHOOK, KBDLLHOOKSTRUCT, SetWindowsHookExW, UnhookWindowsHookEx,
@@ -175,15 +176,22 @@ mod keyboard {
         }
     }
 
-    pub fn pressed_numpad_key() -> Option<&'static str> {
+    pub fn pressed_numpad_key(digit: usize) -> Option<&'static str> {
         const NUMPAD: [&str; 10] = [
             "NumPad0", "NumPad1", "NumPad2", "NumPad3", "NumPad4", "NumPad5", "NumPad6", "NumPad7",
             "NumPad8", "NumPad9",
         ];
-        NUMPAD.iter().enumerate().find_map(|(index, name)| {
-            let virtual_key = 0x60 + index as i32;
-            (unsafe { GetAsyncKeyState(virtual_key) } < 0).then_some(*name)
-        })
+        const NUMLOCK_OFF: [u16; 10] = [
+            VK_INSERT, VK_END, VK_DOWN, VK_NEXT, VK_LEFT, VK_CLEAR, VK_RIGHT, VK_HOME, VK_UP,
+            VK_PRIOR,
+        ];
+        let name = NUMPAD.get(digit).copied()?;
+        let numlock_on_key = 0x60 + digit as i32;
+        let numlock_off_key = i32::from(*NUMLOCK_OFF.get(digit)?);
+        let is_down = unsafe {
+            GetAsyncKeyState(numlock_on_key) < 0 || GetAsyncKeyState(numlock_off_key) < 0
+        };
+        is_down.then_some(name)
     }
 }
 
@@ -201,7 +209,7 @@ mod keyboard {
         }
     }
 
-    pub fn pressed_numpad_key() -> Option<&'static str> {
+    pub fn pressed_numpad_key(_digit: usize) -> Option<&'static str> {
         None
     }
 }

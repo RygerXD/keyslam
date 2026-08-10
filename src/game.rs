@@ -239,54 +239,56 @@ impl Game {
                 false,
             ),
         };
-        let (color, continues_word) =
-            self.color_for_response(&kind, grouped_letter, settings, now);
+        let (color, continues_word) = self.color_for_response(&kind, grouped_letter, settings, now);
 
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1).max(1);
         let size = size_for(&kind);
-        let mut rng = rand::rng();
-        let placements = self
-            .displays
-            .iter()
-            .enumerate()
-            .map(|(display_index, display)| {
-                if continues_word {
-                    return Placement {
-                        top_left: Pos2::ZERO,
-                        size,
-                        interaction: None,
-                    };
-                }
-                let mut occupied = self
-                    .figures
-                    .iter()
-                    .filter_map(|figure| {
-                        (figure.opacity(now) > 0.05)
-                            .then(|| figure.placements.get(display_index).map(Placement::rect))
-                            .flatten()
-                    })
-                    .collect::<Vec<_>>();
-                if display_index == 0 {
-                    occupied.push(Rect::from_min_max(pos2(8.0, 8.0), pos2(330.0, 42.0)));
-                }
-                if settings.cursor_effect == CursorEffect::Coloring {
-                    occupied.push(Rect::from_min_max(
-                        pos2(0.0, (display.size.y - 72.0).max(0.0)),
-                        pos2(display.size.x, display.size.y),
-                    ));
-                    occupied.push(Rect::from_min_max(
-                        pos2(0.0, 52.0),
-                        pos2(70.0, (display.size.y - 72.0).max(52.0)),
-                    ));
-                }
-                Placement {
-                    top_left: best_available_position(&mut rng, display.size, size, occupied),
+        let placements = if continues_word {
+            self.displays
+                .iter()
+                .map(|_| Placement {
+                    top_left: Pos2::ZERO,
                     size,
                     interaction: None,
-                }
-            })
-            .collect();
+                })
+                .collect()
+        } else {
+            let mut rng = rand::rng();
+            self.displays
+                .iter()
+                .enumerate()
+                .map(|(display_index, display)| {
+                    let mut occupied = self
+                        .figures
+                        .iter()
+                        .filter_map(|figure| {
+                            (figure.opacity(now) > 0.05)
+                                .then(|| figure.placements.get(display_index).map(Placement::rect))
+                                .flatten()
+                        })
+                        .collect::<Vec<_>>();
+                    if display_index == 0 {
+                        occupied.push(Rect::from_min_max(pos2(8.0, 8.0), pos2(330.0, 42.0)));
+                    }
+                    if settings.cursor_effect == CursorEffect::Coloring {
+                        occupied.push(Rect::from_min_max(
+                            pos2(0.0, (display.size.y - 72.0).max(0.0)),
+                            pos2(display.size.x, display.size.y),
+                        ));
+                        occupied.push(Rect::from_min_max(
+                            pos2(0.0, 52.0),
+                            pos2(70.0, (display.size.y - 72.0).max(52.0)),
+                        ));
+                    }
+                    Placement {
+                        top_left: best_available_position(&mut rng, display.size, size, occupied),
+                        size,
+                        interaction: None,
+                    }
+                })
+                .collect()
+        };
         self.figures.push_back(Figure {
             id,
             kind,
