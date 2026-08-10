@@ -4,17 +4,23 @@ use crate::{
     audio::AudioSystem,
     game::{BabyColor, COLORS, FigureKind, Game, pointer_tone},
     localization::Localization,
-    platform::{KeyboardGuard, PlatformEvent, install_keyboard_guard, pressed_numpad_key},
+    platform::{
+        KeyboardGuard, PlatformEvent, exit_chord_down, install_keyboard_guard, keep_taskbar_behind,
+        pressed_numpad_key, restore_taskbar, take_exit_requested,
+    },
     render::{self, TextureCache},
     responses::response_for,
-    settings::{CursorEffect, CursorStyle, PointerSound, Settings, SettingsStore, SoundMode},
+    settings::{
+        CursorEffect, CursorStyle, MAX_FADE_AFTER_SECONDS, MAX_ITEMS_KEPT, MIN_FADE_AFTER_SECONDS,
+        MIN_ITEMS_KEPT, PointerSound, Settings, SettingsStore, SoundMode,
+    },
     speech::SpeechSystem,
 };
 use crossbeam_channel::{Receiver, bounded};
 use eframe::egui::{
-    self, Align2, Color32, ComboBox, Context, Event, FontId, Frame, Key, Painter, PointerButton,
-    Pos2, Rect, RichText, Stroke, Ui, Vec2, ViewportBuilder, ViewportCommand, ViewportId,
-    WindowLevel, pos2, vec2,
+    self, Align2, Color32, ComboBox, Context, Event, FontId, Frame, Id, Key, LayerId, Order,
+    Painter, PointerButton, Pos2, Rect, RichText, Stroke, Ui, Vec2, ViewportBuilder,
+    ViewportCommand, ViewportId, WindowLevel, pos2, vec2,
 };
 
 const MIN_BRUSH_SIZE: f32 = 6.0;
@@ -41,6 +47,9 @@ impl DisplayConfig {
             .with_resizable(!self.kiosk)
             .with_decorations(!self.kiosk);
         if self.kiosk {
+            if cfg!(target_os = "windows") {
+                builder = builder.with_fullscreen(true);
+            }
             builder = builder
                 .with_window_level(WindowLevel::AlwaysOnTop)
                 .with_taskbar(false);
@@ -257,9 +266,11 @@ pub struct BabySmashApp {
     coloring: ColoringState,
     platform_events: Receiver<PlatformEvent>,
     _keyboard_guard: Option<KeyboardGuard>,
+    close_protection: bool,
     options_open: bool,
     options_tab: OptionsTab,
     status: Option<String>,
+    exit_requested: bool,
     last_frame: Instant,
     frame_seconds: f32,
 }
@@ -275,6 +286,7 @@ impl BabySmashApp {
             Ok(guard) => (Some(guard), None),
             Err(error) => (None, Some(error)),
         };
+        let close_protection = cfg!(target_os = "windows") && keyboard_guard.is_some();
         let status = settings_store.warning.clone().or(keyboard_warning);
         let sizes = displays
             .iter()
@@ -294,23 +306,73 @@ impl BabySmashApp {
             coloring,
             platform_events,
             _keyboard_guard: keyboard_guard,
+            close_protection,
             options_open: false,
             options_tab: OptionsTab::Audio,
             status,
+            exit_requested: false,
             last_frame: Instant::now(),
             frame_seconds: 1.0 / 60.0,
         }
     }
 
     fn process_platform_events(&mut self, ctx: &Context) {
+        if take_exit_requested() || exit_chord_down() {
+            self.exit_requested = true;
+            ctx.send_viewport_cmd_to(ViewportId::ROOT, ViewportCommand::Close);
+        }
         while let Ok(event) = self.platform_events.try_recv() {
             match event {
-                PlatformEvent::Exit => {
-                    ctx.send_viewport_cmd_to(ViewportId::ROOT, ViewportCommand::Close)
-                }
                 PlatformEvent::Key(key) if !self.options_open => self.process_key(&key),
                 PlatformEvent::Key(_) => {}
             }
+        }
+    }
+
+    fn enforce_kiosk(&mut self, ctx: &Context) {
+        let (close_requested, minimized, any_focused) = ctx.input(|input| {
+            let root = input.raw.viewports.get(&ViewportId::ROOT);
+            (
+                root.is_some_and(egui::ViewportInfo::close_requested),
+                root.and_then(|viewport| viewport.minimized) == Some(true),
+                input
+                    .raw
+                    .viewports
+                    .values()
+                    .any(|viewport| viewport.focused == Some(true)),
+            )
+        });
+
+        // Close requests can originate from shell UI and automation as well as
+        // the keyboard. Alt+F4 is the one intentional exit route and marks the
+        // request before asking eframe to close the root viewport.
+        if close_requested && self.close_protection && !self.exit_requested {
+            ctx.send_viewport_cmd_to(ViewportId::ROOT, ViewportCommand::CancelClose);
+        }
+
+        if !cfg!(target_os = "windows")
+            || self.exit_requested
+            || !self.displays.iter().any(|display| display.kiosk)
+        {
+            return;
+        }
+
+        if minimized {
+            ctx.send_viewport_cmd_to(ViewportId::ROOT, ViewportCommand::Minimized(false));
+        }
+        keep_taskbar_behind();
+        if !any_focused {
+            // Precision-touchpad three/four-finger gestures are owned by the
+            // Windows shell, so a desktop app cannot cancel the gesture itself.
+            // Reassert the kiosk window immediately if one invokes Task View,
+            // Show Desktop, or app switching.
+            ctx.send_viewport_cmd_to(ViewportId::ROOT, ViewportCommand::Visible(true));
+            ctx.send_viewport_cmd_to(ViewportId::ROOT, ViewportCommand::Fullscreen(true));
+            ctx.send_viewport_cmd_to(
+                ViewportId::ROOT,
+                ViewportCommand::WindowLevel(WindowLevel::AlwaysOnTop),
+            );
+            ctx.send_viewport_cmd_to(ViewportId::ROOT, ViewportCommand::Focus);
         }
     }
 
@@ -345,12 +407,14 @@ impl BabySmashApp {
                 stroke.color.rgb[1],
                 stroke.color.rgb[2],
             );
-            if let [point] = stroke.points.as_slice() {
+            for pair in stroke.points.windows(2) {
+                painter.line_segment([pair[0], pair[1]], Stroke::new(stroke.brush_size, color));
+            }
+            // Every sampled brush position is capped with the same filled
+            // circle as a click. The union forms a continuous stroke with
+            // round joins and round ends instead of angular segment seams.
+            for point in &stroke.points {
                 painter.circle_filled(*point, stroke.brush_size / 2.0, color);
-            } else {
-                for pair in stroke.points.windows(2) {
-                    painter.line_segment([pair[0], pair[1]], Stroke::new(stroke.brush_size, color));
-                }
             }
         }
     }
@@ -469,21 +533,27 @@ impl BabySmashApp {
             .displays
             .get(display_index)
             .and_then(|display| display.pointer.position);
-        if self.options_open {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
-        } else if let Some(position) = pointer_position {
+        if let Some(position) = pointer_position {
             ui.ctx().set_cursor_icon(egui::CursorIcon::None);
-            if self.settings.cursor_effect == CursorEffect::Coloring {
+            if !self.options_open && self.settings.cursor_effect == CursorEffect::Coloring {
                 self.draw_brush_cursor(ui.painter(), position);
             }
         }
 
-        if self.settings.cursor_effect == CursorEffect::Coloring {
+        if !self.options_open && self.settings.cursor_effect == CursorEffect::Coloring {
             self.draw_coloring_controls(ui.painter(), rect.size());
-        } else if !self.options_open
-            && let Some(position) = pointer_position
-        {
-            render::draw_cursor(ui.painter(), position, self.settings.cursor_style);
+        }
+        if let Some(position) = pointer_position {
+            let scale = self
+                .game
+                .displays
+                .get(display_index)
+                .map_or(1.0, |display| display.pointer.cursor_scale(now));
+            let cursor_painter = ui.ctx().layer_painter(LayerId::new(
+                Order::Debug,
+                Id::new(("babysmash-custom-cursor", display_index)),
+            ));
+            render::draw_cursor(&cursor_painter, position, self.settings.cursor_style, scale);
         }
     }
 
@@ -572,11 +642,21 @@ impl BabySmashApp {
             } = &event
                 && modifiers.alt
             {
+                self.exit_requested = true;
                 ui.ctx()
                     .send_viewport_cmd_to(ViewportId::ROOT, ViewportCommand::Close);
                 continue;
             }
             if self.options_open {
+                if let Some(display) = self.game.displays.get_mut(display_index) {
+                    match event {
+                        Event::PointerMoved(position) => {
+                            display.pointer.position = Some(position);
+                        }
+                        Event::PointerGone => display.pointer.position = None,
+                        _ => {}
+                    }
+                }
                 continue;
             }
             match event {
@@ -679,6 +759,9 @@ impl BabySmashApp {
                 }
                 Event::MouseWheel { delta, .. } if delta.y != 0.0 => {
                     self.coloring.end_all_strokes();
+                    if let Some(display) = self.game.displays.get_mut(display_index) {
+                        display.pointer.pulse_cursor(delta.y > 0.0, now);
+                    }
                     self.settings.cursor_effect = self.settings.cursor_effect.cycle(delta.y > 0.0);
                     if let Err(error) = self.settings_store.save(&self.settings) {
                         self.status = Some(format!("Could not save pointer effect: {error}"));
@@ -790,6 +873,14 @@ impl BabySmashApp {
 }
 
 impl eframe::App for BabySmashApp {
+    fn logic(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        self.process_platform_events(ctx);
+        self.enforce_kiosk(ctx);
+        // eframe can skip UI rendering while Task View or another shell surface
+        // occludes the app, but logic still runs for explicitly requested frames.
+        ctx.request_repaint_after(Duration::from_millis(16));
+    }
+
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         let now = Instant::now();
@@ -799,7 +890,6 @@ impl eframe::App for BabySmashApp {
             .clamp(1.0 / 240.0, 0.1);
         self.last_frame = now;
 
-        self.process_platform_events(&ctx);
         self.game.remove_expired(Instant::now());
         let brightness = if self.options_open {
             self.draft_settings.background_brightness_percent
@@ -819,7 +909,14 @@ impl eframe::App for BabySmashApp {
                 self.render_viewport(ui, display_index);
             });
         }
-        ctx.request_repaint_after(Duration::from_millis(16));
+    }
+}
+
+impl Drop for BabySmashApp {
+    fn drop(&mut self) {
+        if self.displays.iter().any(|display| display.kiosk) {
+            restore_taskbar();
+        }
     }
 }
 
@@ -903,11 +1000,19 @@ fn visual_options(ui: &mut Ui, settings: &mut Settings) {
         ui.checkbox(&mut settings.fade_away, "Fade items away");
         ui.add_enabled_ui(settings.fade_away, |ui| {
             ui.add(
-                egui::Slider::new(&mut settings.fade_after_seconds, 1.0..=120.0)
-                    .text("Keep items visible for (seconds)"),
+                egui::Slider::new(
+                    &mut settings.fade_after_seconds,
+                    MIN_FADE_AFTER_SECONDS..=MAX_FADE_AFTER_SECONDS,
+                )
+                .integer()
+                .text("Keep items visible for (seconds)"),
             );
         });
-        ui.add(egui::Slider::new(&mut settings.clear_after, 5..=200).text("Items kept on screen"));
+        ui.label("0 seconds keeps items visible until the item-count limit removes them.");
+        ui.add(
+            egui::Slider::new(&mut settings.clear_after, MIN_ITEMS_KEPT..=MAX_ITEMS_KEPT)
+                .text("Items kept on screen"),
+        );
     });
     section(ui, "Display", |ui| {
         ui.add(
@@ -929,36 +1034,18 @@ fn input_options(ui: &mut Ui, settings: &mut Settings) {
                 ui.selectable_value(&mut settings.cursor_style, CursorStyle::Hand, "Hand");
             });
         ComboBox::from_id_salt("cursor-effect")
-            .selected_text(match settings.cursor_effect {
-                CursorEffect::None => "None",
-                CursorEffect::Rainbow => "Rainbow ribbon",
-                CursorEffect::Sparkles => "Sparkles",
-                CursorEffect::Bubbles => "Bubbles",
-                CursorEffect::Coloring => "Coloring mode",
-            })
+            .selected_text(settings.cursor_effect.label())
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut settings.cursor_effect, CursorEffect::None, "None");
-                ui.selectable_value(
-                    &mut settings.cursor_effect,
-                    CursorEffect::Rainbow,
-                    "Rainbow ribbon",
-                );
-                ui.selectable_value(
-                    &mut settings.cursor_effect,
-                    CursorEffect::Sparkles,
-                    "Sparkles",
-                );
-                ui.selectable_value(
-                    &mut settings.cursor_effect,
-                    CursorEffect::Bubbles,
-                    "Bubbles",
-                );
-                ui.selectable_value(
-                    &mut settings.cursor_effect,
-                    CursorEffect::Coloring,
-                    "Coloring mode",
-                );
+                for effect in CursorEffect::ALL {
+                    ui.selectable_value(&mut settings.cursor_effect, effect, effect.label());
+                }
             });
+        if let Some(url) = settings.cursor_effect.shadertoy_url() {
+            ui.horizontal(|ui| {
+                ui.label("Adapted from");
+                ui.hyperlink_to("Shadertoy", url);
+            });
+        }
         ui.label("Use the mouse wheel during play to cycle through the effects.");
     });
 }
