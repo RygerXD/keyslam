@@ -304,11 +304,8 @@ fn border_for(color: BabyColor) -> Color32 {
 }
 
 pub fn draw_pointer_effects(painter: &Painter, state: &PointerState, now: Instant) {
-    match state.trail.effect() {
-        Some(CursorEffect::Rainbow) => draw_rainbow_trail(painter, state),
-        Some(CursorEffect::NeonWorm) => draw_neon_worm(painter, state),
-        _ => {}
-    }
+    draw_rainbow_trail(painter, state);
+    draw_neon_worm(painter, state);
     draw_trail_marks(painter, &state.trail_marks, now);
     for particle in &state.particles {
         draw_particle(painter, particle, now);
@@ -339,16 +336,19 @@ fn draw_rainbow_trail(painter: &Painter, state: &PointerState) {
 }
 
 fn draw_neon_worm(painter: &Painter, state: &PointerState) {
-    let points = state.trail.points();
+    let points = state.neon_worm.points();
     if points.len() < 2 {
         return;
     }
     for (index, pair) in points.windows(2).enumerate().rev() {
+        if pair[0].distance_sq(pair[1]) < 0.01 {
+            continue;
+        }
         let tail = index as f32 / (points.len() - 1) as f32;
         let tail_fade = 1.0 - smoothstep(0.75, 1.0, tail);
-        let opacity = state.trail.opacity * tail_fade;
+        let opacity = state.neon_worm.opacity() * tail_fade;
         let color = neon_palette(index);
-        for (width, alpha) in [(22.0, 0.07), (11.0, 0.18), (5.0, 0.42), (2.2, 1.0)] {
+        for (width, alpha) in [(24.0, 0.025), (12.0, 0.09), (5.0, 0.32), (2.0, 1.0)] {
             painter.line_segment(
                 [pair[0], pair[1]],
                 Stroke::new(width, with_opacity(color, opacity * alpha)),
@@ -384,11 +384,21 @@ fn draw_trail_marks(painter: &Painter, marks: &[TrailMark], now: Instant) {
             _ => {}
         }
     }
-    for mark in marks {
+    for (index, mark) in marks.iter().enumerate() {
         let progress = mark.progress(now);
         match mark.effect {
             CursorEffect::FadingTrail => draw_fading_dot(painter, mark.position, progress),
-            CursorEffect::BumpMapTrail => draw_bump_dot(painter, mark.position, progress),
+            CursorEffect::BumpMapTrail => {
+                let starts_stroke = index == 0
+                    || marks[index - 1].stroke_id != mark.stroke_id
+                    || marks[index - 1].effect != mark.effect;
+                let ends_stroke = index + 1 == marks.len()
+                    || marks[index + 1].stroke_id != mark.stroke_id
+                    || marks[index + 1].effect != mark.effect;
+                if starts_stroke || ends_stroke {
+                    draw_bump_cap(painter, mark.position, progress);
+                }
+            }
             _ => {}
         }
     }
@@ -421,39 +431,71 @@ fn draw_fading_segment(painter: &Painter, from: Pos2, to: Pos2, progress: f32) {
     }
 }
 
-fn draw_bump_dot(painter: &Painter, position: Pos2, progress: f32) {
-    let opacity = (1.0 - progress).powf(0.72);
-    let offset = vec2(4.0, 4.0);
-    painter.circle_filled(
-        position + offset,
-        29.0,
-        with_opacity(Color32::BLACK, opacity * 0.88),
-    );
-    painter.circle_filled(
-        position - offset,
-        29.0,
-        with_opacity(Color32::WHITE, opacity * 0.9),
-    );
-    painter.circle_filled(
-        position,
-        25.0,
-        with_opacity(Color32::from_gray(138), opacity * 0.95),
-    );
-}
-
 fn draw_bump_segment(painter: &Painter, from: Pos2, to: Pos2, progress: f32) {
-    let opacity = (1.0 - progress).powf(0.72);
-    let offset = vec2(4.0, 4.0);
-    for (shift, width, color, alpha) in [
-        (offset, 58.0, Color32::BLACK, 0.88),
-        (-offset, 58.0, Color32::WHITE, 0.9),
-        (Vec2::ZERO, 50.0, Color32::from_gray(138), 0.95),
-    ] {
+    const RADIUS: f32 = 30.0;
+    let direction = to - from;
+    let length = direction.length();
+    if length <= 0.001 {
+        return;
+    }
+    let normal = vec2(-direction.y, direction.x) / length;
+    let (light, edge_width) = bump_light(painter);
+    for side in [-1.0, 1.0] {
+        let edge_normal = normal * side;
+        let lighting = edge_normal.dot(light);
+        let color = if lighting >= 0.0 {
+            Color32::WHITE
+        } else {
+            Color32::BLACK
+        };
+        let opacity = (1.0 - progress) * (lighting.abs() * 1.25).min(1.0);
+        let shift = edge_normal * RADIUS;
         painter.line_segment(
             [from + shift, to + shift],
-            Stroke::new(width, with_opacity(color, opacity * alpha)),
+            Stroke::new(edge_width, with_opacity(color, opacity)),
         );
     }
+}
+
+fn draw_bump_cap(painter: &Painter, center: Pos2, progress: f32) {
+    const RADIUS: f32 = 30.0;
+    const SEGMENTS: usize = 32;
+    let (light, edge_width) = bump_light(painter);
+    for index in 0..SEGMENTS {
+        let start_angle = std::f32::consts::TAU * index as f32 / SEGMENTS as f32;
+        let end_angle = std::f32::consts::TAU * (index + 1) as f32 / SEGMENTS as f32;
+        let middle_angle = (start_angle + end_angle) * 0.5;
+        let edge_normal = vec2(middle_angle.cos(), middle_angle.sin());
+        let lighting = edge_normal.dot(light);
+        let color = if lighting >= 0.0 {
+            Color32::WHITE
+        } else {
+            Color32::BLACK
+        };
+        let opacity = (1.0 - progress) * (lighting.abs() * 1.25).min(1.0);
+        painter.line_segment(
+            [
+                center + vec2(start_angle.cos(), start_angle.sin()) * RADIUS,
+                center + vec2(end_angle.cos(), end_angle.sin()) * RADIUS,
+            ],
+            Stroke::new(edge_width, with_opacity(color, opacity)),
+        );
+    }
+}
+
+fn bump_light(painter: &Painter) -> (Vec2, f32) {
+    let size = painter.clip_rect().size();
+    let sample_offset = vec2(size.x * 0.0035, size.y * 0.0035);
+    let sample_length = sample_offset.length();
+    let light = if sample_length > f32::EPSILON {
+        -sample_offset / sample_length
+    } else {
+        vec2(
+            -std::f32::consts::FRAC_1_SQRT_2,
+            -std::f32::consts::FRAC_1_SQRT_2,
+        )
+    };
+    (light, (sample_length * 2.0).clamp(3.0, 16.0))
 }
 
 fn smoothstep(edge_0: f32, edge_1: f32, value: f32) -> f32 {

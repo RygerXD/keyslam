@@ -485,7 +485,12 @@ impl BabySmashApp {
         let rect = ui.max_rect();
         if let Some(display) = self.game.displays.get_mut(display_index) {
             display.size = rect.size();
-            display.pointer.update(now, self.frame_seconds);
+            display.pointer.update(
+                now,
+                self.frame_seconds,
+                rect.size(),
+                self.settings.cursor_effect,
+            );
         }
         self.handle_input(ui, display_index, now);
 
@@ -494,7 +499,11 @@ impl BabySmashApp {
         } else {
             self.settings.background_brightness_percent
         };
-        let channel = (f32::from(brightness) * 2.55).round() as u8;
+        let channel = match self.settings.cursor_effect {
+            CursorEffect::NeonWorm => 0,
+            CursorEffect::BumpMapTrail => 128,
+            _ => (f32::from(brightness) * 2.55).round() as u8,
+        };
         ui.painter()
             .rect_filled(rect, 0.0, Color32::from_gray(channel));
         self.draw_painting(ui.painter(), display_index);
@@ -514,7 +523,7 @@ impl BabySmashApp {
         }
 
         if display_index == 0 {
-            let light_background = brightness >= 55;
+            let light_background = channel >= 140;
             let secondary = if light_background {
                 Color32::from_gray(55)
             } else {

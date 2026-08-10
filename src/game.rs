@@ -1,5 +1,6 @@
 use std::{
     collections::{HashSet, VecDeque},
+    sync::OnceLock,
     time::Instant,
 };
 
@@ -15,10 +16,16 @@ const LETTER_GAP: f32 = 8.0;
 const LETTER_PADDING: f32 = 24.0;
 const GLYPH_SIZE: Vec2 = Vec2::new(220.0, 300.0);
 const MAX_PARTICLES: usize = 72;
-const MAX_TRAIL_MARKS: usize = 240;
+const MAX_TRAIL_MARKS: usize = 512;
 const TRAIL_MARK_SPACING: f32 = 5.0;
 const FADING_TRAIL_SECONDS: f32 = 1.35;
-const BUMP_MAP_TRAIL_SECONDS: f32 = 1.35;
+const BUMP_MAP_TRAIL_SECONDS: f32 = 2.45;
+const BUMP_MAP_STROKE_RADIUS: f32 = 30.0;
+const NEON_POINT_COUNT: usize = 1_024;
+const NEON_WINDOW_LENGTH: usize = 32;
+const NEON_WINDOW_OFFSET: isize = (NEON_WINDOW_LENGTH / 2) as isize;
+const NEON_REFERENCE_FPS: f32 = 165.0;
+const NEON_MAX_STEPS_PER_FRAME: usize = 8;
 const REMOVAL_FADE_SECONDS: f32 = 1.0;
 const CURSOR_PULSE_SECONDS: f32 = 0.3;
 const CURSOR_GROW_SCALE: f32 = 1.28;
@@ -643,11 +650,14 @@ pub struct PointerState {
     pub position: Option<Pos2>,
     pub primary_down: bool,
     pub trail: RainbowTrail,
+    pub neon_worm: NeonWormTrail,
     pub trail_marks: Vec<TrailMark>,
     pub particles: Vec<Particle>,
     last_effect_position: Option<Pos2>,
     next_effect_spacing: f32,
     stroke_sequence: u64,
+    bump_demo_started: Option<Instant>,
+    bump_has_input: bool,
     cursor_pulse: Option<CursorPulse>,
 }
 
@@ -657,6 +667,10 @@ impl PointerState {
         self.position = Some(position);
         self.last_effect_position = None;
         self.stroke_sequence = self.stroke_sequence.wrapping_add(1);
+        if effect == CursorEffect::BumpMapTrail {
+            self.bump_has_input = true;
+            self.bump_demo_started = None;
+        }
         self.emit(position, effect, now);
     }
 
@@ -671,6 +685,7 @@ impl PointerState {
         self.primary_down = false;
         self.last_effect_position = None;
         self.trail.stop(now);
+        self.neon_worm.release();
     }
 
     pub fn pulse_cursor(&mut self, grow: bool, now: Instant) {
@@ -694,8 +709,22 @@ impl PointerState {
         pulse.initial_scale + (1.0 - pulse.initial_scale) * eased
     }
 
-    pub fn update(&mut self, now: Instant, frame_seconds: f32) {
+    pub fn update(&mut self, now: Instant, frame_seconds: f32, bounds: Vec2, effect: CursorEffect) {
         self.trail.advance(now, frame_seconds);
+        if effect == CursorEffect::NeonWorm {
+            let initial = self
+                .position
+                .unwrap_or_else(|| pos2(bounds.x * 0.5, bounds.y * 0.5));
+            self.neon_worm.ensure(initial);
+        } else {
+            self.neon_worm.stop(now);
+        }
+        self.neon_worm.advance(now, frame_seconds, bounds);
+        if effect == CursorEffect::BumpMapTrail && !self.bump_has_input {
+            self.update_bump_demo(now, bounds);
+        } else if effect != CursorEffect::BumpMapTrail {
+            self.bump_demo_started = None;
+        }
         self.particles.retain(|particle| {
             now.duration_since(particle.created).as_secs_f32() < particle.duration
         });
@@ -713,43 +742,36 @@ impl PointerState {
             CursorEffect::None | CursorEffect::Coloring => {
                 self.last_effect_position = None;
                 self.trail.stop(now);
+                self.neon_worm.stop(now);
             }
             CursorEffect::Rainbow => {
                 self.last_effect_position = None;
-                self.trail.move_to(position, effect);
+                self.neon_worm.stop(now);
+                self.trail.move_to(position);
             }
             CursorEffect::FadingTrail | CursorEffect::BumpMapTrail => {
                 self.trail.stop(now);
-                if self
-                    .last_effect_position
-                    .is_some_and(|last| last.distance_sq(position) < TRAIL_MARK_SPACING.powi(2))
-                {
-                    return;
+                self.neon_worm.stop(now);
+                if effect == CursorEffect::BumpMapTrail && !self.bump_has_input {
+                    self.stroke_sequence = self.stroke_sequence.wrapping_add(1);
+                    self.bump_has_input = true;
+                    self.bump_demo_started = None;
                 }
-                self.last_effect_position = Some(position);
                 let duration = match effect {
                     CursorEffect::FadingTrail => FADING_TRAIL_SECONDS,
                     CursorEffect::BumpMapTrail => BUMP_MAP_TRAIL_SECONDS,
                     _ => unreachable!(),
                 };
-                self.trail_marks.push(TrailMark {
-                    effect,
-                    created: now,
-                    duration,
-                    position,
-                    stroke_id: self.stroke_sequence,
-                });
-                if self.trail_marks.len() > MAX_TRAIL_MARKS {
-                    let remove_count = self.trail_marks.len() - MAX_TRAIL_MARKS;
-                    self.trail_marks.drain(0..remove_count);
-                }
+                self.push_trail_mark(position, effect, now, duration);
             }
             CursorEffect::NeonWorm => {
                 self.last_effect_position = None;
-                self.trail.move_to(position, effect);
+                self.trail.stop(now);
+                self.neon_worm.move_to(position);
             }
             CursorEffect::Sparkles | CursorEffect::Bubbles => {
                 self.trail.stop(now);
+                self.neon_worm.stop(now);
                 if self.last_effect_position.is_some_and(|last| {
                     last.distance_sq(position) < self.next_effect_spacing.powi(2)
                 }) {
@@ -791,6 +813,220 @@ impl PointerState {
             }
         }
     }
+
+    fn push_trail_mark(
+        &mut self,
+        position: Pos2,
+        effect: CursorEffect,
+        now: Instant,
+        duration: f32,
+    ) {
+        if self.trail_marks.last().is_some_and(|last| {
+            last.effect == effect
+                && last.stroke_id == self.stroke_sequence
+                && last.position.distance_sq(position) < TRAIL_MARK_SPACING.powi(2)
+        }) {
+            return;
+        }
+        self.trail_marks.push(TrailMark {
+            effect,
+            created: now,
+            duration,
+            position,
+            stroke_id: self.stroke_sequence,
+        });
+        if self.trail_marks.len() > MAX_TRAIL_MARKS {
+            let remove_count = self.trail_marks.len() - MAX_TRAIL_MARKS;
+            self.trail_marks.drain(0..remove_count);
+        }
+    }
+
+    fn update_bump_demo(&mut self, now: Instant, bounds: Vec2) {
+        let started = if let Some(started) = self.bump_demo_started {
+            started
+        } else {
+            self.stroke_sequence = self.stroke_sequence.wrapping_add(1);
+            self.bump_demo_started = Some(now);
+            now
+        };
+        let time = now.duration_since(started).as_secs_f32();
+        let distance = (bounds.y * 0.5 - BUMP_MAP_STROKE_RADIUS).max(1.0);
+        let aspect_difference = (bounds.x - bounds.y) * 0.5 + BUMP_MAP_STROKE_RADIUS;
+        let source_y = (time * 0.5).sin() * distance + distance + BUMP_MAP_STROKE_RADIUS;
+        let position = pos2(
+            (time * 0.5).cos() * distance + distance + aspect_difference,
+            bounds.y - source_y,
+        );
+        self.push_trail_mark(
+            position,
+            CursorEffect::BumpMapTrail,
+            now,
+            BUMP_MAP_TRAIL_SECONDS,
+        );
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct NeonWormTrail {
+    points: Vec<Pos2>,
+    next_points: Vec<Pos2>,
+    target: Pos2,
+    input_active: bool,
+    fading_since: Option<Instant>,
+    opacity: f32,
+    step_accumulator: f32,
+    simulation_time: f32,
+}
+
+impl NeonWormTrail {
+    pub fn points(&self) -> &[Pos2] {
+        &self.points
+    }
+
+    pub fn opacity(&self) -> f32 {
+        self.opacity
+    }
+
+    fn ensure(&mut self, initial: Pos2) {
+        if self.points.is_empty() {
+            self.points = vec![initial; NEON_POINT_COUNT];
+            self.next_points = vec![initial; NEON_POINT_COUNT];
+            self.target = initial;
+            self.step_accumulator = 0.0;
+            self.simulation_time = 0.0;
+        }
+        self.fading_since = None;
+        self.opacity = 1.0;
+    }
+
+    fn move_to(&mut self, position: Pos2) {
+        self.ensure(position);
+        self.target = position;
+        self.input_active = true;
+    }
+
+    fn release(&mut self) {
+        self.input_active = false;
+    }
+
+    fn stop(&mut self, now: Instant) {
+        self.input_active = false;
+        if !self.points.is_empty() && self.fading_since.is_none() {
+            self.fading_since = Some(now);
+        }
+    }
+
+    fn advance(&mut self, now: Instant, frame_seconds: f32, bounds: Vec2) {
+        if self.points.is_empty() {
+            return;
+        }
+        if let Some(started) = self.fading_since {
+            self.opacity = (1.0 - now.duration_since(started).as_secs_f32() / 0.28).max(0.0);
+            if self.opacity <= 0.0 {
+                self.points.clear();
+                self.next_points.clear();
+                self.fading_since = None;
+                return;
+            }
+        }
+
+        self.step_accumulator = (self.step_accumulator
+            + frame_seconds.max(0.0) * NEON_REFERENCE_FPS)
+            .min(NEON_MAX_STEPS_PER_FRAME as f32);
+        let step_count = self.step_accumulator.floor() as usize;
+        self.step_accumulator -= step_count as f32;
+        for _ in 0..step_count {
+            self.simulation_time += 1.0 / NEON_REFERENCE_FPS;
+            self.advance_one_step(bounds);
+        }
+    }
+
+    fn advance_one_step(&mut self, bounds: Vec2) {
+        let previous_head = self.points[0];
+        self.next_points[0] = if self.input_active {
+            previous_head + (self.target - previous_head) * 0.1
+        } else {
+            neon_random_walk(previous_head, bounds, self.simulation_time)
+        };
+
+        let weights = neon_filter_weights();
+        let gravity = pos2(
+            (0.6 * (self.simulation_time * 0.27).cos() + 0.5) * bounds.x,
+            (0.6 * (self.simulation_time * 0.27).sin() + 0.5) * bounds.y,
+        );
+        for index in 1..NEON_POINT_COUNT {
+            let mut filtered = Vec2::ZERO;
+            for (tap, weight) in weights.iter().copied().enumerate() {
+                let source = (index as isize + tap as isize - NEON_WINDOW_OFFSET)
+                    .clamp(0, (NEON_POINT_COUNT - 1) as isize)
+                    as usize;
+                filtered += self.points[source].to_vec2() * weight;
+            }
+            let point = pos2(filtered.x, filtered.y);
+            self.next_points[index] = point + (gravity - point) * 0.0003;
+        }
+        std::mem::swap(&mut self.points, &mut self.next_points);
+    }
+}
+
+fn neon_filter_weights() -> &'static [f32; NEON_WINDOW_LENGTH + 1] {
+    static WEIGHTS: OnceLock<[f32; NEON_WINDOW_LENGTH + 1]> = OnceLock::new();
+    WEIGHTS.get_or_init(|| {
+        let raw = std::array::from_fn(|index| neon_window(index as f32));
+        let sum = raw.iter().sum::<f32>();
+        raw.map(|weight| weight / sum)
+    })
+}
+
+fn neon_window(mut value: f32) -> f32 {
+    value -= NEON_WINDOW_OFFSET as f32;
+    shader_sinc((value + 5.0) * 0.31) + shader_sinc_shelf(value + 5.55, 0.02, 0.04) * 0.03
+        - shader_sinc_shelf(value, 0.08, 0.20) * 0.05
+}
+
+fn shader_sinc(mut value: f32) -> f32 {
+    if value == 0.0 {
+        return 1.0;
+    }
+    value *= std::f32::consts::PI;
+    value.sin() / value
+}
+
+fn shader_sinc_shelf(value: f32, low: f32, high: f32) -> f32 {
+    shader_sinc(value * high) - shader_sinc(value * low)
+}
+
+fn neon_random_walk(point: Pos2, bounds: Vec2, time: f32) -> Pos2 {
+    let safe_bounds = vec2(bounds.x.max(1.0), bounds.y.max(1.0));
+    let mut normalized = vec2(point.x / safe_bounds.x, point.y / safe_bounds.y);
+    normalized +=
+        rotate_shader_noise(shader_nrand2(vec2(time, 0.0)), time.cos(), time.sin()) * 0.008;
+    normalized += rotate_shader_noise(
+        shader_nrand2(vec2(time, 1.0)),
+        (time * 3.5).cos(),
+        (time * 3.1).sin(),
+    ) * 0.007;
+    normalized += (Vec2::splat(0.5) - normalized) * 0.02;
+    pos2(normalized.x * safe_bounds.x, normalized.y * safe_bounds.y)
+}
+
+fn rotate_shader_noise(angle_source: Vec2, cos: f32, sin: f32) -> Vec2 {
+    vec2(
+        angle_source.x * cos + angle_source.y * sin,
+        -angle_source.x * sin + angle_source.y * cos,
+    )
+}
+
+fn shader_nrand2(value: Vec2) -> Vec2 {
+    vec2(
+        shader_nrand(vec2(value.x * -3.2145, value.y * 1.2345)),
+        shader_nrand(vec2(value.x * -5.4321, value.y * 3.4521)),
+    )
+}
+
+fn shader_nrand(value: Vec2) -> f32 {
+    let random = (value.x * 12.9898 + value.y * 78.233).sin() * 43_758.547;
+    random - random.floor()
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -826,7 +1062,6 @@ pub struct Particle {
 pub struct RainbowTrail {
     points: Vec<Pos2>,
     target: Pos2,
-    effect: Option<CursorEffect>,
     active: bool,
     fading_since: Option<Instant>,
     pub opacity: f32,
@@ -837,22 +1072,12 @@ impl RainbowTrail {
         &self.points
     }
 
-    pub fn effect(&self) -> Option<CursorEffect> {
-        self.effect
-    }
-
-    fn move_to(&mut self, point: Pos2, effect: CursorEffect) {
+    fn move_to(&mut self, point: Pos2) {
         self.target = point;
-        if !self.active || self.effect != Some(effect) {
-            let point_count = if effect == CursorEffect::NeonWorm {
-                96
-            } else {
-                32
-            };
-            self.points = vec![point; point_count];
+        if !self.active {
+            self.points = vec![point; 32];
             self.active = true;
         }
-        self.effect = Some(effect);
         self.fading_since = None;
         self.opacity = 1.0;
     }
@@ -868,29 +1093,17 @@ impl RainbowTrail {
             return;
         }
         let frame_scale = (frame_seconds * 60.0).clamp(0.25, 3.0);
-        let (head_retention, follower_retention) = if self.effect == Some(CursorEffect::NeonWorm) {
-            (0.72_f32, 0.82_f32)
-        } else {
-            (0.45_f32, 0.58_f32)
-        };
-        let head_blend = 1.0 - head_retention.powf(frame_scale);
-        let follower_blend = 1.0 - follower_retention.powf(frame_scale);
+        let head_blend = 1.0 - 0.45_f32.powf(frame_scale);
+        let follower_blend = 1.0 - 0.58_f32.powf(frame_scale);
         self.points[0] = self.points[0].lerp(self.target, head_blend);
         for index in 1..self.points.len() {
             self.points[index] = self.points[index].lerp(self.points[index - 1], follower_blend);
         }
         if let Some(started) = self.fading_since {
-            let fade_seconds = if self.effect == Some(CursorEffect::NeonWorm) {
-                0.65
-            } else {
-                0.28
-            };
-            self.opacity =
-                (1.0 - now.duration_since(started).as_secs_f32() / fade_seconds).max(0.0);
+            self.opacity = (1.0 - now.duration_since(started).as_secs_f32() / 0.28).max(0.0);
             if self.opacity <= 0.0 {
                 self.active = false;
                 self.points.clear();
-                self.effect = None;
                 self.fading_since = None;
             }
         }
@@ -1108,6 +1321,8 @@ mod tests {
         pointer.update(
             started + Duration::from_millis(301),
             Duration::from_millis(16).as_secs_f32(),
+            vec2(100.0, 100.0),
+            CursorEffect::None,
         );
         assert_eq!(
             pointer.cursor_scale(started + Duration::from_millis(301)),
@@ -1150,6 +1365,8 @@ mod tests {
         pointer.update(
             started + Duration::from_secs(2),
             Duration::from_millis(16).as_secs_f32(),
+            vec2(1_920.0, 1_080.0),
+            CursorEffect::FadingTrail,
         );
         assert!(pointer.trail_marks.is_empty());
 
@@ -1158,8 +1375,50 @@ mod tests {
             CursorEffect::NeonWorm,
             started + Duration::from_secs(2),
         );
-        assert_eq!(pointer.trail.effect(), Some(CursorEffect::NeonWorm));
-        assert_eq!(pointer.trail.points().len(), 96);
+        assert_eq!(pointer.neon_worm.points().len(), NEON_POINT_COUNT);
+        let previous_head = pointer.neon_worm.points()[0];
+        pointer.release(started + Duration::from_millis(2_001));
+        pointer.update(
+            started + Duration::from_millis(2_034),
+            0.033,
+            vec2(1_920.0, 1_080.0),
+            CursorEffect::NeonWorm,
+        );
+        assert_ne!(pointer.neon_worm.points()[0], previous_head);
+
+        let weights = neon_filter_weights();
+        assert_eq!(weights.len(), NEON_WINDOW_LENGTH + 1);
+        assert!((weights.iter().sum::<f32>() - 1.0).abs() < 0.0001);
+        assert!(weights.iter().any(|weight| *weight < 0.0));
+    }
+
+    #[test]
+    fn bump_map_trail_starts_in_the_reference_demo_mode() {
+        let started = Instant::now();
+        let mut pointer = PointerState::default();
+        let bounds = vec2(640.0, 360.0);
+
+        pointer.update(started, 1.0 / 60.0, bounds, CursorEffect::BumpMapTrail);
+        pointer.update(
+            started + Duration::from_millis(100),
+            0.1,
+            bounds,
+            CursorEffect::BumpMapTrail,
+        );
+
+        assert!(pointer.trail_marks.len() >= 2);
+        assert!(
+            pointer
+                .trail_marks
+                .iter()
+                .all(|mark| mark.effect == CursorEffect::BumpMapTrail)
+        );
+        assert!(
+            pointer
+                .trail_marks
+                .iter()
+                .all(|mark| (mark.duration - BUMP_MAP_TRAIL_SECONDS).abs() < f32::EPSILON)
+        );
     }
 
     #[test]
