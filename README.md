@@ -3,7 +3,7 @@
 A from-scratch Rust reimplementation of
 [BabySmash](https://github.com/RygerXD/babysmash): press keys to fill every
 display with colorful letters, animals, and smiling shapes while the app speaks
-their names or plays laughter.
+their names.
 
 The implementation favors a small number of typed, reusable systems over a
 platform-specific class hierarchy. All art, sounds, and translations are
@@ -16,15 +16,14 @@ embedded in the executable.
   Latvian, Portuguese, and Russian
 - Matching defaults, letter grouping, fading, item limits, faces, spawn
   animation, and tap animation
-- Speech, laughter, startup audio, click audio, continuous stereo sinewave, and
-  right-click piano
-- Arrow/hand pointers plus rainbow, sparkle, and bubble trails; the mouse wheel
-  cycles effects
+- Speech, click audio, continuous stereo sinewave, and right-click piano
+- Arrow/hand pointers plus rainbow, sparkle, bubble, and background-coloring
+  modes; the mouse wheel cycles effects
 - One borderless, always-on-top game viewport per monitor
 - Single-instance protection and Windows low-level protection for Windows keys,
   Alt+Tab, Ctrl+Escape, Print Screen, numpad reinterpretation, and related kiosk
   shortcuts
-- Persistent settings and the `--fps` diagnostic overlay
+- Persistent settings
 
 The original application's self-updater is intentionally not copied. Release
 and package updates should be handled by the platform package manager. Some
@@ -47,8 +46,6 @@ Useful development modes:
 # Regular resizable window; avoids taking over every monitor.
 cargo run -- --windowed
 
-# Show frame rate and retained item count.
-cargo run --release -- --fps
 ```
 
 Controls:
@@ -61,6 +58,10 @@ Controls:
 | Left-click / drag | Tap items, draw the pointer effect, and play pointer audio |
 | Right-click | Play a piano note based on vertical position |
 | Mouse wheel | Cycle pointer effects |
+
+Coloring mode adds the 12-color palette and Clear screen button along the
+bottom edge, plus a vertical brush-size slider on the left. Paint remains behind
+letters, animals, and shapes.
 
 For a release executable:
 
@@ -80,7 +81,7 @@ The result is `target/release/babysmash-rs.exe` on Windows.
   MP3-in-WAVE assets, caps simultaneous voices, and keeps synthesis off the UI
   thread.
 - Speech runs on a dedicated worker. Missing speech/audio devices produce a
-  visible warning while the visual game continues.
+  warning in settings while the visual game continues.
 - Figures and cursor particles have hard bounds, eliminating unbounded growth
   under key smashing or pointer movement.
 - The Windows hook is held by an RAII guard, so it is detached automatically on
@@ -108,12 +109,12 @@ cargo clippy --all-targets -- -D warnings
 ```
 
 The automated suite checks the key map, numpad behavior, localized word order,
-settings bounds, item cap, pointer pitch/pan mapping, piano range, and decoding
-of every bundled sound.
+color cycling, delayed one-second fading, coloring controls, settings bounds,
+item placement/caps, pointer pitch/pan mapping, piano range, and decoding of
+every bundled sound.
 
 ## License and attribution
 
 MIT licensed. BabySmash resources retain their original attribution; bundled
 animal artwork is from Microsoft Fluent Emoji. See [LICENSE](LICENSE) and
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
-
