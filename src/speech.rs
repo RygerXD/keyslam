@@ -1,12 +1,18 @@
 use std::{
+    collections::VecDeque,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
+    time::Duration,
 };
 
 #[cfg(not(windows))]
 use std::process::{Child, Command, Stdio};
 
-use crossbeam_channel::{Sender, TrySendError, bounded};
+use crossbeam_channel::{RecvTimeoutError, Sender, TrySendError, bounded};
+
+const MAX_CONCURRENT_SPEECH: usize = 8;
+const MAX_PENDING_SPEECH: usize = 16;
+const SPEECH_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 enum SpeechCommand {
     Speak(String),
@@ -21,7 +27,7 @@ pub struct SpeechSystem {
 
 impl SpeechSystem {
     pub fn new(locale: &str) -> Self {
-        let (sender, receiver) = bounded(16);
+        let (sender, receiver) = bounded(MAX_PENDING_SPEECH);
         let status = Arc::new(Mutex::new(None));
         let worker_status = Arc::clone(&status);
         let locale = locale.to_owned();
@@ -77,13 +83,83 @@ fn speech_worker(
     status: Arc<Mutex<Option<String>>>,
     locale: String,
 ) {
-    let Ok(mut tts) = tts::Tts::default() else {
+    let Ok(first_voice) = configured_tts(&locale) else {
         set_status(
             &status,
             "Windows speech synthesis is unavailable".to_owned(),
         );
         return;
     };
+    let mut voices = vec![first_voice];
+    let mut pending = VecDeque::new();
+    let mut voice_creation_failed = false;
+
+    loop {
+        while !pending.is_empty() {
+            let mut available = voices
+                .iter()
+                .position(|voice| voice.is_speaking().is_ok_and(|speaking| !speaking));
+            if available.is_none() && voices.len() < MAX_CONCURRENT_SPEECH && !voice_creation_failed
+            {
+                match configured_tts(&locale) {
+                    Ok(voice) => {
+                        voices.push(voice);
+                        available = Some(voices.len() - 1);
+                    }
+                    Err(error) => {
+                        voice_creation_failed = true;
+                        set_status(
+                            &status,
+                            format!("Could not add another simultaneous voice: {error}"),
+                        );
+                    }
+                }
+            }
+            let Some(index) = available else {
+                break;
+            };
+            let Some(text) = pending.pop_front() else {
+                break;
+            };
+            if let Err(error) = voices[index].speak(text, false) {
+                set_status(&status, format!("Speech synthesis failed: {error}"));
+            }
+        }
+
+        let command = if pending.is_empty() {
+            match receiver.recv() {
+                Ok(command) => Some(command),
+                Err(_) => break,
+            }
+        } else {
+            match receiver.recv_timeout(SPEECH_POLL_INTERVAL) {
+                Ok(command) => Some(command),
+                Err(RecvTimeoutError::Timeout) => None,
+                Err(RecvTimeoutError::Disconnected) => break,
+            }
+        };
+        let Some(command) = command else {
+            continue;
+        };
+        match command {
+            SpeechCommand::Speak(text) if pending.len() < MAX_PENDING_SPEECH => {
+                pending.push_back(text);
+            }
+            SpeechCommand::Speak(_) => {
+                set_status(&status, "Speech is busy; a response was skipped".to_owned())
+            }
+            SpeechCommand::Quit => break,
+        }
+    }
+
+    for voice in &mut voices {
+        let _ = voice.stop();
+    }
+}
+
+#[cfg(windows)]
+fn configured_tts(locale: &str) -> Result<tts::Tts, tts::Error> {
+    let mut tts = tts::Tts::default()?;
     let locale = locale.to_ascii_lowercase();
     let language = locale.split('-').next().unwrap_or(&locale);
     if let Ok(voices) = tts.voices()
@@ -94,17 +170,7 @@ fn speech_worker(
     {
         let _ = tts.set_voice(voice);
     }
-    while let Ok(command) = receiver.recv() {
-        match command {
-            SpeechCommand::Speak(text) => {
-                if let Err(error) = tts.speak(text, true) {
-                    set_status(&status, format!("Speech synthesis failed: {error}"));
-                }
-            }
-            SpeechCommand::Quit => break,
-        }
-    }
-    let _ = tts.stop();
+    Ok(tts)
 }
 
 #[cfg(not(windows))]
@@ -113,36 +179,68 @@ fn speech_worker(
     status: Arc<Mutex<Option<String>>>,
     locale: String,
 ) {
-    let program = speech_program();
-    if program.is_none() {
+    let Some(program) = speech_program() else {
         set_status(
             &status,
             "No speech synthesizer was found (install espeak-ng or espeak)".to_owned(),
         );
-    }
-    let mut child: Option<Child> = None;
-    while let Ok(command) = receiver.recv() {
-        match command {
-            SpeechCommand::Speak(text) => {
-                stop_child(&mut child);
-                let Some(program) = program.as_deref() else {
-                    continue;
-                };
-                let mut command = Command::new(program);
-                command.stdout(Stdio::null()).stderr(Stdio::null());
-                #[cfg(target_os = "macos")]
-                command.args(["-v", &locale, &text]);
-                #[cfg(not(target_os = "macos"))]
-                command.args(["-v", &locale, &text]);
-                match command.spawn() {
-                    Ok(spawned) => child = Some(spawned),
-                    Err(error) => set_status(&status, format!("Speech synthesis failed: {error}")),
+        return;
+    };
+    let mut children: Vec<Child> = Vec::new();
+    let mut pending = VecDeque::new();
+
+    loop {
+        children.retain_mut(|child| match child.try_wait() {
+            Ok(Some(_)) => false,
+            Ok(None) => true,
+            Err(error) => {
+                set_status(&status, format!("Speech process failed: {error}"));
+                false
+            }
+        });
+        while children.len() < MAX_CONCURRENT_SPEECH {
+            let Some(text) = pending.pop_front() else {
+                break;
+            };
+            let mut command = Command::new(&program);
+            command
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .args(["-v", &locale, &text]);
+            match command.spawn() {
+                Ok(spawned) => children.push(spawned),
+                Err(error) => {
+                    set_status(&status, format!("Speech synthesis failed: {error}"));
                 }
+            }
+        }
+
+        let command = if pending.is_empty() {
+            match receiver.recv() {
+                Ok(command) => Some(command),
+                Err(_) => break,
+            }
+        } else {
+            match receiver.recv_timeout(SPEECH_POLL_INTERVAL) {
+                Ok(command) => Some(command),
+                Err(RecvTimeoutError::Timeout) => None,
+                Err(RecvTimeoutError::Disconnected) => break,
+            }
+        };
+        let Some(command) = command else {
+            continue;
+        };
+        match command {
+            SpeechCommand::Speak(text) if pending.len() < MAX_PENDING_SPEECH => {
+                pending.push_back(text);
+            }
+            SpeechCommand::Speak(_) => {
+                set_status(&status, "Speech is busy; a response was skipped".to_owned())
             }
             SpeechCommand::Quit => break,
         }
     }
-    stop_child(&mut child);
+    stop_children(&mut children);
 }
 
 #[cfg(not(windows))]
@@ -166,8 +264,8 @@ fn speech_program() -> Option<String> {
 }
 
 #[cfg(not(windows))]
-fn stop_child(child: &mut Option<Child>) {
-    if let Some(mut running) = child.take() {
+fn stop_children(children: &mut Vec<Child>) {
+    for mut running in children.drain(..) {
         let _ = running.kill();
         let _ = running.wait();
     }

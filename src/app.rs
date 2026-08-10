@@ -393,7 +393,6 @@ impl BabySmashApp {
             display.pointer.update(now, self.frame_seconds);
         }
         self.handle_input(ui, display_index, now);
-        self.game.remove_expired(now);
 
         let brightness = if self.options_open {
             self.draft_settings.background_brightness_percent
@@ -759,6 +758,7 @@ impl eframe::App for BabySmashApp {
         self.last_frame = now;
 
         self.process_platform_events(&ctx);
+        self.game.remove_expired(Instant::now());
         let brightness = if self.options_open {
             self.draft_settings.background_brightness_percent
         } else {
