@@ -68,6 +68,9 @@ pub fn draw_figure(
     let source_rect = placement.rect();
     let center = source_rect.center();
     let rect = Rect::from_center_size(center, source_rect.size() * scale);
+    if rect.width() <= 0.01 || rect.height() <= 0.01 {
+        return;
+    }
     let angle = (spawn_rotation + interaction_rotation).to_radians();
     match figure.kind {
         FigureKind::Glyph(glyph) => draw_glyph(painter, rect, glyph, figure.color, opacity, angle),
@@ -92,7 +95,7 @@ fn draw_glyph(
     angle: f32,
 ) {
     let text = glyph.to_string();
-    let font = FontId::proportional(rect.height() * 0.88);
+    let font = FontId::proportional((rect.height() * 0.88).max(1.0));
     let galley = painter.layout_no_wrap(text, font, Color32::PLACEHOLDER);
     let position = rect.center() - galley.size() / 2.0;
     let outline = with_opacity(contrast_for(color), opacity * 0.75);

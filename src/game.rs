@@ -1,4 +1,7 @@
-use std::{collections::VecDeque, time::Instant};
+use std::{
+    collections::{HashSet, VecDeque},
+    time::Instant,
+};
 
 use eframe::egui::{Pos2, Rect, Vec2, pos2, vec2};
 use rand::Rng;
@@ -10,6 +13,7 @@ use crate::{
 
 const LETTER_GAP: f32 = 8.0;
 const LETTER_PADDING: f32 = 24.0;
+const GLYPH_SIZE: Vec2 = Vec2::new(220.0, 300.0);
 const MAX_PARTICLES: usize = 72;
 const REMOVAL_FADE_SECONDS: f32 = 1.0;
 
@@ -187,6 +191,13 @@ pub struct Game {
     pub displays: Vec<DisplayState>,
     next_id: u64,
     next_color_index: usize,
+    active_word: Option<ActiveWord>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ActiveWord {
+    color: BabyColor,
+    last_letter: Instant,
 }
 
 impl Game {
@@ -196,6 +207,7 @@ impl Game {
             displays: display_sizes.into_iter().map(DisplayState::new).collect(),
             next_id: 1,
             next_color_index: 0,
+            active_word: None,
         }
     }
 
@@ -205,7 +217,6 @@ impl Game {
         settings: &Settings,
         now: Instant,
     ) -> String {
-        let mut rng = rand::rng();
         let (kind, default_speech, grouped_letter) = match response.kind {
             ResponseKind::Glyph(mut glyph) => {
                 if !settings.force_uppercase {
@@ -228,19 +239,25 @@ impl Game {
                 false,
             ),
         };
-        let color = COLORS[self.next_color_index];
-        if matches!(kind, FigureKind::Glyph(_) | FigureKind::Shape(_)) {
-            self.next_color_index = (self.next_color_index + 1) % COLORS.len();
-        }
+        let (color, continues_word) =
+            self.color_for_response(&kind, grouped_letter, settings, now);
 
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1).max(1);
         let size = size_for(&kind);
+        let mut rng = rand::rng();
         let placements = self
             .displays
             .iter()
             .enumerate()
             .map(|(display_index, display)| {
+                if continues_word {
+                    return Placement {
+                        top_left: Pos2::ZERO,
+                        size,
+                        interaction: None,
+                    };
+                }
                 let mut occupied = self
                     .figures
                     .iter()
@@ -305,6 +322,7 @@ impl Game {
 
     pub fn clear(&mut self) {
         self.figures.clear();
+        self.active_word = None;
         for display in &mut self.displays {
             display.letter_run.clear();
             display.last_letter = None;
@@ -317,7 +335,7 @@ impl Game {
             .iter()
             .filter(|figure| figure.fade_after.is_some() && figure.opacity(now) <= 0.0)
             .map(|figure| figure.id)
-            .collect::<Vec<_>>();
+            .collect::<HashSet<_>>();
         if expired.is_empty() {
             return;
         }
@@ -330,6 +348,44 @@ impl Game {
                 display.last_letter = None;
             }
         }
+    }
+
+    fn color_for_response(
+        &mut self,
+        kind: &FigureKind,
+        grouped_letter: bool,
+        settings: &Settings,
+        now: Instant,
+    ) -> (BabyColor, bool) {
+        if grouped_letter && settings.group_letters {
+            let current_word = self.active_word.filter(|word| {
+                now.duration_since(word.last_letter).as_secs_f32()
+                    <= settings.letter_grouping_timeout_seconds
+            });
+            let (color, continues_word) = match current_word {
+                Some(word) => (word.color, true),
+                None => (self.take_next_color(), false),
+            };
+            self.active_word = Some(ActiveWord {
+                color,
+                last_letter: now,
+            });
+            return (color, continues_word);
+        }
+
+        self.active_word = None;
+        let color = if matches!(kind, FigureKind::Glyph(_) | FigureKind::Shape(_)) {
+            self.take_next_color()
+        } else {
+            COLORS[self.next_color_index]
+        };
+        (color, false)
+    }
+
+    fn take_next_color(&mut self) -> BabyColor {
+        let color = COLORS[self.next_color_index];
+        self.next_color_index = (self.next_color_index + 1) % COLORS.len();
+        color
     }
 
     fn update_letter_run(
@@ -369,37 +425,30 @@ impl Game {
 
     fn arrange_letter_run(&mut self, display_index: usize) {
         let display = &self.displays[display_index];
-        let ids = display.letter_run.clone();
+        let ids = display.letter_run.iter().copied().collect::<HashSet<_>>();
         let display_size = display.size;
         let anchor = display.letter_anchor_x;
         let requested_top = display.letter_top;
-        let sizes: Vec<Vec2> = ids
-            .iter()
-            .filter_map(|id| {
-                self.placement(*id, display_index)
-                    .map(|placement| placement.size)
-            })
-            .collect();
-        if sizes.is_empty() {
+        if ids.is_empty() {
             return;
         }
-        let total_width =
-            sizes.iter().map(|size| size.x).sum::<f32>() + LETTER_GAP * (sizes.len() - 1) as f32;
+        let total_width = GLYPH_SIZE.x * ids.len() as f32 + LETTER_GAP * (ids.len() - 1) as f32;
         let max_left = (display_size.x - LETTER_PADDING - total_width).max(LETTER_PADDING);
         let mut left = if total_width >= (display_size.x - LETTER_PADDING * 2.0).max(0.0) {
             display_size.x - LETTER_PADDING - total_width
         } else {
             (anchor - total_width / 2.0).clamp(LETTER_PADDING, max_left)
         };
-        let max_height = sizes.iter().map(|size| size.y).fold(0.0_f32, f32::max);
         let top = requested_top.clamp(
             LETTER_PADDING,
-            (display_size.y - LETTER_PADDING - max_height).max(LETTER_PADDING),
+            (display_size.y - LETTER_PADDING - GLYPH_SIZE.y).max(LETTER_PADDING),
         );
-        for (id, size) in ids.into_iter().zip(sizes) {
-            if let Some(placement) = self.placement_mut(id, display_index) {
-                placement.top_left = pos2(left, top + (max_height - size.y) / 2.0);
-                left += size.x + LETTER_GAP;
+        for figure in &mut self.figures {
+            if ids.contains(&figure.id)
+                && let Some(placement) = figure.placements.get_mut(display_index)
+            {
+                placement.top_left = pos2(left, top);
+                left += GLYPH_SIZE.x + LETTER_GAP;
             }
         }
     }
@@ -442,13 +491,6 @@ impl Game {
             .find(|figure| figure.id == id)
             .and_then(|figure| figure.placements.get(display_index))
     }
-
-    fn placement_mut(&mut self, id: u64, display_index: usize) -> Option<&mut Placement> {
-        self.figures
-            .iter_mut()
-            .find(|figure| figure.id == id)
-            .and_then(|figure| figure.placements.get_mut(display_index))
-    }
 }
 
 fn best_available_position(
@@ -457,7 +499,8 @@ fn best_available_position(
     figure: Vec2,
     occupied: impl IntoIterator<Item = Rect>,
 ) -> Pos2 {
-    const RANDOM_ATTEMPTS: usize = 64;
+    const RANDOM_ATTEMPTS: usize = 48;
+    const EDGE_OBSTACLES: usize = 4;
 
     let occupied = occupied.into_iter().collect::<Vec<_>>();
     let max_x = (display.x - figure.x).max(0.0);
@@ -481,10 +524,11 @@ fn best_available_position(
         }
     }
 
-    // Edge-aligned candidates find narrow gaps that random sampling can miss.
+    // A bounded set of edge-aligned candidates finds narrow gaps without the
+    // quadratic candidate explosion caused by combining every figure edge.
     let mut x_candidates = vec![0.0, max_x];
     let mut y_candidates = vec![0.0, max_y];
-    for rect in occupied.iter().rev().take(32) {
+    for rect in occupied.iter().rev().take(EDGE_OBSTACLES) {
         x_candidates.extend([rect.min.x - figure.x, rect.max.x]);
         y_candidates.extend([rect.min.y - figure.y, rect.max.y]);
     }
@@ -516,7 +560,7 @@ fn overlap_area(left: Rect, right: Rect) -> f32 {
 
 pub fn size_for(kind: &FigureKind) -> Vec2 {
     match kind {
-        FigureKind::Glyph(_) => vec2(220.0, 300.0),
+        FigureKind::Glyph(_) => GLYPH_SIZE,
         FigureKind::Emoji(_) => Vec2::splat(340.0),
         FigureKind::Shape(shape) => match shape {
             ShapeKind::Oval => vec2(190.0, 250.0),
@@ -771,6 +815,63 @@ mod tests {
             game.figures.back().map(|figure| figure.color.name),
             Some("Red")
         );
+    }
+
+    #[test]
+    fn letters_inside_the_word_timeout_share_one_color() {
+        let mut game = Game::new([vec2(1920.0, 1080.0)]);
+        let settings = Settings {
+            letter_grouping_timeout_seconds: 1.0,
+            ..Settings::default()
+        };
+        let started = Instant::now();
+        game.add_response(response_for("A"), &settings, started);
+        game.add_response(
+            response_for("B"),
+            &settings,
+            started + Duration::from_millis(750),
+        );
+        game.add_response(
+            response_for("C"),
+            &settings,
+            started + Duration::from_millis(1500),
+        );
+
+        let colors = game
+            .figures
+            .iter()
+            .map(|figure| figure.color.name)
+            .collect::<Vec<_>>();
+        assert_eq!(colors, ["Red", "Red", "Red"]);
+
+        game.add_response(
+            response_for("D"),
+            &settings,
+            started + Duration::from_millis(2501),
+        );
+        assert_eq!(
+            game.figures.back().map(|figure| figure.color.name),
+            Some("Orange")
+        );
+    }
+
+    #[test]
+    fn disabling_word_grouping_restores_per_letter_colors() {
+        let mut game = Game::new([vec2(1920.0, 1080.0)]);
+        let settings = Settings {
+            group_letters: false,
+            ..Settings::default()
+        };
+        let now = Instant::now();
+        game.add_response(response_for("A"), &settings, now);
+        game.add_response(response_for("B"), &settings, now);
+
+        let colors = game
+            .figures
+            .iter()
+            .map(|figure| figure.color.name)
+            .collect::<Vec<_>>();
+        assert_eq!(colors, ["Red", "Orange"]);
     }
 
     #[test]
