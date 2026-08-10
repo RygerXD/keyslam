@@ -212,7 +212,9 @@ pub fn response_for(key_name: &str) -> KeyResponse {
         "NumPad8" => return KeyResponse::shape(ShapeKind::Octagon),
         "NumPad9" => return KeyResponse::shape(ShapeKind::Trapezoid),
         "NumPad0" => return KeyResponse::shape(ShapeKind::Circle),
-        "Multiply" => return KeyResponse::shape(ShapeKind::Star),
+        "Multiply" | "NumpadMultiply" | "Asterisk" | "*" => {
+            return KeyResponse::shape(ShapeKind::Star);
+        }
         "Escape" => return KeyResponse::animal("🐻", "Bear"),
         "Space" => return KeyResponse::animal("🐯", "Tiger"),
         _ => {}
@@ -306,10 +308,22 @@ mod tests {
 
     #[test]
     fn numpad_digits_are_shapes() {
-        assert_eq!(
-            response_for("NumPad5").kind,
-            ResponseKind::Shape(ShapeKind::Pentagon)
-        );
+        for (key, shape) in [
+            ("NumPad0", ShapeKind::Circle),
+            ("NumPad1", ShapeKind::Oval),
+            ("NumPad2", ShapeKind::Rectangle),
+            ("NumPad3", ShapeKind::Triangle),
+            ("NumPad4", ShapeKind::Square),
+            ("NumPad5", ShapeKind::Pentagon),
+            ("NumPad6", ShapeKind::Hexagon),
+            ("NumPad7", ShapeKind::Septagon),
+            ("NumPad8", ShapeKind::Octagon),
+            ("NumPad9", ShapeKind::Trapezoid),
+            ("Multiply", ShapeKind::Star),
+            ("*", ShapeKind::Star),
+        ] {
+            assert_eq!(response_for(key).kind, ResponseKind::Shape(shape));
+        }
     }
 
     #[test]

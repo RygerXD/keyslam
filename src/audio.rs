@@ -170,18 +170,7 @@ impl AudioSystem {
         let (sender, receiver) = bounded(64);
         let status = Arc::new(Mutex::new(None));
         let mut clips = HashMap::new();
-        for name in [
-            "EditedJackPlaysBabySmash.wav",
-            "babygigl2.wav",
-            "babylaugh.wav",
-            "ccgiggle.wav",
-            "falling.wav",
-            "giggle.wav",
-            "laughingmice.wav",
-            "rising.wav",
-            "scooby2.wav",
-            "smallbumblebee.wav",
-        ] {
+        for name in ["smallbumblebee.wav"] {
             match SOUNDS
                 .get_file(name)
                 .and_then(|file| decode_wav(file.contents()).ok())
@@ -327,9 +316,8 @@ where
 }
 
 fn decode_wav(bytes: &[u8]) -> Result<AudioClip, String> {
-    let encoded = wave_payload_if_mpeg(bytes).unwrap_or(bytes);
-    let decoder = rodio::Decoder::try_from(Cursor::new(encoded.to_vec()))
-        .map_err(|error| error.to_string())?;
+    let decoder =
+        rodio::Decoder::try_from(Cursor::new(bytes.to_vec())).map_err(|error| error.to_string())?;
     let channels = usize::from(decoder.channels().get());
     let sample_rate = f64::from(decoder.sample_rate().get());
     let samples = decoder.collect();
@@ -338,28 +326,6 @@ fn decode_wav(bytes: &[u8]) -> Result<AudioClip, String> {
         channels,
         sample_rate,
     })
-}
-
-fn wave_payload_if_mpeg(bytes: &[u8]) -> Option<&[u8]> {
-    if bytes.get(0..4)? != b"RIFF" || bytes.get(8..12)? != b"WAVE" {
-        return None;
-    }
-    let mut offset = 12;
-    let mut mpeg = false;
-    let mut payload = None;
-    while offset + 8 <= bytes.len() {
-        let id = bytes.get(offset..offset + 4)?;
-        let size = u32::from_le_bytes(bytes.get(offset + 4..offset + 8)?.try_into().ok()?) as usize;
-        let start = offset + 8;
-        let end = start.checked_add(size)?.min(bytes.len());
-        if id == b"fmt " && end >= start + 2 {
-            mpeg = u16::from_le_bytes(bytes.get(start..start + 2)?.try_into().ok()?) == 0x55;
-        } else if id == b"data" {
-            payload = bytes.get(start..end);
-        }
-        offset = end + (size & 1);
-    }
-    mpeg.then_some(payload?).filter(|data| !data.is_empty())
 }
 
 fn midi_note(frequency: f32) -> i32 {

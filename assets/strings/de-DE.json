@@ -4,7 +4,10 @@
 	"Circle": "Kreis",
 	"Oval": "Oval",
 	"Rectangle": "Rechteck",
+	"Pentagon": "Fünfeck",
 	"Hexagon": "Hexagon",
+	"Septagon": "Siebeneck",
+	"Octagon": "Achteck",
 	"Trapezoid": "Trapezoid",
 	"Star": "Stern",
 	"Square": "Quadrat",
@@ -15,9 +18,14 @@
 	"Blue": "Blau",
 	"Yellow": "Gelb",
 	"Green": "Grün",
+	"Indigo": "Indigo",
+	"Violet": "Violett",
 	"Purple": "Lila",
 	"Pink": "Pink",
 	"Orange": "Orange",
 	"Tan": "Braun",
-	"Gray": "Grau"
+	"Brown": "Braun",
+	"White": "Weiß",
+	"Gray": "Grau",
+	"Black": "Schwarz"
 }

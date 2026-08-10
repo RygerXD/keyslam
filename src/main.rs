@@ -15,9 +15,6 @@ use eframe::egui;
 
 fn main() -> eframe::Result {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
-    let show_fps = args
-        .iter()
-        .any(|argument| argument == "--fps" || argument == "-fps");
     let windowed = args.iter().any(|argument| argument == "--windowed");
 
     let instance = match single_instance::SingleInstance::new("BabySmashRustSingleInstance") {
@@ -44,7 +41,7 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "BabySmash! for Rust",
         native_options,
-        Box::new(move |_creation_context| Ok(Box::new(BabySmashApp::new(displays, show_fps)))),
+        Box::new(move |_creation_context| Ok(Box::new(BabySmashApp::new(displays)))),
     )
 }
 

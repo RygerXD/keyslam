@@ -1,31 +1,25 @@
 use std::time::{Duration, Instant};
 
-use crossbeam_channel::{Receiver, bounded};
-use eframe::egui::{
-    self, Align2, Color32, ComboBox, Context, Event, FontId, Frame, Key, PointerButton, RichText,
-    Ui, Vec2, ViewportBuilder, ViewportCommand, ViewportId, WindowLevel, vec2,
-};
-use rand::Rng;
-
 use crate::{
     audio::AudioSystem,
-    game::{FigureKind, Game, pointer_tone},
+    game::{BabyColor, COLORS, FigureKind, Game, pointer_tone},
     localization::Localization,
-    platform::{KeyboardGuard, PlatformEvent, install_keyboard_guard},
+    platform::{KeyboardGuard, PlatformEvent, install_keyboard_guard, pressed_numpad_key},
     render::{self, TextureCache},
     responses::response_for,
     settings::{CursorEffect, CursorStyle, PointerSound, Settings, SettingsStore, SoundMode},
     speech::SpeechSystem,
 };
+use crossbeam_channel::{Receiver, bounded};
+use eframe::egui::{
+    self, Align2, Color32, ComboBox, Context, Event, FontId, Frame, Key, Painter, PointerButton,
+    Pos2, Rect, RichText, Stroke, Ui, Vec2, ViewportBuilder, ViewportCommand, ViewportId,
+    WindowLevel, pos2, vec2,
+};
 
-const LAUGHTER_SOUNDS: [&str; 6] = [
-    "giggle.wav",
-    "babylaugh.wav",
-    "babygigl2.wav",
-    "ccgiggle.wav",
-    "laughingmice.wav",
-    "scooby2.wav",
-];
+const MIN_BRUSH_SIZE: f32 = 6.0;
+const MAX_BRUSH_SIZE: f32 = 96.0;
+const MAX_PAINT_POINTS_PER_DISPLAY: usize = 20_000;
 
 #[derive(Debug, Clone)]
 pub struct DisplayConfig {
@@ -62,6 +56,175 @@ enum OptionsTab {
     Letters,
 }
 
+#[derive(Debug)]
+struct PaintStroke {
+    points: Vec<Pos2>,
+    color: BabyColor,
+    brush_size: f32,
+}
+
+#[derive(Debug)]
+struct ColoringState {
+    selected_color: usize,
+    brush_size: f32,
+    strokes: Vec<Vec<PaintStroke>>,
+    active_strokes: Vec<Option<usize>>,
+    slider_dragging: Vec<bool>,
+    point_counts: Vec<usize>,
+}
+
+impl ColoringState {
+    fn new(display_count: usize) -> Self {
+        Self {
+            selected_color: 0,
+            brush_size: 36.0,
+            strokes: (0..display_count).map(|_| Vec::new()).collect(),
+            active_strokes: vec![None; display_count],
+            slider_dragging: vec![false; display_count],
+            point_counts: vec![0; display_count],
+        }
+    }
+
+    fn begin_stroke(&mut self, display_index: usize, position: Pos2) {
+        self.end_stroke(display_index);
+        while self.point_counts[display_index] >= MAX_PAINT_POINTS_PER_DISPLAY {
+            let Some(removed) = self.strokes[display_index].first() else {
+                self.point_counts[display_index] = 0;
+                break;
+            };
+            self.point_counts[display_index] =
+                self.point_counts[display_index].saturating_sub(removed.points.len());
+            self.strokes[display_index].remove(0);
+        }
+        self.strokes[display_index].push(PaintStroke {
+            points: vec![position],
+            color: COLORS[self.selected_color],
+            brush_size: self.brush_size,
+        });
+        self.point_counts[display_index] += 1;
+        self.active_strokes[display_index] = Some(self.strokes[display_index].len() - 1);
+    }
+
+    fn extend_stroke(&mut self, display_index: usize, position: Pos2) {
+        if self.point_counts[display_index] >= MAX_PAINT_POINTS_PER_DISPLAY {
+            return;
+        }
+        let Some(stroke_index) = self.active_strokes[display_index] else {
+            return;
+        };
+        let Some(stroke) = self.strokes[display_index].get_mut(stroke_index) else {
+            self.active_strokes[display_index] = None;
+            return;
+        };
+        if stroke
+            .points
+            .last()
+            .is_none_or(|last| last.distance_sq(position) >= 2.25)
+        {
+            stroke.points.push(position);
+            self.point_counts[display_index] += 1;
+        }
+    }
+
+    fn end_stroke(&mut self, display_index: usize) {
+        self.active_strokes[display_index] = None;
+        self.slider_dragging[display_index] = false;
+    }
+
+    fn end_all_strokes(&mut self) {
+        self.active_strokes.fill(None);
+        self.slider_dragging.fill(false);
+    }
+
+    fn clear(&mut self) {
+        for strokes in &mut self.strokes {
+            strokes.clear();
+        }
+        self.point_counts.fill(0);
+        self.end_all_strokes();
+    }
+}
+
+#[derive(Debug)]
+struct ColoringLayout {
+    swatches: Vec<Rect>,
+    clear_button: Rect,
+    bottom_panel: Rect,
+    slider_panel: Rect,
+    slider_track: Rect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ColoringControl {
+    Canvas,
+    Swatch(usize),
+    Clear,
+    BrushSlider,
+    Panel,
+}
+
+fn coloring_layout(display: Vec2) -> ColoringLayout {
+    let margin = 12.0;
+    let gap = 6.0;
+    let clear_width = 112.0_f32.min((display.x * 0.18).max(72.0));
+    let swatch_size =
+        ((display.x - margin * 2.0 - clear_width - gap * 12.0) / 12.0).clamp(12.0, 42.0);
+    let total_width = swatch_size * 12.0 + gap * 12.0 + clear_width;
+    let start_x = ((display.x - total_width) / 2.0).max(4.0);
+    let swatch_top = (display.y - margin - swatch_size).max(0.0);
+    let swatches = (0..COLORS.len())
+        .map(|index| {
+            let left = start_x + index as f32 * (swatch_size + gap);
+            Rect::from_min_size(pos2(left, swatch_top), Vec2::splat(swatch_size))
+        })
+        .collect::<Vec<_>>();
+    let clear_left = start_x + 12.0 * (swatch_size + gap);
+    let clear_button =
+        Rect::from_min_size(pos2(clear_left, swatch_top), vec2(clear_width, swatch_size));
+    let bottom_panel = Rect::from_min_max(
+        pos2((start_x - 8.0).max(0.0), (swatch_top - 8.0).max(0.0)),
+        pos2((clear_button.right() + 8.0).min(display.x), display.y),
+    );
+
+    let slider_bottom = (bottom_panel.top() - 14.0).max(112.0);
+    let slider_panel = Rect::from_min_max(pos2(10.0, 58.0), pos2(62.0, slider_bottom));
+    let slider_track = Rect::from_min_max(
+        pos2(slider_panel.center().x - 4.0, slider_panel.top() + 16.0),
+        pos2(slider_panel.center().x + 4.0, slider_panel.bottom() - 16.0),
+    );
+
+    ColoringLayout {
+        swatches,
+        clear_button,
+        bottom_panel,
+        slider_panel,
+        slider_track,
+    }
+}
+
+fn coloring_control_at(position: Pos2, layout: &ColoringLayout) -> ColoringControl {
+    if let Some(index) = layout
+        .swatches
+        .iter()
+        .position(|swatch| swatch.contains(position))
+    {
+        ColoringControl::Swatch(index)
+    } else if layout.clear_button.contains(position) {
+        ColoringControl::Clear
+    } else if layout.slider_panel.contains(position) {
+        ColoringControl::BrushSlider
+    } else if layout.bottom_panel.contains(position) {
+        ColoringControl::Panel
+    } else {
+        ColoringControl::Canvas
+    }
+}
+
+fn brush_size_for(position: Pos2, track: Rect) -> f32 {
+    let progress = ((track.bottom() - position.y) / track.height().max(1.0)).clamp(0.0, 1.0);
+    MIN_BRUSH_SIZE + (MAX_BRUSH_SIZE - MIN_BRUSH_SIZE) * progress
+}
+
 pub struct BabySmashApp {
     displays: Vec<DisplayConfig>,
     settings: Settings,
@@ -72,29 +235,22 @@ pub struct BabySmashApp {
     audio: AudioSystem,
     speech: SpeechSystem,
     textures: TextureCache,
+    coloring: ColoringState,
     platform_events: Receiver<PlatformEvent>,
     _keyboard_guard: Option<KeyboardGuard>,
     options_open: bool,
     options_tab: OptionsTab,
-    help_visible: bool,
     status: Option<String>,
     last_frame: Instant,
     frame_seconds: f32,
-    show_fps: bool,
-    frames: u32,
-    fps: f32,
-    fps_started: Instant,
 }
 
 impl BabySmashApp {
-    pub fn new(displays: Vec<DisplayConfig>, show_fps: bool) -> Self {
+    pub fn new(displays: Vec<DisplayConfig>) -> Self {
         let (settings_store, settings) = SettingsStore::open();
         let localization = Localization::detect();
         let audio = AudioSystem::new();
         let speech = SpeechSystem::new(localization.locale());
-        if settings.startup_sound {
-            audio.play_sound("EditedJackPlaysBabySmash.wav");
-        }
         let (platform_sender, platform_events) = bounded(128);
         let (keyboard_guard, keyboard_warning) = match install_keyboard_guard(platform_sender) {
             Ok(guard) => (Some(guard), None),
@@ -105,6 +261,7 @@ impl BabySmashApp {
             .iter()
             .map(|display| display.size)
             .collect::<Vec<_>>();
+        let coloring = ColoringState::new(displays.len());
         Self {
             displays,
             draft_settings: settings.clone(),
@@ -115,18 +272,14 @@ impl BabySmashApp {
             audio,
             speech,
             textures: TextureCache::default(),
+            coloring,
             platform_events,
             _keyboard_guard: keyboard_guard,
             options_open: false,
             options_tab: OptionsTab::Audio,
-            help_visible: true,
             status,
             last_frame: Instant::now(),
             frame_seconds: 1.0 / 60.0,
-            show_fps,
-            frames: 0,
-            fps: 0.0,
-            fps_started: Instant::now(),
         }
     }
 
@@ -143,13 +296,11 @@ impl BabySmashApp {
     }
 
     fn process_key(&mut self, key_name: &str) {
-        self.help_visible = false;
         let now = Instant::now();
         self.game
             .add_response(response_for(key_name), &self.settings, now);
         match self.settings.sound_mode {
             SoundMode::None => {}
-            SoundMode::Laughter => self.play_laughter(),
             SoundMode::Speech => {
                 if let Some(figure) = self.game.figures.back() {
                     let phrase = match figure.kind {
@@ -165,9 +316,73 @@ impl BabySmashApp {
         }
     }
 
-    fn play_laughter(&self) {
-        let index = rand::rng().random_range(0..LAUGHTER_SOUNDS.len());
-        self.audio.play_sound(LAUGHTER_SOUNDS[index]);
+    fn draw_painting(&self, painter: &Painter, display_index: usize) {
+        let Some(strokes) = self.coloring.strokes.get(display_index) else {
+            return;
+        };
+        for stroke in strokes {
+            let color = Color32::from_rgb(
+                stroke.color.rgb[0],
+                stroke.color.rgb[1],
+                stroke.color.rgb[2],
+            );
+            if let [point] = stroke.points.as_slice() {
+                painter.circle_filled(*point, stroke.brush_size / 2.0, color);
+            } else {
+                for pair in stroke.points.windows(2) {
+                    painter.line_segment([pair[0], pair[1]], Stroke::new(stroke.brush_size, color));
+                }
+            }
+        }
+    }
+
+    fn draw_coloring_controls(&self, painter: &Painter, display: Vec2) {
+        let layout = coloring_layout(display);
+        painter.rect_filled(layout.bottom_panel, 10.0, Color32::from_black_alpha(205));
+        painter.rect_filled(layout.slider_panel, 10.0, Color32::from_black_alpha(205));
+
+        for (index, swatch) in layout.swatches.iter().enumerate() {
+            let center = swatch.center();
+            let radius = swatch.width().min(swatch.height()) / 2.0 - 2.0;
+            if index == self.coloring.selected_color {
+                painter.circle_filled(center, radius + 3.0, Color32::WHITE);
+                painter.circle_filled(center, radius + 1.0, Color32::BLACK);
+            }
+            let color = COLORS[index];
+            painter.circle_filled(
+                center,
+                radius,
+                Color32::from_rgb(color.rgb[0], color.rgb[1], color.rgb[2]),
+            );
+        }
+
+        painter.rect_filled(layout.clear_button, 7.0, Color32::from_rgb(115, 35, 35));
+        painter.text(
+            layout.clear_button.center(),
+            Align2::CENTER_CENTER,
+            "Clear screen",
+            FontId::proportional((layout.clear_button.height() * 0.34).clamp(10.0, 16.0)),
+            Color32::WHITE,
+        );
+
+        painter.line_segment(
+            [
+                layout.slider_track.center_top(),
+                layout.slider_track.center_bottom(),
+            ],
+            Stroke::new(8.0, Color32::from_gray(85)),
+        );
+        let progress =
+            (self.coloring.brush_size - MIN_BRUSH_SIZE) / (MAX_BRUSH_SIZE - MIN_BRUSH_SIZE);
+        let thumb_y = layout.slider_track.bottom() - layout.slider_track.height() * progress;
+        let thumb = pos2(layout.slider_track.center().x, thumb_y);
+        let selected = COLORS[self.coloring.selected_color];
+        painter.circle_filled(thumb, 12.0, Color32::WHITE);
+        painter.circle_filled(
+            thumb,
+            9.0,
+            Color32::from_rgb(selected.rgb[0], selected.rgb[1], selected.rgb[2]),
+        );
     }
 
     fn render_viewport(&mut self, ui: &mut Ui, display_index: usize) {
@@ -178,10 +393,17 @@ impl BabySmashApp {
             display.pointer.update(now, self.frame_seconds);
         }
         self.handle_input(ui, display_index, now);
+        self.game.remove_expired(now);
 
-        let channel = (f32::from(self.settings.background_brightness_percent) * 2.55).round() as u8;
+        let brightness = if self.options_open {
+            self.draft_settings.background_brightness_percent
+        } else {
+            self.settings.background_brightness_percent
+        };
+        let channel = (f32::from(brightness) * 2.55).round() as u8;
         ui.painter()
             .rect_filled(rect, 0.0, Color32::from_gray(channel));
+        self.draw_painting(ui.painter(), display_index);
         for figure in &self.game.figures {
             render::draw_figure(
                 ui.painter(),
@@ -198,20 +420,19 @@ impl BabySmashApp {
             if !self.options_open
                 && let Some(position) = display.pointer.position
             {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::None);
-                render::draw_cursor(ui.painter(), position, self.settings.cursor_style);
+                if self.settings.cursor_effect == CursorEffect::Coloring {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+                } else {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::None);
+                    render::draw_cursor(ui.painter(), position, self.settings.cursor_style);
+                }
             } else if self.options_open {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
             }
         }
 
-        if display_index == 0 && self.help_visible {
-            let light_background = self.settings.background_brightness_percent >= 55;
-            let primary = if light_background {
-                Color32::BLACK
-            } else {
-                Color32::WHITE
-            };
+        if display_index == 0 {
+            let light_background = brightness >= 55;
             let secondary = if light_background {
                 Color32::from_gray(55)
             } else {
@@ -220,45 +441,70 @@ impl BabySmashApp {
             ui.painter().text(
                 rect.left_top() + vec2(15.0, 15.0),
                 Align2::LEFT_TOP,
-                "BabySmash! for Rust",
-                FontId::proportional(24.0),
-                primary,
-            );
-            ui.painter().text(
-                rect.left_top() + vec2(15.0, 52.0),
-                Align2::LEFT_TOP,
-                "Press any key to start!",
+                "Alt+F4 exits • Alt+O opens settings",
                 FontId::proportional(14.0),
                 secondary,
             );
-            ui.painter().text(
-                rect.left_top() + vec2(15.0, 76.0),
-                Align2::LEFT_TOP,
-                "Alt+F4 exits • Alt+O opens settings",
-                FontId::proportional(12.0),
-                secondary,
-            );
+        }
+        if self.settings.cursor_effect == CursorEffect::Coloring {
+            self.draw_coloring_controls(ui.painter(), rect.size());
+        }
+    }
+
+    fn move_coloring_pointer(&mut self, display_index: usize, position: Pos2, now: Instant) {
+        let Some(display) = self.game.displays.get_mut(display_index) else {
+            return;
+        };
+        let layout = coloring_layout(display.size);
+        if self.coloring.slider_dragging[display_index] {
+            self.coloring.brush_size = brush_size_for(position, layout.slider_track);
+        } else if self.coloring.active_strokes[display_index].is_some() {
+            if coloring_control_at(position, &layout) == ColoringControl::Canvas {
+                self.coloring.extend_stroke(display_index, position);
+            } else {
+                self.coloring.end_stroke(display_index);
+            }
+        }
+        display
+            .pointer
+            .move_to(position, CursorEffect::Coloring, now);
+    }
+
+    fn press_coloring_pointer(
+        &mut self,
+        display_index: usize,
+        position: Pos2,
+        pressed: bool,
+        now: Instant,
+    ) {
+        let Some(display) = self.game.displays.get_mut(display_index) else {
+            return;
+        };
+        if !pressed {
+            display.pointer.release(now);
+            self.coloring.end_stroke(display_index);
+            self.audio.stop_sine();
+            return;
         }
 
-        if display_index == 0 && self.show_fps {
-            ui.painter().text(
-                rect.right_top() + vec2(-15.0, 15.0),
-                Align2::RIGHT_TOP,
-                format!("FPS: {:.0} | Items: {}", self.fps, self.game.figures.len()),
-                FontId::monospace(14.0),
-                Color32::LIGHT_GREEN,
-            );
-        }
-        if display_index == 0
-            && let Some(status) = self.current_status()
-        {
-            ui.painter().text(
-                rect.left_bottom() + vec2(15.0, -15.0),
-                Align2::LEFT_BOTTOM,
-                status,
-                FontId::proportional(12.0),
-                Color32::from_rgb(255, 190, 90),
-            );
+        display.pointer.press(position, CursorEffect::Coloring, now);
+        let layout = coloring_layout(display.size);
+        match coloring_control_at(position, &layout) {
+            ColoringControl::Canvas => self.coloring.begin_stroke(display_index, position),
+            ColoringControl::Swatch(index) => {
+                self.coloring.selected_color = index;
+                self.coloring.end_stroke(display_index);
+            }
+            ColoringControl::Clear => {
+                self.game.clear();
+                self.coloring.clear();
+            }
+            ColoringControl::BrushSlider => {
+                self.coloring.end_stroke(display_index);
+                self.coloring.slider_dragging[display_index] = true;
+                self.coloring.brush_size = brush_size_for(position, layout.slider_track);
+            }
+            ColoringControl::Panel => self.coloring.end_stroke(display_index),
         }
     }
 
@@ -299,10 +545,31 @@ impl BabySmashApp {
                     ..
                 } => {
                     let selected = physical_key.unwrap_or(key);
-                    self.process_key(selected.name());
+                    let key_name = if matches!(
+                        selected,
+                        Key::Num0
+                            | Key::Num1
+                            | Key::Num2
+                            | Key::Num3
+                            | Key::Num4
+                            | Key::Num5
+                            | Key::Num6
+                            | Key::Num7
+                            | Key::Num8
+                            | Key::Num9
+                    ) {
+                        pressed_numpad_key().unwrap_or(selected.name())
+                    } else {
+                        selected.name()
+                    };
+                    self.process_key(key_name);
                 }
                 Event::PointerMoved(position) => {
                     let effect = self.settings.cursor_effect;
+                    if effect == CursorEffect::Coloring {
+                        self.move_coloring_pointer(display_index, position, now);
+                        continue;
+                    }
                     if let Some(display) = self.game.displays.get_mut(display_index) {
                         display.pointer.move_to(position, effect, now);
                         if display.pointer.primary_down
@@ -323,19 +590,20 @@ impl BabySmashApp {
                     pressed,
                     ..
                 } => {
+                    if self.settings.cursor_effect == CursorEffect::Coloring {
+                        self.press_coloring_pointer(display_index, pos, pressed, now);
+                        continue;
+                    }
                     if pressed {
                         if let Some(display) = self.game.displays.get_mut(display_index) {
                             display.pointer.press(pos, self.settings.cursor_effect, now);
                         }
-                        let clicked = self.game.interact_at(
+                        self.game.interact_at(
                             display_index,
                             pos,
                             now,
                             self.settings.interaction_animations,
                         );
-                        if clicked && self.settings.interaction_sounds {
-                            self.play_laughter();
-                        }
                         match self.settings.pointer_sound {
                             PointerSound::Click => self.audio.play_sound("smallbumblebee.wav"),
                             PointerSound::SineWave => {
@@ -369,12 +637,14 @@ impl BabySmashApp {
                     }
                 }
                 Event::MouseWheel { delta, .. } if delta.y != 0.0 => {
+                    self.coloring.end_all_strokes();
                     self.settings.cursor_effect = self.settings.cursor_effect.cycle(delta.y > 0.0);
                     if let Err(error) = self.settings_store.save(&self.settings) {
                         self.status = Some(format!("Could not save pointer effect: {error}"));
                     }
                 }
                 Event::PointerGone => {
+                    self.coloring.end_stroke(display_index);
                     if let Some(display) = self.game.displays.get_mut(display_index) {
                         display.pointer.release(now);
                         display.pointer.position = None;
@@ -388,6 +658,11 @@ impl BabySmashApp {
 
     fn open_options(&mut self) {
         self.audio.stop_sine();
+        self.coloring.end_all_strokes();
+        let now = Instant::now();
+        for display in &mut self.game.displays {
+            display.pointer.release(now);
+        }
         self.draft_settings = self.settings.clone();
         self.options_open = true;
     }
@@ -431,10 +706,6 @@ impl BabySmashApp {
                     ui.label(
                         RichText::new(format!("Version {}", env!("CARGO_PKG_VERSION"))).small(),
                     );
-                    ui.hyperlink_to(
-                        "Send feedback on GitHub",
-                        "https://github.com/RygerXD/babysmash/issues",
-                    );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button("Save changes").clicked() {
                             self.draft_settings.normalize();
@@ -460,6 +731,9 @@ impl BabySmashApp {
                     .small()
                     .weak(),
                 );
+                if let Some(status) = self.current_status() {
+                    ui.colored_label(Color32::from_rgb(180, 100, 0), status);
+                }
             });
         if !open {
             self.options_open = false;
@@ -483,18 +757,14 @@ impl eframe::App for BabySmashApp {
             .as_secs_f32()
             .clamp(1.0 / 240.0, 0.1);
         self.last_frame = now;
-        self.frames = self.frames.saturating_add(1);
-        let fps_elapsed = now.duration_since(self.fps_started).as_secs_f32();
-        if fps_elapsed >= 1.0 {
-            self.fps = self.frames as f32 / fps_elapsed;
-            self.frames = 0;
-            self.fps_started = now;
-        }
 
         self.process_platform_events(&ctx);
-        let background = Color32::from_gray(
-            (f32::from(self.settings.background_brightness_percent) * 2.55).round() as u8,
-        );
+        let brightness = if self.options_open {
+            self.draft_settings.background_brightness_percent
+        } else {
+            self.settings.background_brightness_percent
+        };
+        let background = Color32::from_gray((f32::from(brightness) * 2.55).round() as u8);
         Frame::new()
             .fill(background)
             .show(ui, |ui| self.render_viewport(ui, 0));
@@ -526,7 +796,6 @@ fn audio_options(ui: &mut Ui, settings: &mut Settings) {
         ComboBox::from_id_salt("sound-mode")
             .selected_text(match settings.sound_mode {
                 SoundMode::Speech => "Speak the item",
-                SoundMode::Laughter => "Play laughter",
                 SoundMode::None => "No key sound",
             })
             .show_ui(ui, |ui| {
@@ -535,23 +804,8 @@ fn audio_options(ui: &mut Ui, settings: &mut Settings) {
                     SoundMode::Speech,
                     "Speak the item",
                 );
-                ui.selectable_value(
-                    &mut settings.sound_mode,
-                    SoundMode::Laughter,
-                    "Play laughter",
-                );
                 ui.selectable_value(&mut settings.sound_mode, SoundMode::None, "No key sound");
             });
-    });
-    section(ui, "Other sounds", |ui| {
-        ui.checkbox(
-            &mut settings.startup_sound,
-            "Play the welcome sound at startup",
-        );
-        ui.checkbox(
-            &mut settings.interaction_sounds,
-            "Play sounds when scrolling and tapping shapes",
-        );
     });
     section(ui, "Pointer sounds", |ui| {
         ComboBox::from_id_salt("pointer-sound")
@@ -608,7 +862,7 @@ fn visual_options(ui: &mut Ui, settings: &mut Settings) {
         ui.add_enabled_ui(settings.fade_away, |ui| {
             ui.add(
                 egui::Slider::new(&mut settings.fade_after_seconds, 1.0..=120.0)
-                    .text("Fade duration (seconds)"),
+                    .text("Keep items visible for (seconds)"),
             );
         });
         ui.add(egui::Slider::new(&mut settings.clear_after, 5..=200).text("Items kept on screen"));
@@ -638,6 +892,7 @@ fn input_options(ui: &mut Ui, settings: &mut Settings) {
                 CursorEffect::Rainbow => "Rainbow ribbon",
                 CursorEffect::Sparkles => "Sparkles",
                 CursorEffect::Bubbles => "Bubbles",
+                CursorEffect::Coloring => "Coloring mode",
             })
             .show_ui(ui, |ui| {
                 ui.selectable_value(&mut settings.cursor_effect, CursorEffect::None, "None");
@@ -655,6 +910,11 @@ fn input_options(ui: &mut Ui, settings: &mut Settings) {
                     &mut settings.cursor_effect,
                     CursorEffect::Bubbles,
                     "Bubbles",
+                );
+                ui.selectable_value(
+                    &mut settings.cursor_effect,
+                    CursorEffect::Coloring,
+                    "Coloring mode",
                 );
             });
         ui.label("Use the mouse wheel during play to cycle through the effects.");
@@ -721,4 +981,56 @@ pub fn display_configs(windowed: bool) -> Vec<DisplayConfig> {
         });
     }
     displays
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn coloring_layout_exposes_all_swatches_and_clear_button() {
+        let layout = coloring_layout(vec2(1280.0, 800.0));
+        assert_eq!(layout.swatches.len(), COLORS.len());
+        for (index, swatch) in layout.swatches.iter().enumerate() {
+            assert_eq!(
+                coloring_control_at(swatch.center(), &layout),
+                ColoringControl::Swatch(index)
+            );
+        }
+        assert_eq!(
+            coloring_control_at(layout.clear_button.center(), &layout),
+            ColoringControl::Clear
+        );
+    }
+
+    #[test]
+    fn brush_slider_maps_bottom_to_small_and_top_to_large() {
+        let layout = coloring_layout(vec2(1280.0, 800.0));
+        assert_eq!(
+            brush_size_for(layout.slider_track.center_bottom(), layout.slider_track),
+            MIN_BRUSH_SIZE
+        );
+        assert_eq!(
+            brush_size_for(layout.slider_track.center_top(), layout.slider_track),
+            MAX_BRUSH_SIZE
+        );
+    }
+
+    #[test]
+    fn coloring_state_records_selected_background_strokes_and_clears_them() {
+        let mut coloring = ColoringState::new(1);
+        coloring.selected_color = COLORS.len() - 1;
+        coloring.brush_size = 48.0;
+        coloring.begin_stroke(0, pos2(100.0, 100.0));
+        coloring.extend_stroke(0, pos2(140.0, 100.0));
+
+        assert_eq!(coloring.strokes[0].len(), 1);
+        assert_eq!(coloring.strokes[0][0].color.name, "Black");
+        assert_eq!(coloring.strokes[0][0].brush_size, 48.0);
+        assert_eq!(coloring.strokes[0][0].points.len(), 2);
+
+        coloring.clear();
+        assert!(coloring.strokes[0].is_empty());
+        assert_eq!(coloring.point_counts[0], 0);
+    }
 }

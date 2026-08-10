@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SoundMode {
     Speech,
-    Laughter,
+    #[serde(other)]
     None,
 }
 
@@ -34,10 +34,17 @@ pub enum CursorEffect {
     Rainbow,
     Sparkles,
     Bubbles,
+    Coloring,
 }
 
 impl CursorEffect {
-    pub const ALL: [Self; 4] = [Self::None, Self::Rainbow, Self::Sparkles, Self::Bubbles];
+    pub const ALL: [Self; 5] = [
+        Self::None,
+        Self::Rainbow,
+        Self::Sparkles,
+        Self::Bubbles,
+        Self::Coloring,
+    ];
 
     pub fn cycle(self, forward: bool) -> Self {
         let current = Self::ALL
@@ -58,8 +65,6 @@ pub struct Settings {
     pub clear_after: usize,
     pub letter_grouping_timeout_seconds: f32,
     pub group_letters: bool,
-    pub startup_sound: bool,
-    pub interaction_sounds: bool,
     pub pointer_sound: PointerSound,
     pub sine_wave_volume_percent: u8,
     pub right_click_piano_enabled: bool,
@@ -81,8 +86,6 @@ impl Default for Settings {
             clear_after: 30,
             letter_grouping_timeout_seconds: 1.0,
             group_letters: true,
-            startup_sound: false,
-            interaction_sounds: true,
             pointer_sound: PointerSound::SineWave,
             sine_wave_volume_percent: 35,
             right_click_piano_enabled: true,
@@ -196,6 +199,13 @@ mod tests {
     }
 
     #[test]
+    fn coloring_mode_is_part_of_the_scroll_wheel_cycle() {
+        assert_eq!(CursorEffect::Bubbles.cycle(true), CursorEffect::Coloring);
+        assert_eq!(CursorEffect::Coloring.cycle(true), CursorEffect::None);
+        assert_eq!(CursorEffect::Coloring.cycle(false), CursorEffect::Bubbles);
+    }
+
+    #[test]
     fn settings_round_trip_through_atomic_file() -> io::Result<()> {
         let nonce = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -205,7 +215,7 @@ mod tests {
             std::env::temp_dir().join(format!("babysmash-settings-{}-{nonce}", std::process::id()));
         let path = directory.join("settings.json");
         let (mut store, mut settings) = SettingsStore::open_path(path.clone());
-        settings.cursor_effect = CursorEffect::Bubbles;
+        settings.cursor_effect = CursorEffect::Coloring;
         settings.clear_after = 47;
         store.save(&settings)?;
 

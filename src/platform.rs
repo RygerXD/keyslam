@@ -80,7 +80,7 @@ mod keyboard {
 
             if let Some(key_name) = numpad_key_name(virtual_key, keyboard.scanCode, keyboard.flags)
             {
-                if is_up && let Some(events) = EVENTS.get() {
+                if is_down && let Some(events) = EVENTS.get() {
                     let _ = events.try_send(PlatformEvent::Key(key_name.to_owned()));
                 }
                 return 1;
@@ -174,6 +174,17 @@ mod keyboard {
             _ => None,
         }
     }
+
+    pub fn pressed_numpad_key() -> Option<&'static str> {
+        const NUMPAD: [&str; 10] = [
+            "NumPad0", "NumPad1", "NumPad2", "NumPad3", "NumPad4", "NumPad5", "NumPad6", "NumPad7",
+            "NumPad8", "NumPad9",
+        ];
+        NUMPAD.iter().enumerate().find_map(|(index, name)| {
+            let virtual_key = 0x60 + index as i32;
+            (unsafe { GetAsyncKeyState(virtual_key) } < 0).then_some(*name)
+        })
+    }
 }
 
 #[cfg(not(windows))]
@@ -189,9 +200,13 @@ mod keyboard {
             Ok(Self)
         }
     }
+
+    pub fn pressed_numpad_key() -> Option<&'static str> {
+        None
+    }
 }
 
-pub use keyboard::KeyboardGuard;
+pub use keyboard::{KeyboardGuard, pressed_numpad_key};
 
 pub fn install_keyboard_guard(sender: Sender<PlatformEvent>) -> Result<KeyboardGuard, String> {
     KeyboardGuard::install(sender)

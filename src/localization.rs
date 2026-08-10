@@ -64,7 +64,10 @@ impl Localization {
     }
 
     pub fn color_shape(&self, color: &str, shape: &str) -> String {
-        self.text("ColorShapeFormat")
+        self.strings
+            .get("ColorShapeFormat")
+            .map(String::as_str)
+            .unwrap_or("{0} {1}")
             .replace("{0}", &self.text(color))
             .replace("{1}", &self.text(shape))
     }
@@ -91,5 +94,14 @@ mod tests {
         let phrase = portuguese.color_shape("Red", "Circle");
         assert!(phrase.contains(&portuguese.text("Red")));
         assert!(phrase.contains(&portuguese.text("Circle")));
+    }
+
+    #[test]
+    fn missing_format_key_still_speaks_the_color_and_shape() {
+        let localization = Localization {
+            locale: "test".to_owned(),
+            strings: HashMap::new(),
+        };
+        assert_eq!(localization.color_shape("Red", "Star"), "Red Star");
     }
 }

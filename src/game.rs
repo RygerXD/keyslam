@@ -11,6 +11,7 @@ use crate::{
 const LETTER_GAP: f32 = 8.0;
 const LETTER_PADDING: f32 = 24.0;
 const MAX_PARTICLES: usize = 72;
+const REMOVAL_FADE_SECONDS: f32 = 1.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BabyColor {
@@ -18,14 +19,14 @@ pub struct BabyColor {
     pub name: &'static str,
 }
 
-pub const COLORS: [BabyColor; 9] = [
+pub const COLORS: [BabyColor; 12] = [
     BabyColor {
         rgb: [255, 0, 0],
         name: "Red",
     },
     BabyColor {
-        rgb: [0, 0, 255],
-        name: "Blue",
+        rgb: [255, 165, 0],
+        name: "Orange",
     },
     BabyColor {
         rgb: [255, 255, 0],
@@ -36,24 +37,36 @@ pub const COLORS: [BabyColor; 9] = [
         name: "Green",
     },
     BabyColor {
-        rgb: [128, 0, 128],
-        name: "Purple",
+        rgb: [0, 0, 255],
+        name: "Blue",
+    },
+    BabyColor {
+        rgb: [75, 0, 130],
+        name: "Indigo",
+    },
+    BabyColor {
+        rgb: [148, 0, 211],
+        name: "Violet",
     },
     BabyColor {
         rgb: [255, 192, 203],
         name: "Pink",
     },
     BabyColor {
-        rgb: [255, 165, 0],
-        name: "Orange",
+        rgb: [165, 42, 42],
+        name: "Brown",
     },
     BabyColor {
-        rgb: [210, 180, 140],
-        name: "Tan",
+        rgb: [255, 255, 255],
+        name: "White",
     },
     BabyColor {
         rgb: [128, 128, 128],
         name: "Gray",
+    },
+    BabyColor {
+        rgb: [0, 0, 0],
+        name: "Black",
     },
 ];
 
@@ -71,15 +84,20 @@ pub struct Figure {
     pub color: BabyColor,
     pub spoken_text: String,
     pub created: Instant,
-    pub fade_duration: Option<f32>,
+    pub fade_after: Option<f32>,
     pub animate_spawn: bool,
     pub placements: Vec<Placement>,
 }
 
 impl Figure {
     pub fn opacity(&self, now: Instant) -> f32 {
-        self.fade_duration.map_or(1.0, |seconds| {
-            (1.0 - now.duration_since(self.created).as_secs_f32() / seconds).clamp(0.0, 1.0)
+        self.fade_after.map_or(1.0, |visible_seconds| {
+            let fade_elapsed = now.duration_since(self.created).as_secs_f32() - visible_seconds;
+            if fade_elapsed <= 0.0 {
+                1.0
+            } else {
+                (1.0 - fade_elapsed / REMOVAL_FADE_SECONDS).clamp(0.0, 1.0)
+            }
         })
     }
 
@@ -168,7 +186,7 @@ pub struct Game {
     pub figures: VecDeque<Figure>,
     pub displays: Vec<DisplayState>,
     next_id: u64,
-    grouped_color: Option<(BabyColor, Instant)>,
+    next_color_index: usize,
 }
 
 impl Game {
@@ -177,7 +195,7 @@ impl Game {
             figures: VecDeque::new(),
             displays: display_sizes.into_iter().map(DisplayState::new).collect(),
             next_id: 1,
-            grouped_color: None,
+            next_color_index: 0,
         }
     }
 
@@ -188,7 +206,6 @@ impl Game {
         now: Instant,
     ) -> String {
         let mut rng = rand::rng();
-        let candidate = COLORS[rng.random_range(0..COLORS.len())];
         let (kind, default_speech, grouped_letter) = match response.kind {
             ResponseKind::Glyph(mut glyph) => {
                 if !settings.force_uppercase {
@@ -211,24 +228,10 @@ impl Game {
                 false,
             ),
         };
-        let color = if grouped_letter && settings.group_letters {
-            let timeout = settings.letter_grouping_timeout_seconds;
-            if let Some((color, last)) = self.grouped_color {
-                if now.duration_since(last).as_secs_f32() <= timeout {
-                    self.grouped_color = Some((color, now));
-                    color
-                } else {
-                    self.grouped_color = Some((candidate, now));
-                    candidate
-                }
-            } else {
-                self.grouped_color = Some((candidate, now));
-                candidate
-            }
-        } else {
-            self.grouped_color = None;
-            candidate
-        };
+        let color = COLORS[self.next_color_index];
+        if matches!(kind, FigureKind::Glyph(_) | FigureKind::Shape(_)) {
+            self.next_color_index = (self.next_color_index + 1) % COLORS.len();
+        }
 
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1).max(1);
@@ -236,10 +239,35 @@ impl Game {
         let placements = self
             .displays
             .iter()
-            .map(|display| Placement {
-                top_left: random_position(&mut rng, display.size, size),
-                size,
-                interaction: None,
+            .enumerate()
+            .map(|(display_index, display)| {
+                let mut occupied = self
+                    .figures
+                    .iter()
+                    .filter_map(|figure| {
+                        (figure.opacity(now) > 0.05)
+                            .then(|| figure.placements.get(display_index).map(Placement::rect))
+                            .flatten()
+                    })
+                    .collect::<Vec<_>>();
+                if display_index == 0 {
+                    occupied.push(Rect::from_min_max(pos2(8.0, 8.0), pos2(330.0, 42.0)));
+                }
+                if settings.cursor_effect == CursorEffect::Coloring {
+                    occupied.push(Rect::from_min_max(
+                        pos2(0.0, (display.size.y - 72.0).max(0.0)),
+                        pos2(display.size.x, display.size.y),
+                    ));
+                    occupied.push(Rect::from_min_max(
+                        pos2(0.0, 52.0),
+                        pos2(70.0, (display.size.y - 72.0).max(52.0)),
+                    ));
+                }
+                Placement {
+                    top_left: best_available_position(&mut rng, display.size, size, occupied),
+                    size,
+                    interaction: None,
+                }
             })
             .collect();
         self.figures.push_back(Figure {
@@ -248,7 +276,7 @@ impl Game {
             color,
             spoken_text: default_speech.clone(),
             created: now,
-            fade_duration: settings.fade_away.then_some(settings.fade_after_seconds),
+            fade_after: settings.fade_away.then_some(settings.fade_after_seconds),
             animate_spawn: settings.spawn_animations,
             placements,
         });
@@ -273,6 +301,35 @@ impl Game {
             }
         }
         default_speech
+    }
+
+    pub fn clear(&mut self) {
+        self.figures.clear();
+        for display in &mut self.displays {
+            display.letter_run.clear();
+            display.last_letter = None;
+        }
+    }
+
+    pub fn remove_expired(&mut self, now: Instant) {
+        let expired = self
+            .figures
+            .iter()
+            .filter(|figure| figure.fade_after.is_some() && figure.opacity(now) <= 0.0)
+            .map(|figure| figure.id)
+            .collect::<Vec<_>>();
+        if expired.is_empty() {
+            return;
+        }
+        self.figures.retain(|figure| !expired.contains(&figure.id));
+        for display in &mut self.displays {
+            display
+                .letter_run
+                .retain(|figure_id| !expired.contains(figure_id));
+            if display.letter_run.is_empty() {
+                display.last_letter = None;
+            }
+        }
     }
 
     fn update_letter_run(
@@ -394,20 +451,84 @@ impl Game {
     }
 }
 
-fn random_position(rng: &mut impl Rng, display: Vec2, figure: Vec2) -> Pos2 {
-    pos2(
-        rng.random_range(0.0..=(display.x - figure.x).max(0.0)),
-        rng.random_range(0.0..=(display.y - figure.y).max(0.0)),
-    )
+fn best_available_position(
+    rng: &mut impl Rng,
+    display: Vec2,
+    figure: Vec2,
+    occupied: impl IntoIterator<Item = Rect>,
+) -> Pos2 {
+    const RANDOM_ATTEMPTS: usize = 64;
+
+    let occupied = occupied.into_iter().collect::<Vec<_>>();
+    let max_x = (display.x - figure.x).max(0.0);
+    let max_y = (display.y - figure.y).max(0.0);
+    let mut best = Pos2::ZERO;
+    let mut best_overlap = f32::INFINITY;
+
+    for _ in 0..RANDOM_ATTEMPTS {
+        let candidate = pos2(rng.random_range(0.0..=max_x), rng.random_range(0.0..=max_y));
+        let candidate_rect = Rect::from_min_size(candidate, figure);
+        let overlap = occupied
+            .iter()
+            .map(|rect| overlap_area(candidate_rect, *rect))
+            .sum::<f32>();
+        if overlap == 0.0 {
+            return candidate;
+        }
+        if overlap < best_overlap {
+            best = candidate;
+            best_overlap = overlap;
+        }
+    }
+
+    // Edge-aligned candidates find narrow gaps that random sampling can miss.
+    let mut x_candidates = vec![0.0, max_x];
+    let mut y_candidates = vec![0.0, max_y];
+    for rect in occupied.iter().rev().take(32) {
+        x_candidates.extend([rect.min.x - figure.x, rect.max.x]);
+        y_candidates.extend([rect.min.y - figure.y, rect.max.y]);
+    }
+    for x in x_candidates {
+        for &y in &y_candidates {
+            let candidate = pos2(x.clamp(0.0, max_x), y.clamp(0.0, max_y));
+            let candidate_rect = Rect::from_min_size(candidate, figure);
+            let overlap = occupied
+                .iter()
+                .map(|rect| overlap_area(candidate_rect, *rect))
+                .sum::<f32>();
+            if overlap == 0.0 {
+                return candidate;
+            }
+            if overlap < best_overlap {
+                best = candidate;
+                best_overlap = overlap;
+            }
+        }
+    }
+    best
+}
+
+fn overlap_area(left: Rect, right: Rect) -> f32 {
+    let width = (left.max.x.min(right.max.x) - left.min.x.max(right.min.x)).max(0.0);
+    let height = (left.max.y.min(right.max.y) - left.min.y.max(right.min.y)).max(0.0);
+    width * height
 }
 
 pub fn size_for(kind: &FigureKind) -> Vec2 {
     match kind {
         FigureKind::Glyph(_) => vec2(220.0, 300.0),
         FigureKind::Emoji(_) => Vec2::splat(340.0),
-        FigureKind::Shape(ShapeKind::Rectangle) => vec2(300.0, 207.0),
-        FigureKind::Shape(ShapeKind::Oval) => vec2(300.0, 210.0),
-        FigureKind::Shape(_) => Vec2::splat(240.0),
+        FigureKind::Shape(shape) => match shape {
+            ShapeKind::Oval => vec2(190.0, 250.0),
+            ShapeKind::Rectangle => vec2(300.0, 207.0),
+            ShapeKind::Triangle => vec2(248.0, 180.0),
+            ShapeKind::Square => Vec2::splat(207.0),
+            ShapeKind::Pentagon | ShapeKind::Septagon | ShapeKind::Octagon => Vec2::splat(260.0),
+            ShapeKind::Hexagon => vec2(236.0, 205.0),
+            ShapeKind::Trapezoid => vec2(310.0, 165.0),
+            ShapeKind::Circle => Vec2::splat(212.0),
+            ShapeKind::Star => vec2(253.0, 243.0),
+        },
     }
 }
 
@@ -474,7 +595,7 @@ impl PointerState {
 
     fn emit(&mut self, position: Pos2, effect: CursorEffect, now: Instant) {
         match effect {
-            CursorEffect::None => {
+            CursorEffect::None | CursorEffect::Coloring => {
                 self.last_effect_position = None;
                 self.trail.stop(now);
             }
@@ -601,8 +722,11 @@ pub fn pointer_tone(point: Pos2, size: Vec2) -> (f32, f32) {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
     use crate::responses::response_for;
+    use rand::{SeedableRng, rngs::StdRng};
 
     #[test]
     fn clear_after_is_a_hard_bound() {
@@ -619,6 +743,72 @@ mod tests {
     }
 
     #[test]
+    fn colored_items_share_the_requested_color_cycle() {
+        let mut game = Game::new([vec2(1920.0, 1080.0)]);
+        let settings = Settings::default();
+        let now = Instant::now();
+        for key in [
+            "A", "1", "NumPad0", "B", "2", "NumPad1", "C", "3", "NumPad2", "D", "4", "NumPad3",
+        ] {
+            game.add_response(response_for(key), &settings, now);
+        }
+
+        let names = game
+            .figures
+            .iter()
+            .map(|figure| figure.color.name)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            names,
+            [
+                "Red", "Orange", "Yellow", "Green", "Blue", "Indigo", "Violet", "Pink", "Brown",
+                "White", "Gray", "Black",
+            ]
+        );
+
+        game.add_response(response_for("E"), &settings, now);
+        assert_eq!(
+            game.figures.back().map(|figure| figure.color.name),
+            Some("Red")
+        );
+    }
+
+    #[test]
+    fn placement_uses_free_space_when_it_is_available() {
+        let occupied = Rect::from_min_size(pos2(0.0, 0.0), vec2(300.0, 300.0));
+        let mut rng = StdRng::seed_from_u64(7);
+        let position = best_available_position(
+            &mut rng,
+            vec2(1000.0, 700.0),
+            vec2(220.0, 300.0),
+            [occupied],
+        );
+        let placed = Rect::from_min_size(position, vec2(220.0, 300.0));
+        assert_eq!(overlap_area(placed, occupied), 0.0);
+    }
+
+    #[test]
+    fn items_stay_opaque_then_fade_over_one_second() {
+        let mut game = Game::new([vec2(1920.0, 1080.0)]);
+        let settings = Settings {
+            fade_away: true,
+            fade_after_seconds: 4.0,
+            ..Settings::default()
+        };
+        let created = Instant::now();
+        game.add_response(response_for("A"), &settings, created);
+        let Some(figure) = game.figures.back() else {
+            panic!("a response should create a figure");
+        };
+
+        assert_eq!(figure.opacity(created + Duration::from_millis(3999)), 1.0);
+        assert!((figure.opacity(created + Duration::from_millis(4500)) - 0.5).abs() < 0.001);
+        assert_eq!(figure.opacity(created + Duration::from_secs(5)), 0.0);
+        game.remove_expired(created + Duration::from_secs(5));
+        assert!(game.figures.is_empty());
+    }
+
+    #[test]
     fn tone_matches_upstream_screen_mapping() {
         let (top_left, pan_left) = pointer_tone(pos2(0.0, 0.0), vec2(100.0, 100.0));
         let (bottom_right, pan_right) = pointer_tone(pos2(100.0, 100.0), vec2(100.0, 100.0));
@@ -626,5 +816,24 @@ mod tests {
         assert!((bottom_right - 110.0).abs() < 0.01);
         assert_eq!(pan_left, -1.0);
         assert_eq!(pan_right, 1.0);
+    }
+
+    #[test]
+    fn shapes_keep_their_original_dimensions() {
+        for (shape, expected) in [
+            (ShapeKind::Oval, vec2(190.0, 250.0)),
+            (ShapeKind::Rectangle, vec2(300.0, 207.0)),
+            (ShapeKind::Triangle, vec2(248.0, 180.0)),
+            (ShapeKind::Square, Vec2::splat(207.0)),
+            (ShapeKind::Pentagon, Vec2::splat(260.0)),
+            (ShapeKind::Hexagon, vec2(236.0, 205.0)),
+            (ShapeKind::Septagon, Vec2::splat(260.0)),
+            (ShapeKind::Octagon, Vec2::splat(260.0)),
+            (ShapeKind::Trapezoid, vec2(310.0, 165.0)),
+            (ShapeKind::Circle, Vec2::splat(212.0)),
+            (ShapeKind::Star, vec2(253.0, 243.0)),
+        ] {
+            assert_eq!(size_for(&FigureKind::Shape(shape)), expected);
+        }
     }
 }

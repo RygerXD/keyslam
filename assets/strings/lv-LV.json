@@ -4,7 +4,10 @@
 	"Circle": "Aplis",
 	"Oval": "Ovāls",
 	"Rectangle": "Taisnstūris",
+	"Pentagon": "Piecstūris",
 	"Hexagon": "Sešstūris",
+	"Septagon": "Septiņstūris",
+	"Octagon": "Astoņstūris",
 	"Trapezoid": "Trapece",
 	"Star": "Zvaigzne",
 	"Square": "Kvadrāts",
@@ -15,9 +18,14 @@
 	"Blue": "Zils",
 	"Yellow": "Dzeltens",
 	"Green": "Zaļš",
+	"Indigo": "Indigo",
+	"Violet": "Violets",
 	"Purple": "Violets",
 	"Pink": "Rozā",
 	"Orange": "Oranžs",
 	"Tan": "Dzeltenbrūns",
-	"Gray": "Pelēks"
+	"Brown": "Brūns",
+	"White": "Balts",
+	"Gray": "Pelēks",
+	"Black": "Melns"
 }

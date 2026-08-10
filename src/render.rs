@@ -77,15 +77,7 @@ pub fn draw_figure(
         FigureKind::Shape(kind) => {
             draw_shape(painter, rect, kind, figure.color, opacity, angle);
             if faces {
-                draw_face(
-                    painter,
-                    rect,
-                    figure.id,
-                    figure.created,
-                    now,
-                    opacity,
-                    angle,
-                );
+                draw_face(painter, rect, figure, now, opacity, angle);
             }
         }
     }
@@ -103,7 +95,7 @@ fn draw_glyph(
     let font = FontId::proportional(rect.height() * 0.88);
     let galley = painter.layout_no_wrap(text, font, Color32::PLACEHOLDER);
     let position = rect.center() - galley.size() / 2.0;
-    let outline = with_opacity(Color32::BLACK, opacity * 0.75);
+    let outline = with_opacity(contrast_for(color), opacity * 0.75);
     for offset in [
         vec2(-4.0, 0.0),
         vec2(4.0, 0.0),
@@ -192,6 +184,10 @@ fn draw_shape(
             Stroke::new(1.0, with_opacity(Color32::BLACK, opacity * 0.2)),
         ));
     }
+    painter.add(Shape::closed_line(
+        rotated(base_points, rect.center(), angle),
+        Stroke::new(10.0, with_opacity(contrast_for(color), opacity)),
+    ));
 }
 
 fn shape_points(kind: ShapeKind, rect: Rect) -> Vec<Pos2> {
@@ -240,15 +236,15 @@ fn regular_polygon(center: Pos2, radius: Vec2, sides: usize, rotation_degrees: f
 fn draw_face(
     painter: &Painter,
     rect: Rect,
-    id: u64,
-    created: Instant,
+    figure: &Figure,
     now: Instant,
     opacity: f32,
     angle: f32,
 ) {
+    let ink = contrast_for(figure.color);
     let center = rect.center() + vec2(0.0, rect.height() * 0.03);
-    let blink_interval = 2.1 + (id % 50) as f32 / 10.0;
-    let elapsed = now.duration_since(created).as_secs_f32() + (id % 17) as f32 * 0.19;
+    let blink_interval = 2.1 + (figure.id % 50) as f32 / 10.0;
+    let elapsed = now.duration_since(figure.created).as_secs_f32() + (figure.id % 17) as f32 * 0.19;
     let blinking = elapsed % blink_interval < 0.2;
     let eye_offset = rect.width().min(rect.height()) * 0.12;
     let eye_radius = rect.width().min(rect.height()) * 0.055;
@@ -258,7 +254,7 @@ fn draw_face(
             let half = vec2(eye_radius, 0.0);
             painter.line_segment(
                 [eye - half, eye + half],
-                Stroke::new(4.0, with_opacity(Color32::BLACK, opacity)),
+                Stroke::new(4.0, with_opacity(ink, opacity)),
             );
         } else {
             painter.circle_filled(eye, eye_radius, with_opacity(Color32::WHITE, opacity));
@@ -280,8 +276,18 @@ fn draw_face(
     }
     painter.add(Shape::line(
         smile,
-        Stroke::new(5.0, with_opacity(Color32::BLACK, opacity)),
+        Stroke::new(5.0, with_opacity(ink, opacity)),
     ));
+}
+
+fn contrast_for(color: BabyColor) -> Color32 {
+    let [red, green, blue] = color.rgb;
+    let luminance = 0.2126 * f32::from(red) + 0.7152 * f32::from(green) + 0.0722 * f32::from(blue);
+    if luminance < 70.0 {
+        Color32::WHITE
+    } else {
+        Color32::BLACK
+    }
 }
 
 pub fn draw_pointer_effects(painter: &Painter, state: &PointerState, now: Instant) {
