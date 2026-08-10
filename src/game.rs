@@ -15,7 +15,14 @@ const LETTER_GAP: f32 = 8.0;
 const LETTER_PADDING: f32 = 24.0;
 const GLYPH_SIZE: Vec2 = Vec2::new(220.0, 300.0);
 const MAX_PARTICLES: usize = 72;
+const MAX_TRAIL_MARKS: usize = 240;
+const TRAIL_MARK_SPACING: f32 = 5.0;
+const FADING_TRAIL_SECONDS: f32 = 1.35;
+const BUMP_MAP_TRAIL_SECONDS: f32 = 1.35;
 const REMOVAL_FADE_SECONDS: f32 = 1.0;
+const CURSOR_PULSE_SECONDS: f32 = 0.3;
+const CURSOR_GROW_SCALE: f32 = 1.28;
+const CURSOR_SHRINK_SCALE: f32 = 0.76;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BabyColor {
@@ -103,6 +110,20 @@ impl Figure {
                 (1.0 - fade_elapsed / REMOVAL_FADE_SECONDS).clamp(0.0, 1.0)
             }
         })
+    }
+
+    fn fade_has_started(&self, now: Instant) -> bool {
+        self.fade_after.is_some_and(|visible_seconds| {
+            now.duration_since(self.created).as_secs_f32() >= visible_seconds
+        })
+    }
+
+    fn start_removal_fade(&mut self, now: Instant) {
+        let visible_seconds = now.duration_since(self.created).as_secs_f32();
+        self.fade_after = Some(
+            self.fade_after
+                .map_or(visible_seconds, |scheduled| scheduled.min(visible_seconds)),
+        );
     }
 
     pub fn spawn_transform(&self, now: Instant) -> (f32, f32) {
@@ -295,7 +316,8 @@ impl Game {
             color,
             spoken_text: default_speech.clone(),
             created: now,
-            fade_after: settings.fade_away.then_some(settings.fade_after_seconds),
+            fade_after: (settings.fade_away && settings.fade_after_seconds > 0.0)
+                .then_some(settings.fade_after_seconds),
             animate_spawn: settings.spawn_animations,
             placements,
         });
@@ -310,16 +332,25 @@ impl Game {
             );
         }
 
-        while self.figures.len() > settings.clear_after {
-            if let Some(removed) = self.figures.pop_front() {
-                for display in &mut self.displays {
-                    display
-                        .letter_run
-                        .retain(|figure_id| *figure_id != removed.id);
-                }
-            }
-        }
+        self.fade_items_over_limit(settings.clear_after, now);
         default_speech
+    }
+
+    fn fade_items_over_limit(&mut self, item_limit: usize, now: Instant) {
+        let overflow = self
+            .figures
+            .iter()
+            .filter(|figure| !figure.fade_has_started(now))
+            .count()
+            .saturating_sub(item_limit);
+        for figure in self
+            .figures
+            .iter_mut()
+            .filter(|figure| !figure.fade_has_started(now))
+            .take(overflow)
+        {
+            figure.start_removal_fade(now);
+        }
     }
 
     pub fn clear(&mut self) {
@@ -601,14 +632,23 @@ impl DisplayState {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct CursorPulse {
+    started: Instant,
+    initial_scale: f32,
+}
+
 #[derive(Debug, Default)]
 pub struct PointerState {
     pub position: Option<Pos2>,
     pub primary_down: bool,
     pub trail: RainbowTrail,
+    pub trail_marks: Vec<TrailMark>,
     pub particles: Vec<Particle>,
     last_effect_position: Option<Pos2>,
     next_effect_spacing: f32,
+    stroke_sequence: u64,
+    cursor_pulse: Option<CursorPulse>,
 }
 
 impl PointerState {
@@ -616,6 +656,7 @@ impl PointerState {
         self.primary_down = true;
         self.position = Some(position);
         self.last_effect_position = None;
+        self.stroke_sequence = self.stroke_sequence.wrapping_add(1);
         self.emit(position, effect, now);
     }
 
@@ -632,11 +673,39 @@ impl PointerState {
         self.trail.stop(now);
     }
 
+    pub fn pulse_cursor(&mut self, grow: bool, now: Instant) {
+        self.cursor_pulse = Some(CursorPulse {
+            started: now,
+            initial_scale: if grow {
+                CURSOR_GROW_SCALE
+            } else {
+                CURSOR_SHRINK_SCALE
+            },
+        });
+    }
+
+    pub fn cursor_scale(&self, now: Instant) -> f32 {
+        let Some(pulse) = self.cursor_pulse else {
+            return 1.0;
+        };
+        let progress = (now.duration_since(pulse.started).as_secs_f32() / CURSOR_PULSE_SECONDS)
+            .clamp(0.0, 1.0);
+        let eased = 1.0 - (1.0 - progress).powi(3);
+        pulse.initial_scale + (1.0 - pulse.initial_scale) * eased
+    }
+
     pub fn update(&mut self, now: Instant, frame_seconds: f32) {
         self.trail.advance(now, frame_seconds);
         self.particles.retain(|particle| {
             now.duration_since(particle.created).as_secs_f32() < particle.duration
         });
+        self.trail_marks
+            .retain(|mark| now.duration_since(mark.created).as_secs_f32() < mark.duration);
+        if self.cursor_pulse.is_some_and(|pulse| {
+            now.duration_since(pulse.started).as_secs_f32() >= CURSOR_PULSE_SECONDS
+        }) {
+            self.cursor_pulse = None;
+        }
     }
 
     fn emit(&mut self, position: Pos2, effect: CursorEffect, now: Instant) {
@@ -647,7 +716,37 @@ impl PointerState {
             }
             CursorEffect::Rainbow => {
                 self.last_effect_position = None;
-                self.trail.move_to(position);
+                self.trail.move_to(position, effect);
+            }
+            CursorEffect::FadingTrail | CursorEffect::BumpMapTrail => {
+                self.trail.stop(now);
+                if self
+                    .last_effect_position
+                    .is_some_and(|last| last.distance_sq(position) < TRAIL_MARK_SPACING.powi(2))
+                {
+                    return;
+                }
+                self.last_effect_position = Some(position);
+                let duration = match effect {
+                    CursorEffect::FadingTrail => FADING_TRAIL_SECONDS,
+                    CursorEffect::BumpMapTrail => BUMP_MAP_TRAIL_SECONDS,
+                    _ => unreachable!(),
+                };
+                self.trail_marks.push(TrailMark {
+                    effect,
+                    created: now,
+                    duration,
+                    position,
+                    stroke_id: self.stroke_sequence,
+                });
+                if self.trail_marks.len() > MAX_TRAIL_MARKS {
+                    let remove_count = self.trail_marks.len() - MAX_TRAIL_MARKS;
+                    self.trail_marks.drain(0..remove_count);
+                }
+            }
+            CursorEffect::NeonWorm => {
+                self.last_effect_position = None;
+                self.trail.move_to(position, effect);
             }
             CursorEffect::Sparkles | CursorEffect::Bubbles => {
                 self.trail.stop(now);
@@ -694,6 +793,21 @@ impl PointerState {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct TrailMark {
+    pub effect: CursorEffect,
+    pub created: Instant,
+    pub duration: f32,
+    pub position: Pos2,
+    pub stroke_id: u64,
+}
+
+impl TrailMark {
+    pub fn progress(self, now: Instant) -> f32 {
+        (now.duration_since(self.created).as_secs_f32() / self.duration).clamp(0.0, 1.0)
+    }
+}
+
 #[derive(Debug)]
 pub struct Particle {
     pub effect: CursorEffect,
@@ -712,6 +826,7 @@ pub struct Particle {
 pub struct RainbowTrail {
     points: Vec<Pos2>,
     target: Pos2,
+    effect: Option<CursorEffect>,
     active: bool,
     fading_since: Option<Instant>,
     pub opacity: f32,
@@ -722,12 +837,22 @@ impl RainbowTrail {
         &self.points
     }
 
-    fn move_to(&mut self, point: Pos2) {
+    pub fn effect(&self) -> Option<CursorEffect> {
+        self.effect
+    }
+
+    fn move_to(&mut self, point: Pos2, effect: CursorEffect) {
         self.target = point;
-        if !self.active {
-            self.points = vec![point; 32];
+        if !self.active || self.effect != Some(effect) {
+            let point_count = if effect == CursorEffect::NeonWorm {
+                96
+            } else {
+                32
+            };
+            self.points = vec![point; point_count];
             self.active = true;
         }
+        self.effect = Some(effect);
         self.fading_since = None;
         self.opacity = 1.0;
     }
@@ -743,17 +868,29 @@ impl RainbowTrail {
             return;
         }
         let frame_scale = (frame_seconds * 60.0).clamp(0.25, 3.0);
-        let head_blend = 1.0 - 0.45_f32.powf(frame_scale);
-        let follower_blend = 1.0 - 0.58_f32.powf(frame_scale);
+        let (head_retention, follower_retention) = if self.effect == Some(CursorEffect::NeonWorm) {
+            (0.72_f32, 0.82_f32)
+        } else {
+            (0.45_f32, 0.58_f32)
+        };
+        let head_blend = 1.0 - head_retention.powf(frame_scale);
+        let follower_blend = 1.0 - follower_retention.powf(frame_scale);
         self.points[0] = self.points[0].lerp(self.target, head_blend);
         for index in 1..self.points.len() {
             self.points[index] = self.points[index].lerp(self.points[index - 1], follower_blend);
         }
         if let Some(started) = self.fading_since {
-            self.opacity = (1.0 - now.duration_since(started).as_secs_f32() / 0.28).max(0.0);
+            let fade_seconds = if self.effect == Some(CursorEffect::NeonWorm) {
+                0.65
+            } else {
+                0.28
+            };
+            self.opacity =
+                (1.0 - now.duration_since(started).as_secs_f32() / fade_seconds).max(0.0);
             if self.opacity <= 0.0 {
                 self.active = false;
                 self.points.clear();
+                self.effect = None;
                 self.fading_since = None;
             }
         }
@@ -775,16 +912,35 @@ mod tests {
     use rand::{SeedableRng, rngs::StdRng};
 
     #[test]
-    fn clear_after_is_a_hard_bound() {
+    fn item_limit_fades_oldest_items_before_removing_them() {
         let mut game = Game::new([vec2(1920.0, 1080.0)]);
         let settings = Settings {
             clear_after: 5,
+            fade_after_seconds: 120.0,
             ..Settings::default()
         };
         let now = Instant::now();
         for _ in 0..20 {
             game.add_response(response_for("A"), &settings, now);
         }
+
+        assert_eq!(
+            game.figures
+                .iter()
+                .filter(|figure| !figure.fade_has_started(now))
+                .count(),
+            5
+        );
+        assert_eq!(
+            game.figures
+                .iter()
+                .filter(|figure| figure.fade_has_started(now))
+                .count(),
+            15
+        );
+        assert!((game.figures[0].opacity(now + Duration::from_millis(500)) - 0.5).abs() < 0.001);
+
+        game.remove_expired(now + Duration::from_secs(1));
         assert_eq!(game.figures.len(), 5);
     }
 
@@ -912,6 +1068,26 @@ mod tests {
     }
 
     #[test]
+    fn zero_visible_seconds_disables_time_based_removal() {
+        let mut game = Game::new([vec2(1920.0, 1080.0)]);
+        let settings = Settings {
+            fade_away: true,
+            fade_after_seconds: 0.0,
+            ..Settings::default()
+        };
+        let created = Instant::now();
+        game.add_response(response_for("A"), &settings, created);
+
+        assert_eq!(game.figures[0].fade_after, None);
+        assert_eq!(
+            game.figures[0].opacity(created + Duration::from_secs(24 * 60 * 60)),
+            1.0
+        );
+        game.remove_expired(created + Duration::from_secs(24 * 60 * 60));
+        assert_eq!(game.figures.len(), 1);
+    }
+
+    #[test]
     fn tone_matches_upstream_screen_mapping() {
         let (top_left, pan_left) = pointer_tone(pos2(0.0, 0.0), vec2(100.0, 100.0));
         let (bottom_right, pan_right) = pointer_tone(pos2(100.0, 100.0), vec2(100.0, 100.0));
@@ -919,6 +1095,71 @@ mod tests {
         assert!((bottom_right - 110.0).abs() < 0.01);
         assert_eq!(pan_left, -1.0);
         assert_eq!(pan_right, 1.0);
+    }
+
+    #[test]
+    fn cursor_wheel_pulses_return_to_normal_size() {
+        let started = Instant::now();
+        let mut pointer = PointerState::default();
+
+        pointer.pulse_cursor(true, started);
+        assert_eq!(pointer.cursor_scale(started), CURSOR_GROW_SCALE);
+        assert!(pointer.cursor_scale(started + Duration::from_millis(150)) < CURSOR_GROW_SCALE);
+        pointer.update(
+            started + Duration::from_millis(301),
+            Duration::from_millis(16).as_secs_f32(),
+        );
+        assert_eq!(
+            pointer.cursor_scale(started + Duration::from_millis(301)),
+            1.0
+        );
+
+        pointer.pulse_cursor(false, started);
+        assert_eq!(pointer.cursor_scale(started), CURSOR_SHRINK_SCALE);
+        assert!(pointer.cursor_scale(started + Duration::from_millis(150)) > CURSOR_SHRINK_SCALE);
+    }
+
+    #[test]
+    fn shadertoy_trails_use_bounded_effect_specific_state() {
+        let started = Instant::now();
+        let mut pointer = PointerState::default();
+
+        pointer.press(pos2(20.0, 20.0), CursorEffect::FadingTrail, started);
+        pointer.move_to(
+            pos2(40.0, 30.0),
+            CursorEffect::FadingTrail,
+            started + Duration::from_millis(16),
+        );
+        assert_eq!(pointer.trail_marks.len(), 2);
+        assert!(
+            pointer
+                .trail_marks
+                .iter()
+                .all(|mark| mark.effect == CursorEffect::FadingTrail)
+        );
+        for index in 2..=(MAX_TRAIL_MARKS + 20) {
+            pointer.move_to(
+                pos2(index as f32 * 6.0, 30.0),
+                CursorEffect::FadingTrail,
+                started + Duration::from_millis(index as u64),
+            );
+        }
+        assert_eq!(pointer.trail_marks.len(), MAX_TRAIL_MARKS);
+
+        pointer.release(started + Duration::from_millis(300));
+        pointer.update(
+            started + Duration::from_secs(2),
+            Duration::from_millis(16).as_secs_f32(),
+        );
+        assert!(pointer.trail_marks.is_empty());
+
+        pointer.press(
+            pos2(60.0, 50.0),
+            CursorEffect::NeonWorm,
+            started + Duration::from_secs(2),
+        );
+        assert_eq!(pointer.trail.effect(), Some(CursorEffect::NeonWorm));
+        assert_eq!(pointer.trail.points().len(), 96);
     }
 
     #[test]

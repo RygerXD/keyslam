@@ -17,20 +17,29 @@ embedded in the executable.
 - Matching defaults, letter grouping, fading, item limits, faces, spawn
   animation, and tap animation
 - Speech, click audio, continuous stereo sinewave, and right-click piano
-- Arrow/hand pointers plus rainbow, sparkle, bubble, and background-coloring
-  modes; the mouse wheel cycles effects
-- One borderless, always-on-top game viewport per monitor
+- Arrow/original blue hand pointers plus rainbow, fading-afterimage, neon-worm,
+  bump-map, sparkle, bubble, and background-coloring modes; the mouse wheel
+  cycles effects and briefly pulses the hand larger or smaller
+- One borderless, always-on-top game viewport per monitor (Windows uses native
+  borderless fullscreen)
 - Single-instance protection and Windows low-level protection for Windows keys,
-  Alt+Tab, Ctrl+Escape, Print Screen, numpad reinterpretation, and related kiosk
-  shortcuts
+  Alt+Tab, Alt+Escape, Ctrl+Escape, Print Screen, numpad reinterpretation, and
+  related kiosk shortcuts
+- Windows kiosk focus recovery that restores a minimized or deactivated game
+  after Task View, Show Desktop, or app-switching touchpad gestures
+- External window-close requests are ignored; Alt+F4 remains the intentional
+  way to exit
 - Persistent settings
 
 The original application's self-updater is intentionally not copied. Release
 and package updates should be handled by the platform package manager. Some
-secure operating-system shortcuts (notably Ctrl+Alt+Delete and desktop-level
-touchpad gestures) cannot be intercepted by an ordinary application. On Linux,
-the window consumes keys it receives, but the desktop compositor may retain its
-own global shortcuts.
+secure operating-system shortcuts (notably Ctrl+Alt+Delete) and the gesture
+itself cannot be intercepted by an ordinary application. BabySmash responds to
+desktop-level touchpad gestures by immediately reclaiming its fullscreen focus.
+For an OS-enforced lock that prevents the Windows shell from appearing at all,
+use Windows Assigned Access with a dedicated account. On Linux, the window
+consumes keys it receives, but the desktop compositor may retain its own global
+shortcuts.
 
 ## Run
 
@@ -61,7 +70,8 @@ Controls:
 
 Coloring mode adds the 12-color palette and Clear screen button along the
 bottom edge, plus a vertical brush-size slider on the left. Paint remains behind
-letters, animals, and shapes.
+letters, animals, and shapes. Clicks and drags use the same round brush, with a
+live circular size preview under the custom cursor.
 
 For a release executable:
 
@@ -82,8 +92,8 @@ The result is `target/release/babysmash-rs.exe` on Windows.
   thread.
 - Speech runs on a dedicated worker. Missing speech/audio devices produce a
   warning in settings while the visual game continues.
-- Figures and cursor particles have hard bounds, eliminating unbounded growth
-  under key smashing or pointer movement.
+- Active figures and cursor particles are bounded. Figures displaced by the
+  item-count limit finish the same one-second fade used by timed removal.
 - The Windows hook is held by an RAII guard, so it is detached automatically on
   shutdown or unwinding.
 

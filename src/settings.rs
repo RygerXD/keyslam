@@ -8,6 +8,11 @@ use atomic_write_file::AtomicWriteFile;
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
+pub const MIN_FADE_AFTER_SECONDS: f32 = 0.0;
+pub const MAX_FADE_AFTER_SECONDS: f32 = 120.0;
+pub const MIN_ITEMS_KEPT: usize = 5;
+pub const MAX_ITEMS_KEPT: usize = 50;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SoundMode {
     Speech,
@@ -32,19 +37,47 @@ pub enum CursorStyle {
 pub enum CursorEffect {
     None,
     Rainbow,
+    FadingTrail,
+    NeonWorm,
+    BumpMapTrail,
     Sparkles,
     Bubbles,
     Coloring,
 }
 
 impl CursorEffect {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 8] = [
         Self::None,
         Self::Rainbow,
+        Self::FadingTrail,
+        Self::NeonWorm,
+        Self::BumpMapTrail,
         Self::Sparkles,
         Self::Bubbles,
         Self::Coloring,
     ];
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::None => "None",
+            Self::Rainbow => "Rainbow ribbon",
+            Self::FadingTrail => "Fading mouse trails",
+            Self::NeonWorm => "Neon worm",
+            Self::BumpMapTrail => "Mouse trail bump map",
+            Self::Sparkles => "Sparkles",
+            Self::Bubbles => "Bubbles",
+            Self::Coloring => "Coloring mode",
+        }
+    }
+
+    pub const fn shadertoy_url(self) -> Option<&'static str> {
+        match self {
+            Self::FadingTrail => Some("https://www.shadertoy.com/view/mtSGDy"),
+            Self::NeonWorm => Some("https://www.shadertoy.com/view/clB3RK"),
+            Self::BumpMapTrail => Some("https://www.shadertoy.com/view/md3XD4"),
+            _ => None,
+        }
+    }
 
     pub fn cycle(self, forward: bool) -> Self {
         let current = Self::ALL
@@ -93,7 +126,7 @@ impl Default for Settings {
             interaction_animations: true,
             faces_on_shapes: true,
             background_brightness_percent: 7,
-            cursor_style: CursorStyle::Arrow,
+            cursor_style: CursorStyle::Hand,
             cursor_effect: CursorEffect::Rainbow,
             force_uppercase: true,
         }
@@ -102,8 +135,10 @@ impl Default for Settings {
 
 impl Settings {
     pub fn normalize(&mut self) {
-        self.fade_after_seconds = self.fade_after_seconds.clamp(1.0, 120.0);
-        self.clear_after = self.clear_after.clamp(5, 200);
+        self.fade_after_seconds = self
+            .fade_after_seconds
+            .clamp(MIN_FADE_AFTER_SECONDS, MAX_FADE_AFTER_SECONDS);
+        self.clear_after = self.clear_after.clamp(MIN_ITEMS_KEPT, MAX_ITEMS_KEPT);
         self.letter_grouping_timeout_seconds =
             self.letter_grouping_timeout_seconds.clamp(0.1, 10.0);
         self.sine_wave_volume_percent = self.sine_wave_volume_percent.clamp(5, 70);
@@ -178,6 +213,7 @@ mod tests {
         ));
         let (_, settings) = SettingsStore::open_path(path);
         assert_eq!(settings, Settings::default());
+        assert_eq!(settings.cursor_style, CursorStyle::Hand);
     }
 
     #[test]
@@ -191,11 +227,28 @@ mod tests {
             ..Settings::default()
         };
         settings.normalize();
-        assert_eq!(settings.fade_after_seconds, 1.0);
-        assert_eq!(settings.clear_after, 200);
+        assert_eq!(settings.fade_after_seconds, MIN_FADE_AFTER_SECONDS);
+        assert_eq!(settings.clear_after, MAX_ITEMS_KEPT);
         assert_eq!(settings.letter_grouping_timeout_seconds, 10.0);
         assert_eq!(settings.sine_wave_volume_percent, 70);
         assert_eq!(settings.background_brightness_percent, 100);
+    }
+
+    #[test]
+    fn cleanup_ranges_match_the_settings_controls() {
+        assert_eq!(MIN_FADE_AFTER_SECONDS, 0.0);
+        assert_eq!(MAX_FADE_AFTER_SECONDS, 120.0);
+        assert_eq!(MIN_ITEMS_KEPT, 5);
+        assert_eq!(MAX_ITEMS_KEPT, 50);
+
+        let mut settings = Settings {
+            fade_after_seconds: 121.0,
+            clear_after: 0,
+            ..Settings::default()
+        };
+        settings.normalize();
+        assert_eq!(settings.fade_after_seconds, MAX_FADE_AFTER_SECONDS);
+        assert_eq!(settings.clear_after, MIN_ITEMS_KEPT);
     }
 
     #[test]
@@ -203,6 +256,30 @@ mod tests {
         assert_eq!(CursorEffect::Bubbles.cycle(true), CursorEffect::Coloring);
         assert_eq!(CursorEffect::Coloring.cycle(true), CursorEffect::None);
         assert_eq!(CursorEffect::Coloring.cycle(false), CursorEffect::Bubbles);
+    }
+
+    #[test]
+    fn shadertoy_trails_have_labels_and_source_links() {
+        for (effect, label, url) in [
+            (
+                CursorEffect::FadingTrail,
+                "Fading mouse trails",
+                "https://www.shadertoy.com/view/mtSGDy",
+            ),
+            (
+                CursorEffect::NeonWorm,
+                "Neon worm",
+                "https://www.shadertoy.com/view/clB3RK",
+            ),
+            (
+                CursorEffect::BumpMapTrail,
+                "Mouse trail bump map",
+                "https://www.shadertoy.com/view/md3XD4",
+            ),
+        ] {
+            assert_eq!(effect.label(), label);
+            assert_eq!(effect.shadertoy_url(), Some(url));
+        }
     }
 
     #[test]
