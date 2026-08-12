@@ -8,7 +8,6 @@ mod platform;
 mod render;
 mod responses;
 mod settings;
-mod speech;
 
 use app::{BabySmashApp, display_configs};
 use eframe::egui;

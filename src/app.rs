@@ -14,7 +14,6 @@ use crate::{
         CursorEffect, CursorStyle, MAX_FADE_AFTER_SECONDS, MAX_ITEMS_KEPT, MIN_FADE_AFTER_SECONDS,
         MIN_ITEMS_KEPT, PointerSound, Settings, SettingsStore, SoundMode,
     },
-    speech::SpeechSystem,
 };
 use crossbeam_channel::{Receiver, bounded};
 use eframe::egui::{
@@ -262,7 +261,6 @@ pub struct BabySmashApp {
     localization: Localization,
     game: Game,
     audio: AudioSystem,
-    speech: SpeechSystem,
     textures: TextureCache,
     coloring: ColoringState,
     platform_events: Receiver<PlatformEvent>,
@@ -280,8 +278,7 @@ impl BabySmashApp {
     pub fn new(displays: Vec<DisplayConfig>) -> Self {
         let (settings_store, settings) = SettingsStore::open();
         let localization = Localization::detect();
-        let audio = AudioSystem::new();
-        let speech = SpeechSystem::new(localization.locale());
+        let audio = AudioSystem::new(localization.locale());
         let (platform_sender, platform_events) = bounded(128);
         let (keyboard_guard, keyboard_warning) = match install_keyboard_guard(platform_sender) {
             Ok(guard) => (Some(guard), None),
@@ -302,7 +299,6 @@ impl BabySmashApp {
             localization,
             game: Game::new(sizes),
             audio,
-            speech,
             textures: TextureCache::default(),
             coloring,
             platform_events,
@@ -385,14 +381,21 @@ impl BabySmashApp {
             SoundMode::None => {}
             SoundMode::Speech => {
                 if let Some(figure) = self.game.figures.back() {
-                    let phrase = match figure.kind {
-                        FigureKind::Glyph(glyph) => self.localization.text(&glyph.to_string()),
-                        FigureKind::Emoji(_) => figure.spoken_text.clone(),
+                    let clips = match figure.kind {
+                        FigureKind::Glyph(glyph) if glyph.is_ascii_alphabetic() => {
+                            vec![format!("letters/{}.opus", glyph.to_ascii_lowercase())]
+                        }
+                        FigureKind::Glyph(glyph) => vec![format!("numbers/{glyph}.opus")],
+                        FigureKind::Emoji(_) => vec![format!(
+                            "animals/{}.opus",
+                            figure.spoken_text.to_ascii_lowercase()
+                        )],
                         FigureKind::Shape(shape) => self
                             .localization
-                            .color_shape(figure.color.name, shape.name()),
+                            .color_shape_audio_keys(figure.color.name, shape.name())
+                            .into(),
                     };
-                    self.speech.speak(phrase);
+                    self.audio.play_speech(&clips);
                 }
             }
         }
@@ -877,10 +880,7 @@ impl BabySmashApp {
     }
 
     fn current_status(&self) -> Option<String> {
-        self.status
-            .clone()
-            .or_else(|| self.audio.status())
-            .or_else(|| self.speech.status())
+        self.status.clone().or_else(|| self.audio.status())
     }
 }
 
@@ -901,7 +901,6 @@ impl eframe::App for BabySmashApp {
             .as_secs_f32()
             .clamp(1.0 / 240.0, 0.1);
         self.last_frame = now;
-
         self.game.remove_expired(Instant::now());
         let brightness = if self.options_open {
             self.draft_settings.background_brightness_percent

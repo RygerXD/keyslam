@@ -12,7 +12,7 @@ embedded in the executable.
 ## Parity
 
 - Letters, top-row numbers, the full special-key animal map, and numpad shapes
-- Localized color/shape speech for English, German, Greek, Spanish, French,
+- Pre-recorded Opus speech for English, German, Greek, Spanish, French,
   Latvian, Portuguese, and Russian
 - Matching defaults, letter grouping, fading, item limits, faces, spawn
   animation, and tap animation
@@ -81,17 +81,33 @@ cargo build --release
 
 The result is `target/release/babysmash-rs.exe` on Windows.
 
+## Custom voice recordings
+
+BabySmash copies the active language's speech clips to an editable folder the
+first time it runs. On Windows, paste this path into File Explorer:
+
+```text
+%APPDATA%\BabySmash\BabySmash Rust\config\speech
+```
+
+Replace any `.opus` file with your own Ogg Opus recording, keeping the same
+folder and filename, then restart BabySmash. Record only the word represented by
+the file: for example, replace `en-EN\colors\red.opus` and
+`en-EN\shapes\circle.opus`, not a combined "red circle" recording. Files in
+`common` contain letters, digits, and animal names shared by languages unless a
+locale has an explicit pronunciation override (such as Canadian English “Zed”).
+Existing custom files are never overwritten.
+
 ## Stability and DRY design
 
 - `Settings` is one validated, typed schema; writes use an atomic same-directory
   replacement, so interruption cannot leave a half-written JSON file.
 - `Game` owns the canonical figure queue. Every monitor renders that state with
   its own placement and pointer state, avoiding duplicate gameplay logic.
-- Audio uses one bounded, nonblocking mixer. It resamples bundled PCM and legacy
-  MP3-in-WAVE assets, caps simultaneous voices, and keeps synthesis off the UI
-  thread.
-- Speech runs on a dedicated worker. Missing speech/audio devices produce a
-  warning in settings while the visual game continues.
+- Audio uses one bounded, nonblocking mixer. It resamples effects, decodes
+  pre-recorded Opus speech, and caps simultaneous voices.
+- Missing or invalid speech clips produce a warning in settings while the
+  visual game continues.
 - Active figures and cursor particles are bounded. Figures displaced by the
   item-count limit finish the same one-second fade used by timed removal.
 - The Windows hook is held by an RAII guard, so it is detached automatically on
@@ -106,7 +122,6 @@ Source layout:
 | `src/render.rs` | Shapes, faces, emoji, text, pointers, particles |
 | `src/responses.rs` | Deterministic key-to-glyph/animal/shape contract |
 | `src/audio.rs` | Embedded sound decoding, mixer, sinewave, piano |
-| `src/speech.rs` | Platform speech worker |
 | `src/settings.rs` | Typed defaults, validation, atomic persistence |
 | `src/platform.rs` | Windows kiosk keyboard guard |
 
