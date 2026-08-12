@@ -27,6 +27,7 @@ const MIN_BRUSH_SIZE: f32 = 6.0;
 const MAX_BRUSH_SIZE: f32 = 96.0;
 const MAX_COLOR_SWATCH_SIZE: f32 = 56.0;
 const MAX_PAINT_POINTS_PER_DISPLAY: usize = 20_000;
+const MAX_RENDERED_FADING_ITEMS: usize = 10;
 
 #[derive(Debug, Clone)]
 pub struct DisplayConfig {
@@ -437,6 +438,9 @@ impl BabySmashApp {
                 radius,
                 Color32::from_rgb(color.rgb[0], color.rgb[1], color.rgb[2]),
             );
+            if color.rgb == [0, 0, 0] {
+                painter.circle_stroke(center, radius, Stroke::new(2.0, Color32::WHITE));
+            }
         }
 
         painter.rect_filled(layout.clear_button, 7.0, Color32::from_rgb(115, 35, 35));
@@ -503,7 +507,9 @@ impl BabySmashApp {
         ui.painter()
             .rect_filled(rect, 0.0, Color32::from_gray(channel));
         self.draw_painting(ui.painter(), display_index);
-        for figure in &self.game.figures {
+        let render_limit = self.settings.clear_after + MAX_RENDERED_FADING_ITEMS;
+        let first_rendered = self.game.figures.len().saturating_sub(render_limit);
+        for figure in self.game.figures.iter().skip(first_rendered) {
             render::draw_figure(
                 ui.painter(),
                 ui.ctx(),
@@ -668,7 +674,8 @@ impl BabySmashApp {
                 Event::Key {
                     key,
                     physical_key,
-                    pressed: false,
+                    pressed: true,
+                    repeat: false,
                     ..
                 } => {
                     let selected = physical_key.unwrap_or(key);
