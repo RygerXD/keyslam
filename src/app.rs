@@ -637,6 +637,9 @@ impl BabySmashApp {
 
     fn handle_input(&mut self, ui: &Ui, display_index: usize, now: Instant) {
         let events = ui.input(|input| input.raw.events.clone());
+        let star_text_entered = events
+            .iter()
+            .any(|event| matches!(event, Event::Text(text) if text == "*"));
         for event in events {
             if let Event::Key {
                 key: Key::O,
@@ -680,9 +683,13 @@ impl BabySmashApp {
                     physical_key,
                     pressed: true,
                     repeat: false,
+                    modifiers,
                     ..
                 } => {
                     let selected = physical_key.unwrap_or(key);
+                    if star_text_entered && modifiers.shift && selected == Key::Num8 {
+                        continue;
+                    }
                     let digit = match selected {
                         Key::Num0 => Some(0),
                         Key::Num1 => Some(1),
@@ -701,6 +708,7 @@ impl BabySmashApp {
                         .unwrap_or(selected.name());
                     self.process_key(key_name);
                 }
+                Event::Text(text) if text == "*" => self.process_key("*"),
                 Event::PointerMoved(position) => {
                     let effect = self.settings.cursor_effect;
                     if effect == CursorEffect::Coloring {

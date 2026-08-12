@@ -24,7 +24,7 @@ mod keyboard {
                 GetAsyncKeyState, VK_BACK, VK_CLEAR, VK_CONTROL, VK_DOWN, VK_END, VK_ESCAPE, VK_F4,
                 VK_HELP, VK_HOME, VK_INSERT, VK_LCONTROL, VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN,
                 VK_MENU, VK_NEXT, VK_PAUSE, VK_PRIOR, VK_RCONTROL, VK_RIGHT, VK_RMENU, VK_RSHIFT,
-                VK_RWIN, VK_SNAPSHOT, VK_SPACE, VK_TAB, VK_UP,
+                VK_RWIN, VK_SHIFT, VK_SNAPSHOT, VK_SPACE, VK_TAB, VK_UP,
             },
             WindowsAndMessaging::{
                 CallNextHookEx, HHOOK, KBDLLHOOKSTRUCT, SetWindowsHookExW, UnhookWindowsHookEx,
@@ -38,6 +38,8 @@ mod keyboard {
     static EVENTS: OnceLock<Sender<PlatformEvent>> = OnceLock::new();
     static EXIT_REQUESTED: AtomicBool = AtomicBool::new(false);
     static ALT_DOWN: AtomicBool = AtomicBool::new(false);
+    static SHIFT_DOWN: AtomicBool = AtomicBool::new(false);
+    static STAR_DOWN: AtomicBool = AtomicBool::new(false);
     static NUMPAD_DOWN: [AtomicU64; 4] = [
         AtomicU64::new(0),
         AtomicU64::new(0),
@@ -96,12 +98,27 @@ mod keyboard {
                     ALT_DOWN.store(false, Ordering::SeqCst);
                 }
             }
+            let is_shift_key = matches!(
+                virtual_key,
+                value if value == VK_SHIFT as u32
+                    || value == VK_LSHIFT as u32
+                    || value == VK_RSHIFT as u32
+            );
+            if is_shift_key {
+                SHIFT_DOWN.store(is_down, Ordering::SeqCst);
+            }
             let alt = alt_is_down(
                 message,
                 keyboard.flags,
                 ALT_DOWN.load(Ordering::SeqCst) || unsafe { GetAsyncKeyState(VK_MENU as i32) } < 0,
             );
             let control = unsafe { GetAsyncKeyState(VK_CONTROL as i32) } < 0;
+            let shift = unsafe {
+                SHIFT_DOWN.load(Ordering::SeqCst)
+                    || GetAsyncKeyState(VK_SHIFT as i32) < 0
+                    || GetAsyncKeyState(VK_LSHIFT as i32) < 0
+                    || GetAsyncKeyState(VK_RSHIFT as i32) < 0
+            };
 
             if alt && virtual_key == VK_F4 as u32 {
                 if is_down {
@@ -110,6 +127,18 @@ mod keyboard {
                 // Alt+F4 is the one native close request the kiosk allows.
                 // Pass it onward while authorizing the close guard separately.
                 return unsafe { CallNextHookEx(ptr::null_mut(), code, message, data) };
+            }
+
+            if virtual_key == 0x38 && (shift || STAR_DOWN.load(Ordering::SeqCst)) {
+                if is_down
+                    && !STAR_DOWN.swap(true, Ordering::SeqCst)
+                    && let Some(events) = EVENTS.get()
+                {
+                    let _ = events.try_send(PlatformEvent::Key("*".to_owned()));
+                } else if is_up {
+                    STAR_DOWN.store(false, Ordering::SeqCst);
+                }
+                return 1;
             }
 
             if let Some(key_name) = numpad_key_name(virtual_key, keyboard.scanCode, keyboard.flags)
