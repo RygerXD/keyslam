@@ -1,6 +1,8 @@
 use std::{
     collections::HashMap,
+    fs,
     io::Cursor,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 
@@ -10,10 +12,12 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use crossbeam_channel::{Receiver, Sender, TrySendError, bounded};
+use directories::ProjectDirs;
 use include_dir::{Dir, include_dir};
 use rodio::Source;
 
 static SOUNDS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/sounds");
+static SPEECH: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/speech");
 const MAX_VOICES: usize = 32;
 
 #[derive(Debug)]
@@ -47,7 +51,7 @@ impl AudioClip {
 }
 
 enum AudioCommand {
-    Play(Arc<AudioClip>, f32),
+    Play(Vec<Arc<AudioClip>>, f32),
     Sine {
         frequency: f32,
         pan: f32,
@@ -57,7 +61,8 @@ enum AudioCommand {
 }
 
 struct Playback {
-    clip: Arc<AudioClip>,
+    clips: Vec<Arc<AudioClip>>,
+    clip_index: usize,
     position: f64,
     gain: f32,
 }
@@ -92,12 +97,13 @@ impl Mixer {
     fn drain_commands(&mut self) {
         while let Ok(command) = self.receiver.try_recv() {
             match command {
-                AudioCommand::Play(clip, gain) => {
+                AudioCommand::Play(clips, gain) => {
                     if self.voices.len() >= MAX_VOICES {
                         self.voices.remove(0);
                     }
                     self.voices.push(Playback {
-                        clip,
+                        clips,
+                        clip_index: 0,
                         position: 0.0,
                         gain,
                     });
@@ -125,13 +131,25 @@ impl Mixer {
             let mut left = 0.0;
             let mut right = 0.0;
             for voice in &mut self.voices {
-                let (sample_left, sample_right) = voice.clip.stereo_frame(voice.position);
+                while voice.clip_index + 1 < voice.clips.len()
+                    && voice.position >= voice.clips[voice.clip_index].frames() as f64 - 1.0
+                {
+                    voice.clip_index += 1;
+                    voice.position = 0.0;
+                }
+                let clip = &voice.clips[voice.clip_index];
+                if voice.position >= clip.frames() as f64 - 1.0 {
+                    continue;
+                }
+                let (sample_left, sample_right) = clip.stereo_frame(voice.position);
                 left += sample_left * voice.gain;
                 right += sample_right * voice.gain;
-                voice.position += voice.clip.sample_rate / self.output_rate;
+                voice.position += clip.sample_rate / self.output_rate;
             }
-            self.voices
-                .retain(|voice| voice.position < voice.clip.frames() as f64 - 1.0);
+            self.voices.retain(|voice| {
+                voice.clip_index + 1 < voice.clips.len()
+                    || voice.position < voice.clips[voice.clip_index].frames() as f64 - 1.0
+            });
 
             self.sine_volume += (self.sine_target_volume - self.sine_volume) * 0.008;
             if self.sine_volume > 0.0001 {
@@ -160,13 +178,16 @@ impl Mixer {
 pub struct AudioSystem {
     sender: Sender<AudioCommand>,
     clips: HashMap<&'static str, Arc<AudioClip>>,
+    speech_locale: String,
+    speech_root: PathBuf,
+    speech_clips: Mutex<HashMap<String, Arc<AudioClip>>>,
     piano: Mutex<HashMap<i32, Arc<AudioClip>>>,
     _stream: Option<Stream>,
     status: Arc<Mutex<Option<String>>>,
 }
 
 impl AudioSystem {
-    pub fn new() -> Self {
+    pub fn new(locale: &str) -> Self {
         let (sender, receiver) = bounded(64);
         let status = Arc::new(Mutex::new(None));
         let mut clips = HashMap::new();
@@ -181,6 +202,13 @@ impl AudioSystem {
                 None => set_status(&status, format!("Could not decode bundled sound {name}")),
             }
         }
+        let speech_root = speech_root();
+        if let Err(error) = install_customizable_speech(&speech_root, locale) {
+            set_status(
+                &status,
+                format!("Could not prepare the customizable speech folder: {error}"),
+            );
+        }
         let stream = match open_stream(receiver, Arc::clone(&status)) {
             Ok(stream) => Some(stream),
             Err(error) => {
@@ -191,6 +219,9 @@ impl AudioSystem {
         Self {
             sender,
             clips,
+            speech_locale: locale.to_owned(),
+            speech_root,
+            speech_clips: Mutex::new(HashMap::new()),
             piano: Mutex::new(HashMap::new()),
             _stream: stream,
             status,
@@ -199,7 +230,17 @@ impl AudioSystem {
 
     pub fn play_sound(&self, name: &'static str) {
         if let Some(clip) = self.clips.get(name) {
-            self.send(AudioCommand::Play(Arc::clone(clip), 0.75));
+            self.send(AudioCommand::Play(vec![Arc::clone(clip)], 0.75));
+        }
+    }
+
+    pub fn play_speech(&self, keys: &[String]) {
+        let clips = keys
+            .iter()
+            .filter_map(|key| self.speech_clip(key))
+            .collect::<Vec<_>>();
+        if clips.len() == keys.len() {
+            self.send(AudioCommand::Play(clips, 1.0));
         }
     }
 
@@ -213,7 +254,7 @@ impl AudioSystem {
             )
         });
         if let Some(clip) = clip {
-            self.send(AudioCommand::Play(clip, 1.0));
+            self.send(AudioCommand::Play(vec![clip], 1.0));
         }
     }
 
@@ -244,6 +285,85 @@ impl AudioSystem {
             }
         }
     }
+
+    fn speech_clip(&self, key: &str) -> Option<Arc<AudioClip>> {
+        if let Some(clip) = self
+            .speech_clips
+            .lock()
+            .ok()
+            .and_then(|clips| clips.get(key).cloned())
+        {
+            return Some(clip);
+        }
+
+        let localized = Path::new(&self.speech_locale).join(key);
+        let common = Path::new("common").join(key);
+        let loaded = [localized, common].into_iter().find_map(|relative| {
+            let external = self.speech_root.join(&relative);
+            let bytes = fs::read(&external).ok().or_else(|| {
+                SPEECH
+                    .get_file(&relative)
+                    .map(|file| file.contents().to_vec())
+            })?;
+            match decode_opus(&bytes) {
+                Ok(clip) => Some(Arc::new(clip)),
+                Err(error) => {
+                    set_status(
+                        &self.status,
+                        format!(
+                            "Could not decode speech clip {}: {error}",
+                            external.display()
+                        ),
+                    );
+                    None
+                }
+            }
+        });
+        if let Some(clip) = &loaded
+            && let Ok(mut clips) = self.speech_clips.lock()
+        {
+            clips.insert(key.to_owned(), Arc::clone(clip));
+        }
+        if loaded.is_none() {
+            set_status(&self.status, format!("Speech clip is missing: {key}"));
+        }
+        loaded
+    }
+}
+
+fn speech_root() -> PathBuf {
+    ProjectDirs::from("com", "BabySmash", "BabySmash Rust").map_or_else(
+        || PathBuf::from("speech"),
+        |dirs| dirs.config_dir().join("speech"),
+    )
+}
+
+fn install_customizable_speech(root: &Path, locale: &str) -> Result<(), String> {
+    copy_speech_dir(&SPEECH, root, locale)
+}
+
+fn copy_speech_dir(directory: &Dir<'_>, root: &Path, locale: &str) -> Result<(), String> {
+    for file in directory.files() {
+        let path = file.path();
+        let is_selected = path.components().next().is_some_and(|component| {
+            component.as_os_str() == "common" || component.as_os_str() == locale
+        });
+        if !is_selected {
+            continue;
+        }
+        let destination = root.join(path);
+        if destination.exists() {
+            continue;
+        }
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        fs::write(destination, file.contents()).map_err(|error| error.to_string())?;
+    }
+    for child in directory.dirs() {
+        copy_speech_dir(child, root, locale)?;
+    }
+    Ok(())
 }
 
 fn set_status(status: &Arc<Mutex<Option<String>>>, message: String) {
@@ -325,6 +445,19 @@ fn decode_wav(bytes: &[u8]) -> Result<AudioClip, String> {
         samples,
         channels,
         sample_rate,
+    })
+}
+
+fn decode_opus(bytes: &[u8]) -> Result<AudioClip, String> {
+    let (samples, head) = ruopus::decode_ogg_opus(bytes).map_err(|error| error.to_string())?;
+    let channels = usize::from(head.channel_count);
+    if channels == 0 || samples.len() < channels * 2 {
+        return Err("clip contains no audio".to_owned());
+    }
+    Ok(AudioClip {
+        samples,
+        channels,
+        sample_rate: 48_000.0,
     })
 }
 

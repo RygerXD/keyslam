@@ -56,20 +56,19 @@ impl Localization {
         }
     }
 
-    pub fn text(&self, key: &str) -> String {
-        self.strings
-            .get(key)
-            .cloned()
-            .unwrap_or_else(|| key.to_owned())
-    }
-
-    pub fn color_shape(&self, color: &str, shape: &str) -> String {
-        self.strings
+    pub fn color_shape_audio_keys(&self, color: &str, shape: &str) -> [String; 2] {
+        let format = self
+            .strings
             .get("ColorShapeFormat")
             .map(String::as_str)
-            .unwrap_or("{0} {1}")
-            .replace("{0}", &self.text(color))
-            .replace("{1}", &self.text(shape))
+            .unwrap_or("{0} {1}");
+        let color_key = format!("colors/{}.opus", color.to_ascii_lowercase());
+        let shape_key = format!("shapes/{}.opus", shape.to_ascii_lowercase());
+        if format.find("{1}") < format.find("{0}") {
+            [shape_key, color_key]
+        } else {
+            [color_key, shape_key]
+        }
     }
 
     pub fn locale(&self) -> &str {
@@ -85,23 +84,26 @@ mod tests {
     fn falls_back_by_language() {
         let french = Localization::for_locale("fr-CA");
         assert_eq!(french.locale(), "fr-FR");
-        assert_ne!(french.text("Circle"), "Circle");
     }
 
     #[test]
     fn honors_localized_word_order() {
         let portuguese = Localization::for_locale("pt-BR");
-        let phrase = portuguese.color_shape("Red", "Circle");
-        assert!(phrase.contains(&portuguese.text("Red")));
-        assert!(phrase.contains(&portuguese.text("Circle")));
+        assert_eq!(
+            portuguese.color_shape_audio_keys("Red", "Circle"),
+            ["shapes/circle.opus", "colors/red.opus"]
+        );
     }
 
     #[test]
-    fn missing_format_key_still_speaks_the_color_and_shape() {
+    fn missing_format_key_uses_color_then_shape() {
         let localization = Localization {
             locale: "test".to_owned(),
             strings: HashMap::new(),
         };
-        assert_eq!(localization.color_shape("Red", "Star"), "Red Star");
+        assert_eq!(
+            localization.color_shape_audio_keys("Red", "Star"),
+            ["colors/red.opus", "shapes/star.opus"]
+        );
     }
 }
