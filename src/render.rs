@@ -212,7 +212,11 @@ fn shape_points(kind: ShapeKind, rect: Rect) -> Vec<Pos2> {
         ],
         ShapeKind::Triangle => regular_polygon(center, radius, 3, -90.0),
         ShapeKind::Pentagon => regular_polygon(center, radius, 5, -90.0),
-        ShapeKind::Hexagon => regular_polygon(center, radius, 6, 0.0),
+        ShapeKind::Hexagon => {
+            const SIN_60_DEGREES: f32 = 0.866_025_4;
+            let vertex_radius = radius.x.min(radius.y / SIN_60_DEGREES);
+            regular_polygon(center, Vec2::splat(vertex_radius), 6, 0.0)
+        }
         ShapeKind::Septagon => regular_polygon(center, radius, 7, -90.0),
         ShapeKind::Octagon => regular_polygon(center, radius, 8, -112.5),
         ShapeKind::Trapezoid => vec![
