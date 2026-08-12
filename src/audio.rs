@@ -306,7 +306,7 @@ impl AudioSystem {
                     .map(|file| file.contents().to_vec())
             })?;
             match decode_opus(&bytes) {
-                Ok(clip) => Some(Arc::new(clip)),
+                Ok(clip) => Some(Arc::new(trim_speech_silence(clip))),
                 Err(error) => {
                     set_status(
                         &self.status,
@@ -459,6 +459,35 @@ fn decode_opus(bytes: &[u8]) -> Result<AudioClip, String> {
         channels,
         sample_rate: 48_000.0,
     })
+}
+
+fn trim_speech_silence(mut clip: AudioClip) -> AudioClip {
+    const RELATIVE_SILENCE_THRESHOLD: f32 = 0.005;
+    const MIN_SILENCE_THRESHOLD: f32 = 0.0005;
+    const EDGE_PADDING_SECONDS: f64 = 0.015;
+
+    let frames = clip.frames();
+    let peak = clip
+        .samples
+        .iter()
+        .fold(0.0_f32, |peak, sample| peak.max(sample.abs()));
+    let threshold = (peak * RELATIVE_SILENCE_THRESHOLD).max(MIN_SILENCE_THRESHOLD);
+    let frame_is_audible = |frame: usize| {
+        clip.samples[frame * clip.channels..(frame + 1) * clip.channels]
+            .iter()
+            .any(|sample| sample.abs() >= threshold)
+    };
+    let Some(first_audible) = (0..frames).find(|&frame| frame_is_audible(frame)) else {
+        return clip;
+    };
+    let Some(last_audible) = (0..frames).rfind(|&frame| frame_is_audible(frame)) else {
+        return clip;
+    };
+    let padding = (clip.sample_rate * EDGE_PADDING_SECONDS).round() as usize;
+    let start = first_audible.saturating_sub(padding);
+    let end = (last_audible + 1 + padding).min(frames);
+    clip.samples = clip.samples[start * clip.channels..end * clip.channels].to_vec();
+    clip
 }
 
 fn midi_note(frequency: f32) -> i32 {
