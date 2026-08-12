@@ -1,9 +1,11 @@
-use std::{collections::HashMap, sync::OnceLock, time::Instant};
+use std::{collections::HashMap, sync::OnceLock, thread, time::Instant};
 
+use crossbeam_channel::{Receiver, bounded};
 use eframe::egui::{
-    Align2, Color32, Context, FontId, Mesh, Painter, Pos2, Rect, Shape, Stroke, TextureHandle,
-    TextureOptions, Vec2,
-    epaint::{CubicBezierShape, TextShape},
+    Align2, Color32, ColorImage, Context, FontId, Mesh, Painter, Pos2, Rect, Shape, Stroke,
+    TextureHandle, TextureOptions, Vec2,
+    emath::TSTransform,
+    epaint::{CubicBezierShape, TextShape, Vertex},
     pos2, vec2,
 };
 use include_dir::{Dir, include_dir};
@@ -15,14 +17,71 @@ use crate::{
 };
 
 static EMOJI: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/emoji");
+const GLYPH_PREWARM_TEXT: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const GLYPH_FONT_SIZE: f32 = 264.0;
 
-#[derive(Default)]
+pub fn prewarm_glyphs(ctx: &Context) {
+    ctx.fonts_mut(|fonts| {
+        let _ = fonts.layout_no_wrap(
+            GLYPH_PREWARM_TEXT.to_owned(),
+            FontId::proportional(GLYPH_FONT_SIZE),
+            Color32::PLACEHOLDER,
+        );
+    });
+}
+
 pub struct TextureCache {
     emoji: HashMap<&'static str, TextureHandle>,
+    decoded_emoji: HashMap<String, eframe::egui::ColorImage>,
+    decoded_receiver: Receiver<(String, eframe::egui::ColorImage)>,
+    hand_gradient: TextureHandle,
 }
 
 impl TextureCache {
+    pub fn new(ctx: &Context) -> Self {
+        let (sender, decoded_receiver) = bounded(EMOJI.files().count());
+        let repaint_context = ctx.clone();
+        let _ = thread::Builder::new()
+            .name("emoji-preloader".to_owned())
+            .spawn(move || {
+                for file in EMOJI.files() {
+                    let Some(file_name) = file
+                        .path()
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .map(str::to_owned)
+                    else {
+                        continue;
+                    };
+                    let Ok(image) = image::load_from_memory(file.contents()) else {
+                        continue;
+                    };
+                    let image = image.into_rgba8();
+                    let size = [image.width() as usize, image.height() as usize];
+                    let color_image =
+                        eframe::egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
+                    if sender.send((file_name, color_image)).is_err() {
+                        break;
+                    }
+                    repaint_context.request_repaint();
+                }
+            });
+        Self {
+            emoji: HashMap::new(),
+            decoded_emoji: HashMap::new(),
+            decoded_receiver,
+            hand_gradient: ctx.load_texture(
+                "hand-cursor-gradient",
+                hand_gradient_image(),
+                TextureOptions::LINEAR,
+            ),
+        }
+    }
+
     fn emoji(&mut self, ctx: &Context, value: &'static str) -> Option<&TextureHandle> {
+        while let Ok((file_name, image)) = self.decoded_receiver.try_recv() {
+            self.decoded_emoji.insert(file_name, image);
+        }
         if !self.emoji.contains_key(value) {
             let file_name = format!(
                 "{}.png",
@@ -32,11 +91,7 @@ impl TextureCache {
                     .collect::<Vec<_>>()
                     .join("-")
             );
-            let file = EMOJI.get_file(&file_name)?;
-            let image = image::load_from_memory(file.contents()).ok()?.into_rgba8();
-            let size = [image.width() as usize, image.height() as usize];
-            let color_image =
-                eframe::egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
+            let color_image = self.decoded_emoji.remove(&file_name)?;
             let texture = ctx.load_texture(
                 format!("emoji-{file_name}"),
                 color_image,
@@ -101,9 +156,13 @@ fn draw_glyph(
     angle: f32,
 ) {
     let text = glyph.to_string();
-    let font = FontId::proportional((rect.height() * 0.88).max(1.0));
+    let font = FontId::proportional(GLYPH_FONT_SIZE);
     let galley = painter.layout_no_wrap(text, font, Color32::PLACEHOLDER);
-    let position = rect.center() - galley.size() / 2.0;
+    let mut text_shape = TextShape::new(Pos2::ZERO, galley, Color32::PLACEHOLDER);
+    text_shape.transform(TSTransform::from_scaling(
+        (rect.height() * 0.88 / GLYPH_FONT_SIZE).max(1.0 / GLYPH_FONT_SIZE),
+    ));
+    text_shape.pos = rect.center() - text_shape.galley.size() / 2.0;
     let outline = with_opacity(border_for(color), opacity * 0.75);
     for offset in [
         vec2(-4.0, 0.0),
@@ -115,15 +174,13 @@ fn draw_glyph(
         vec2(-3.0, 3.0),
         vec2(3.0, 3.0),
     ] {
-        painter.add(
-            TextShape::new(position + offset, galley.clone(), outline)
-                .with_angle_and_anchor(angle, Align2::CENTER_CENTER),
-        );
+        let mut outline_shape = text_shape.clone();
+        outline_shape.pos += offset;
+        outline_shape.fallback_color = outline;
+        painter.add(outline_shape.with_angle_and_anchor(angle, Align2::CENTER_CENTER));
     }
-    painter.add(
-        TextShape::new(position, galley, with_opacity(rgb(color), opacity))
-            .with_angle_and_anchor(angle, Align2::CENTER_CENTER),
-    );
+    text_shape.fallback_color = with_opacity(rgb(color), opacity);
+    painter.add(text_shape.with_angle_and_anchor(angle, Align2::CENTER_CENTER));
 }
 
 fn draw_emoji(
@@ -168,15 +225,18 @@ fn draw_shape(
     angle: f32,
 ) {
     let base_points = shape_points(kind, rect);
+    let is_star = kind == ShapeKind::Star;
     let shadow_points = base_points
         .iter()
         .map(|point| *point + vec2(7.0, 9.0))
         .collect();
-    painter.add(Shape::convex_polygon(
+    paint_polygon(
+        painter,
         rotated(shadow_points, rect.center(), angle),
         with_opacity(Color32::BLACK, opacity * 0.42),
         Stroke::NONE,
-    ));
+        is_star,
+    );
     let dark = adjust(rgb(color), -55);
     let light = adjust(rgb(color), 60);
     for layer in 0..12 {
@@ -187,16 +247,52 @@ fn draw_shape(
             .iter()
             .map(|point| layer_center + (*point - rect.center()) * scale)
             .collect();
-        painter.add(Shape::convex_polygon(
+        paint_polygon(
+            painter,
             rotated(points, rect.center(), angle),
             with_opacity(lerp_color(dark, light, progress), opacity),
             Stroke::new(1.0, with_opacity(Color32::BLACK, opacity * 0.2)),
-        ));
+            is_star,
+        );
     }
     painter.add(Shape::closed_line(
         rotated(base_points, rect.center(), angle),
         Stroke::new(10.0, with_opacity(border_for(color), opacity)),
     ));
+}
+
+fn paint_polygon(
+    painter: &Painter,
+    points: Vec<Pos2>,
+    fill: Color32,
+    stroke: Stroke,
+    concave: bool,
+) {
+    if !concave {
+        painter.add(Shape::convex_polygon(points, fill, stroke));
+        return;
+    }
+
+    let center = points
+        .iter()
+        .fold(Vec2::ZERO, |sum, point| sum + point.to_vec2())
+        / points.len() as f32;
+    let mut mesh = Mesh::default();
+    mesh.colored_vertex(center.to_pos2(), fill);
+    for point in &points {
+        mesh.colored_vertex(*point, fill);
+    }
+    for index in 0..points.len() {
+        mesh.add_triangle(
+            0,
+            index as u32 + 1,
+            (index + 1) as u32 % points.len() as u32 + 1,
+        );
+    }
+    painter.add(Shape::mesh(mesh));
+    if stroke.width > 0.0 {
+        painter.add(Shape::closed_line(points, stroke));
+    }
 }
 
 fn shape_points(kind: ShapeKind, rect: Rect) -> Vec<Pos2> {
@@ -255,14 +351,22 @@ fn draw_face(
     angle: f32,
 ) {
     let ink = contrast_for(figure.color);
-    let center = rect.center() + vec2(0.0, rect.height() * 0.03);
+    let is_star = matches!(&figure.kind, FigureKind::Shape(ShapeKind::Star));
+    let center_offset = if is_star { -0.015 } else { 0.03 };
+    let center = rect.center() + vec2(0.0, rect.height() * center_offset);
     let blink_interval = 2.1 + (figure.id % 50) as f32 / 10.0;
     let elapsed = now.duration_since(figure.created).as_secs_f32() + (figure.id % 17) as f32 * 0.19;
     let blinking = elapsed % blink_interval < 0.2;
-    let eye_offset = rect.width().min(rect.height()) * 0.12;
-    let eye_radius = rect.width().min(rect.height()) * 0.055;
+    let face_size = rect.width().min(rect.height());
+    let eye_offset = face_size * if is_star { 0.105 } else { 0.12 };
+    let eye_radius = face_size * if is_star { 0.047 } else { 0.055 };
     for x in [-eye_offset, eye_offset] {
-        let eye = rotate(center + vec2(x, -eye_offset * 0.55), rect.center(), angle);
+        let eye_height = if is_star { -0.48 } else { -0.55 };
+        let eye = rotate(
+            center + vec2(x, eye_offset * eye_height),
+            rect.center(),
+            angle,
+        );
         if blinking {
             let half = vec2(eye_radius, 0.0);
             painter.line_segment(
@@ -278,13 +382,14 @@ fn draw_face(
             );
         }
     }
-    let mouth_width = eye_offset * 1.35;
-    let mouth_y = center.y + eye_offset * 0.65;
+    let mouth_width = eye_offset * if is_star { 1.12 } else { 1.35 };
+    let mouth_y = center.y + eye_offset * if is_star { 0.55 } else { 0.65 };
+    let smile_depth = eye_offset * if is_star { 0.38 } else { 0.55 };
     let mut smile = Vec::with_capacity(13);
     for index in 0..=12 {
         let t = index as f32 / 12.0;
         let x = center.x - mouth_width + mouth_width * 2.0 * t;
-        let y = mouth_y + (1.0 - (t * 2.0 - 1.0).powi(2)) * eye_offset * 0.55;
+        let y = mouth_y + (1.0 - (t * 2.0 - 1.0).powi(2)) * smile_depth;
         smile.push(rotate(pos2(x, y), rect.center(), angle));
     }
     painter.add(Shape::line(
@@ -474,7 +579,13 @@ fn draw_particle(painter: &Painter, particle: &Particle, now: Instant) {
     }
 }
 
-pub fn draw_cursor(painter: &Painter, position: Pos2, style: CursorStyle, scale: f32) {
+pub fn draw_cursor(
+    painter: &Painter,
+    cache: &TextureCache,
+    position: Pos2,
+    style: CursorStyle,
+    scale: f32,
+) {
     match style {
         CursorStyle::Arrow => {
             let points = vec![
@@ -492,38 +603,41 @@ pub fn draw_cursor(painter: &Painter, position: Pos2, style: CursorStyle, scale:
                 Stroke::new(2.0, Color32::BLACK),
             ));
         }
-        CursorStyle::Hand => draw_original_hand_cursor(painter, position, scale),
+        CursorStyle::Hand => draw_original_hand_cursor(painter, cache, position, scale),
     }
 }
 
 const HAND_BASE_SCALE: f32 = 0.5;
 const HAND_GRADIENT_RADIUS: f32 = 98.2089;
 const HAND_GRADIENT_CENTER: Pos2 = pos2(92.951_17, 112.492_19);
+const HAND_GRADIENT_TEXTURE_SIZE: usize = 256;
 
 struct HandGeometry {
     points: Vec<Pos2>,
     triangles: Vec<[usize; 3]>,
 }
 
-fn draw_original_hand_cursor(painter: &Painter, position: Pos2, pulse_scale: f32) {
+fn draw_original_hand_cursor(
+    painter: &Painter,
+    cache: &TextureCache,
+    position: Pos2,
+    pulse_scale: f32,
+) {
     let geometry = hand_geometry();
     let scale = HAND_BASE_SCALE * pulse_scale;
     let transform = |point: Pos2| position + point.to_vec2() * scale;
-    let mut mesh = Mesh::default();
-    mesh.reserve_vertices(geometry.triangles.len() * 4);
-    mesh.reserve_triangles(geometry.triangles.len() * 3);
+    let mut mesh = Mesh::with_texture(cache.hand_gradient.id());
+    mesh.reserve_vertices(geometry.points.len());
+    mesh.reserve_triangles(geometry.triangles.len());
+    for point in &geometry.points {
+        mesh.vertices.push(Vertex {
+            pos: transform(*point),
+            uv: point.to_vec2().to_pos2() / HAND_GRADIENT_TEXTURE_SIZE as f32,
+            color: Color32::WHITE,
+        });
+    }
     for triangle in &geometry.triangles {
-        let a = geometry.points[triangle[0]];
-        let b = geometry.points[triangle[1]];
-        let c = geometry.points[triangle[2]];
-        let center = pos2((a.x + b.x + c.x) / 3.0, (a.y + b.y + c.y) / 3.0);
-        let first = mesh.vertices.len() as u32;
-        for point in [a, b, c, center] {
-            mesh.colored_vertex(transform(point), hand_gradient_color(point));
-        }
-        mesh.add_triangle(first, first + 1, first + 3);
-        mesh.add_triangle(first + 1, first + 2, first + 3);
-        mesh.add_triangle(first + 2, first, first + 3);
+        mesh.add_triangle(triangle[0] as u32, triangle[1] as u32, triangle[2] as u32);
     }
     painter.add(Shape::mesh(mesh));
     painter.add(Shape::closed_line(
@@ -535,6 +649,19 @@ fn draw_original_hand_cursor(painter: &Painter, position: Pos2, pulse_scale: f32
 fn hand_gradient_color(point: Pos2) -> Color32 {
     let amount = (point.distance(HAND_GRADIENT_CENTER) / HAND_GRADIENT_RADIUS).clamp(0.0, 1.0);
     lerp_color(Color32::CYAN, Color32::BLUE, amount)
+}
+
+fn hand_gradient_image() -> ColorImage {
+    let mut pixels = Vec::with_capacity(HAND_GRADIENT_TEXTURE_SIZE * HAND_GRADIENT_TEXTURE_SIZE);
+    for y in 0..HAND_GRADIENT_TEXTURE_SIZE {
+        for x in 0..HAND_GRADIENT_TEXTURE_SIZE {
+            pixels.push(hand_gradient_color(pos2(x as f32 + 0.5, y as f32 + 0.5)));
+        }
+    }
+    ColorImage::new(
+        [HAND_GRADIENT_TEXTURE_SIZE, HAND_GRADIENT_TEXTURE_SIZE],
+        pixels,
+    )
 }
 
 fn hand_geometry() -> &'static HandGeometry {

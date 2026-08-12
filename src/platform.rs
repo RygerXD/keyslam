@@ -13,12 +13,13 @@ mod keyboard {
             OnceLock,
             atomic::{AtomicBool, AtomicU64, Ordering},
         },
+        thread::{self, JoinHandle},
     };
 
     use crossbeam_channel::Sender;
     use windows_sys::Win32::{
         Foundation::{LPARAM, LRESULT, WPARAM},
-        System::LibraryLoader::GetModuleHandleW,
+        System::{LibraryLoader::GetModuleHandleW, Threading::GetCurrentThreadId},
         UI::{
             Input::KeyboardAndMouse::{
                 GetAsyncKeyState, VK_BACK, VK_CLEAR, VK_CONTROL, VK_DOWN, VK_END, VK_ESCAPE, VK_F4,
@@ -27,8 +28,9 @@ mod keyboard {
                 VK_RWIN, VK_SHIFT, VK_SNAPSHOT, VK_SPACE, VK_TAB, VK_UP,
             },
             WindowsAndMessaging::{
-                CallNextHookEx, HHOOK, KBDLLHOOKSTRUCT, SetWindowsHookExW, UnhookWindowsHookEx,
-                WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
+                CallNextHookEx, GetMessageW, KBDLLHOOKSTRUCT, MSG, PM_NOREMOVE, PeekMessageW,
+                PostThreadMessageW, SetWindowsHookExW, UnhookWindowsHookEx, WH_KEYBOARD_LL,
+                WM_KEYDOWN, WM_KEYUP, WM_QUIT, WM_SYSKEYDOWN, WM_SYSKEYUP,
             },
         },
     };
@@ -50,32 +52,72 @@ mod keyboard {
     pub(super) const LLKHF_ALTDOWN: u32 = 0x20;
 
     pub struct KeyboardGuard {
-        hook: HHOOK,
+        thread_id: u32,
+        thread: Option<JoinHandle<()>>,
     }
 
     impl KeyboardGuard {
         pub fn install(sender: Sender<PlatformEvent>) -> Result<Self, String> {
             let _ = EVENTS.set(sender);
-            let module = unsafe { GetModuleHandleW(ptr::null()) };
-            let hook = unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(hook_callback), module, 0) };
-            if hook.is_null() {
-                Err(format!(
-                    "Windows keyboard protection could not start: {}",
-                    std::io::Error::last_os_error()
-                ))
-            } else {
-                Ok(Self { hook })
+            let (ready_sender, ready_receiver) = std::sync::mpsc::sync_channel(1);
+            let thread = thread::Builder::new()
+                .name("windows-keyboard-guard".to_owned())
+                .spawn(move || run_hook(ready_sender))
+                .map_err(|error| format!("Windows keyboard protection could not start: {error}"))?;
+            match ready_receiver.recv() {
+                Ok(Ok(thread_id)) => Ok(Self {
+                    thread_id,
+                    thread: Some(thread),
+                }),
+                Ok(Err(error)) => {
+                    let _ = thread.join();
+                    Err(error)
+                }
+                Err(_) => {
+                    let _ = thread.join();
+                    Err("Windows keyboard protection stopped during startup".to_owned())
+                }
             }
         }
     }
 
     impl Drop for KeyboardGuard {
         fn drop(&mut self) {
-            if !self.hook.is_null() {
-                unsafe {
-                    UnhookWindowsHookEx(self.hook);
-                }
+            unsafe {
+                PostThreadMessageW(self.thread_id, WM_QUIT, 0, 0);
             }
+            if let Some(thread) = self.thread.take() {
+                let _ = thread.join();
+            }
+        }
+    }
+
+    fn run_hook(ready: std::sync::mpsc::SyncSender<Result<u32, String>>) {
+        let thread_id = unsafe { GetCurrentThreadId() };
+        let mut message = MSG::default();
+        unsafe {
+            // A thread message queue is created lazily. Create it before the
+            // guard is reported ready so Drop can always post WM_QUIT.
+            PeekMessageW(&mut message, ptr::null_mut(), 0, 0, PM_NOREMOVE);
+        }
+        let module = unsafe { GetModuleHandleW(ptr::null()) };
+        let hook = unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(hook_callback), module, 0) };
+        if hook.is_null() {
+            let _ = ready.send(Err(format!(
+                "Windows keyboard protection could not start: {}",
+                std::io::Error::last_os_error()
+            )));
+            return;
+        }
+        if ready.send(Ok(thread_id)).is_err() {
+            unsafe {
+                UnhookWindowsHookEx(hook);
+            }
+            return;
+        }
+        while unsafe { GetMessageW(&mut message, ptr::null_mut(), 0, 0) } > 0 {}
+        unsafe {
+            UnhookWindowsHookEx(hook);
         }
     }
 
@@ -127,6 +169,13 @@ mod keyboard {
                 // Alt+F4 is the one native close request the kiosk allows.
                 // Pass it onward while authorizing the close guard separately.
                 return unsafe { CallNextHookEx(ptr::null_mut(), code, message, data) };
+            }
+
+            // Suppress both Windows-logo keys directly on key-down and key-up.
+            // If either half reaches Explorer, it can open the Start menu even
+            // though the app immediately reclaims its fullscreen window.
+            if virtual_key == VK_LWIN as u32 || virtual_key == VK_RWIN as u32 {
+                return 1;
             }
 
             if virtual_key == 0x38 && (shift || STAR_DOWN.load(Ordering::SeqCst)) {

@@ -12,7 +12,7 @@ use crate::{
     settings::{CursorEffect, PianoKey, PianoScale, Settings},
 };
 
-const LETTER_GAP: f32 = 8.0;
+const LETTER_ADVANCE: f32 = 208.0;
 const LETTER_PADDING: f32 = 24.0;
 const GLYPH_SIZE: Vec2 = Vec2::new(220.0, 300.0);
 const MAX_PARTICLES: usize = 72;
@@ -68,11 +68,11 @@ pub const COLORS: [BabyColor; 12] = [
         name: "Violet",
     },
     BabyColor {
-        rgb: [255, 192, 203],
+        rgb: [255, 20, 147],
         name: "Pink",
     },
     BabyColor {
-        rgb: [165, 42, 42],
+        rgb: [139, 90, 43],
         name: "Brown",
     },
     BabyColor {
@@ -526,7 +526,7 @@ impl Game {
         if ids.is_empty() {
             return;
         }
-        let total_width = GLYPH_SIZE.x * ids.len() as f32 + LETTER_GAP * (ids.len() - 1) as f32;
+        let total_width = GLYPH_SIZE.x + LETTER_ADVANCE * (ids.len() - 1) as f32;
         let max_left = (display_size.x - LETTER_PADDING - total_width).max(LETTER_PADDING);
         let mut left = if total_width >= (display_size.x - LETTER_PADDING * 2.0).max(0.0) {
             display_size.x - LETTER_PADDING - total_width
@@ -542,7 +542,7 @@ impl Game {
                 && let Some(placement) = figure.placements.get_mut(display_index)
             {
                 placement.top_left = pos2(left, top);
-                left += GLYPH_SIZE.x + LETTER_GAP;
+                left += LETTER_ADVANCE;
             }
         }
     }

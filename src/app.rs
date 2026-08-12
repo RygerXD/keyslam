@@ -270,12 +270,13 @@ pub struct BabySmashApp {
     options_tab: OptionsTab,
     status: Option<String>,
     exit_requested: bool,
+    resources_prewarmed: bool,
     last_frame: Instant,
     frame_seconds: f32,
 }
 
 impl BabySmashApp {
-    pub fn new(displays: Vec<DisplayConfig>) -> Self {
+    pub fn new(displays: Vec<DisplayConfig>, ctx: &Context) -> Self {
         let (settings_store, settings) = SettingsStore::open();
         let localization = Localization::detect();
         let audio = AudioSystem::new(localization.locale());
@@ -299,7 +300,7 @@ impl BabySmashApp {
             localization,
             game: Game::new(sizes),
             audio,
-            textures: TextureCache::default(),
+            textures: TextureCache::new(ctx),
             coloring,
             platform_events,
             _keyboard_guard: keyboard_guard,
@@ -308,6 +309,7 @@ impl BabySmashApp {
             options_tab: OptionsTab::Audio,
             status,
             exit_requested: false,
+            resources_prewarmed: false,
             last_frame: Instant::now(),
             frame_seconds: 1.0 / 60.0,
         }
@@ -568,7 +570,13 @@ impl BabySmashApp {
                 Order::Debug,
                 Id::new(("babysmash-custom-cursor", display_index)),
             ));
-            render::draw_cursor(&cursor_painter, position, self.settings.cursor_style, scale);
+            render::draw_cursor(
+                &cursor_painter,
+                &self.textures,
+                position,
+                self.settings.cursor_style,
+                scale,
+            );
         }
     }
 
@@ -617,6 +625,9 @@ impl BabySmashApp {
             ColoringControl::Swatch(index) => {
                 self.coloring.selected_color = index;
                 self.coloring.end_stroke(display_index);
+                let color = COLORS[index];
+                self.audio
+                    .play_speech(&[format!("colors/{}.opus", color.name.to_ascii_lowercase())]);
             }
             ColoringControl::Clear => {
                 self.game.clear();
@@ -911,6 +922,10 @@ impl eframe::App for BabySmashApp {
 
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        if !self.resources_prewarmed {
+            render::prewarm_glyphs(&ctx);
+            self.resources_prewarmed = true;
+        }
         let now = Instant::now();
         self.frame_seconds = now
             .duration_since(self.last_frame)
