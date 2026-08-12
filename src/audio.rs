@@ -4,6 +4,7 @@ use std::{
     io::Cursor,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
+    thread,
 };
 
 use cpal::{
@@ -19,6 +20,7 @@ use rodio::Source;
 static SOUNDS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/sounds");
 static SPEECH: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/speech");
 const MAX_VOICES: usize = 32;
+const SPEECH_LOADER_THREADS: usize = 2;
 
 #[derive(Debug)]
 struct AudioClip {
@@ -177,10 +179,8 @@ impl Mixer {
 
 pub struct AudioSystem {
     sender: Sender<AudioCommand>,
+    speech_sender: Sender<Vec<String>>,
     clips: HashMap<&'static str, Arc<AudioClip>>,
-    speech_locale: String,
-    speech_root: PathBuf,
-    speech_clips: Mutex<HashMap<String, Arc<AudioClip>>>,
     piano: Mutex<HashMap<i32, Arc<AudioClip>>>,
     _stream: Option<Stream>,
     status: Arc<Mutex<Option<String>>>,
@@ -216,12 +216,18 @@ impl AudioSystem {
                 None
             }
         };
+        let (speech_sender, speech_receiver) = bounded(64);
+        start_speech_workers(
+            speech_receiver,
+            sender.clone(),
+            locale.to_owned(),
+            speech_root,
+            Arc::clone(&status),
+        );
         Self {
             sender,
+            speech_sender,
             clips,
-            speech_locale: locale.to_owned(),
-            speech_root,
-            speech_clips: Mutex::new(HashMap::new()),
             piano: Mutex::new(HashMap::new()),
             _stream: stream,
             status,
@@ -235,12 +241,14 @@ impl AudioSystem {
     }
 
     pub fn play_speech(&self, keys: &[String]) {
-        let clips = keys
-            .iter()
-            .filter_map(|key| self.speech_clip(key))
-            .collect::<Vec<_>>();
-        if clips.len() == keys.len() {
-            self.send(AudioCommand::Play(clips, 1.0));
+        match self.speech_sender.try_send(keys.to_vec()) {
+            Ok(()) | Err(TrySendError::Disconnected(_)) => {}
+            Err(TrySendError::Full(_)) => {
+                set_status(
+                    &self.status,
+                    "Speech queue is busy; a phrase was skipped".to_owned(),
+                );
+            }
         }
     }
 
@@ -285,49 +293,95 @@ impl AudioSystem {
             }
         }
     }
+}
 
-    fn speech_clip(&self, key: &str) -> Option<Arc<AudioClip>> {
-        if let Some(clip) = self
-            .speech_clips
-            .lock()
-            .ok()
-            .and_then(|clips| clips.get(key).cloned())
-        {
-            return Some(clip);
-        }
-
-        let localized = Path::new(&self.speech_locale).join(key);
-        let common = Path::new("common").join(key);
-        let loaded = [localized, common].into_iter().find_map(|relative| {
-            let external = self.speech_root.join(&relative);
-            let bytes = fs::read(&external).ok().or_else(|| {
-                SPEECH
-                    .get_file(&relative)
-                    .map(|file| file.contents().to_vec())
-            })?;
-            match decode_opus(&bytes) {
-                Ok(clip) => Some(Arc::new(trim_speech_silence(clip))),
-                Err(error) => {
-                    set_status(
-                        &self.status,
-                        format!(
-                            "Could not decode speech clip {}: {error}",
-                            external.display()
-                        ),
-                    );
-                    None
+fn start_speech_workers(
+    receiver: Receiver<Vec<String>>,
+    audio_sender: Sender<AudioCommand>,
+    locale: String,
+    speech_root: PathBuf,
+    status: Arc<Mutex<Option<String>>>,
+) {
+    let cache = Arc::new(Mutex::new(HashMap::<String, Arc<AudioClip>>::new()));
+    for worker_index in 0..SPEECH_LOADER_THREADS {
+        let receiver = receiver.clone();
+        let audio_sender = audio_sender.clone();
+        let locale = locale.clone();
+        let speech_root = speech_root.clone();
+        let status = Arc::clone(&status);
+        let cache = Arc::clone(&cache);
+        let _ = thread::Builder::new()
+            .name(format!("speech-loader-{worker_index}"))
+            .spawn(move || {
+                while let Ok(keys) = receiver.recv() {
+                    let clips = keys
+                        .iter()
+                        .filter_map(|key| speech_clip(key, &locale, &speech_root, &cache, &status))
+                        .collect::<Vec<_>>();
+                    if clips.len() == keys.len() {
+                        try_send_audio(&audio_sender, &status, AudioCommand::Play(clips, 1.0));
+                    }
                 }
+            });
+    }
+}
+
+fn speech_clip(
+    key: &str,
+    locale: &str,
+    speech_root: &Path,
+    cache: &Mutex<HashMap<String, Arc<AudioClip>>>,
+    status: &Arc<Mutex<Option<String>>>,
+) -> Option<Arc<AudioClip>> {
+    if let Some(clip) = cache.lock().ok().and_then(|clips| clips.get(key).cloned()) {
+        return Some(clip);
+    }
+
+    let localized = Path::new(locale).join(key);
+    let common = Path::new("common").join(key);
+    let loaded = [localized, common].into_iter().find_map(|relative| {
+        let external = speech_root.join(&relative);
+        let bytes = fs::read(&external).ok().or_else(|| {
+            SPEECH
+                .get_file(&relative)
+                .map(|file| file.contents().to_vec())
+        })?;
+        match decode_opus(&bytes) {
+            Ok(clip) => Some(Arc::new(trim_speech_silence(clip))),
+            Err(error) => {
+                set_status(
+                    status,
+                    format!(
+                        "Could not decode speech clip {}: {error}",
+                        external.display()
+                    ),
+                );
+                None
             }
-        });
-        if let Some(clip) = &loaded
-            && let Ok(mut clips) = self.speech_clips.lock()
-        {
-            clips.insert(key.to_owned(), Arc::clone(clip));
         }
-        if loaded.is_none() {
-            set_status(&self.status, format!("Speech clip is missing: {key}"));
-        }
-        loaded
+    });
+    if let Some(clip) = &loaded
+        && let Ok(mut clips) = cache.lock()
+    {
+        clips.insert(key.to_owned(), Arc::clone(clip));
+    }
+    if loaded.is_none() {
+        set_status(status, format!("Speech clip is missing: {key}"));
+    }
+    loaded
+}
+
+fn try_send_audio(
+    sender: &Sender<AudioCommand>,
+    status: &Arc<Mutex<Option<String>>>,
+    command: AudioCommand,
+) {
+    match sender.try_send(command) {
+        Ok(()) | Err(TrySendError::Disconnected(_)) => {}
+        Err(TrySendError::Full(_)) => set_status(
+            status,
+            "Audio queue is busy; an effect was skipped".to_owned(),
+        ),
     }
 }
 

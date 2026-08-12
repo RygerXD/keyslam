@@ -40,7 +40,12 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "BabySmash! for Rust",
         native_options,
-        Box::new(move |_creation_context| Ok(Box::new(BabySmashApp::new(displays)))),
+        Box::new(move |creation_context| {
+            Ok(Box::new(BabySmashApp::new(
+                displays,
+                &creation_context.egui_ctx,
+            )))
+        }),
     )
 }
 
