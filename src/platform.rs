@@ -11,7 +11,7 @@ mod keyboard {
         ptr,
         sync::{
             OnceLock,
-            atomic::{AtomicBool, Ordering},
+            atomic::{AtomicBool, AtomicU64, Ordering},
         },
     };
 
@@ -38,6 +38,12 @@ mod keyboard {
     static EVENTS: OnceLock<Sender<PlatformEvent>> = OnceLock::new();
     static EXIT_REQUESTED: AtomicBool = AtomicBool::new(false);
     static ALT_DOWN: AtomicBool = AtomicBool::new(false);
+    static NUMPAD_DOWN: [AtomicU64; 4] = [
+        AtomicU64::new(0),
+        AtomicU64::new(0),
+        AtomicU64::new(0),
+        AtomicU64::new(0),
+    ];
     const LLKHF_EXTENDED: u32 = 0x01;
     pub(super) const LLKHF_ALTDOWN: u32 = 0x20;
 
@@ -108,8 +114,14 @@ mod keyboard {
 
             if let Some(key_name) = numpad_key_name(virtual_key, keyboard.scanCode, keyboard.flags)
             {
-                if is_up && let Some(events) = EVENTS.get() {
+                if is_down
+                    && mark_numpad_down(virtual_key)
+                    && let Some(events) = EVENTS.get()
+                {
                     let _ = events.try_send(PlatformEvent::Key(key_name.to_owned()));
+                }
+                if is_up {
+                    mark_numpad_up(virtual_key);
                 }
                 return 1;
             }
@@ -125,6 +137,18 @@ mod keyboard {
             }
         }
         unsafe { CallNextHookEx(ptr::null_mut(), code, message, data) }
+    }
+
+    fn mark_numpad_down(virtual_key: u32) -> bool {
+        let index = (virtual_key / 64) as usize;
+        let bit = 1_u64 << (virtual_key % 64);
+        NUMPAD_DOWN[index].fetch_or(bit, Ordering::SeqCst) & bit == 0
+    }
+
+    fn mark_numpad_up(virtual_key: u32) {
+        let index = (virtual_key / 64) as usize;
+        let bit = 1_u64 << (virtual_key % 64);
+        NUMPAD_DOWN[index].fetch_and(!bit, Ordering::SeqCst);
     }
 
     pub(super) fn alt_is_down(message: WPARAM, flags: u32, async_alt_down: bool) -> bool {

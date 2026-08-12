@@ -336,25 +336,21 @@ impl Game {
                 settings,
             );
         }
-
         self.fade_items_over_limit(settings.clear_after, now);
         default_speech
     }
 
     fn fade_items_over_limit(&mut self, item_limit: usize, now: Instant) {
-        let overflow = self
-            .figures
-            .iter()
-            .filter(|figure| !figure.fade_has_started(now))
-            .count()
-            .saturating_sub(item_limit);
-        for figure in self
-            .figures
-            .iter_mut()
-            .filter(|figure| !figure.fade_has_started(now))
-            .take(overflow)
-        {
-            figure.start_removal_fade(now);
+        let mut items_kept = 0;
+        for figure in self.figures.iter_mut().rev() {
+            if figure.fade_has_started(now) {
+                break;
+            }
+            if items_kept < item_limit {
+                items_kept += 1;
+            } else {
+                figure.start_removal_fade(now);
+            }
         }
     }
 

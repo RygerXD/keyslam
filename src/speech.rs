@@ -10,8 +10,8 @@ use std::process::{Child, Command, Stdio};
 
 use crossbeam_channel::{RecvTimeoutError, Sender, TrySendError, bounded};
 
-const MAX_CONCURRENT_SPEECH: usize = 8;
-const MAX_PENDING_SPEECH: usize = 16;
+const MAX_CONCURRENT_SPEECH: usize = 2;
+const MAX_PENDING_SPEECH: usize = 2;
 const SPEECH_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 enum SpeechCommand {

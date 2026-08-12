@@ -73,6 +73,10 @@ pub fn draw_figure(
     if rect.width() <= 0.01 || rect.height() <= 0.01 {
         return;
     }
+    let draw_bounds = Rect::from_center_size(center, Vec2::splat(rect.size().length() + 24.0));
+    if !painter.clip_rect().intersects(draw_bounds) {
+        return;
+    }
     let angle = (spawn_rotation + interaction_rotation).to_radians();
     match figure.kind {
         FigureKind::Glyph(glyph) => draw_glyph(painter, rect, glyph, figure.color, opacity, angle),
@@ -327,7 +331,7 @@ fn draw_rainbow_trail(painter: &Painter, state: &PointerState) {
             painter.line_segment(
                 [pair[0], pair[1]],
                 Stroke::new(
-                    18.0 * fade.max(0.25),
+                    54.0 * fade.max(0.25),
                     with_opacity(rainbow[index % rainbow.len()], state.trail.opacity * fade),
                 ),
             );
