@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use crate::{
     audio::AudioSystem,
-    game::{BabyColor, COLORS, FigureKind, Game, pointer_tone},
+    game::{BabyColor, COLORS, FigureKind, Game, piano_tone, pointer_tone},
     localization::Localization,
     platform::{
         KeyboardGuard, PlatformEvent, exit_chord_down, install_keyboard_guard, keep_taskbar_behind,
@@ -12,7 +12,7 @@ use crate::{
     responses::response_for,
     settings::{
         CursorEffect, CursorStyle, MAX_FADE_AFTER_SECONDS, MAX_ITEMS_KEPT, MIN_FADE_AFTER_SECONDS,
-        MIN_ITEMS_KEPT, PointerSound, Settings, SettingsStore, SoundMode,
+        MIN_ITEMS_KEPT, PianoKey, PianoScale, PointerSound, Settings, SettingsStore, SoundMode,
     },
 };
 use crossbeam_channel::{Receiver, bounded};
@@ -767,10 +767,17 @@ impl BabySmashApp {
                     button: PointerButton::Secondary,
                     pressed: true,
                     ..
-                } if self.settings.right_click_piano_enabled => {
-                    if let Some(display) = self.game.displays.get(display_index) {
-                        let (frequency, _) = pointer_tone(pos, display.size);
-                        self.audio.play_piano(frequency);
+                } => {
+                    if let Some(display) = self.game.displays.get_mut(display_index) {
+                        display.pointer.piano_ripple(pos, now);
+                        if self.settings.right_click_piano_enabled {
+                            self.audio.play_piano(piano_tone(
+                                pos,
+                                display.size,
+                                self.settings.right_click_piano_scale,
+                                self.settings.right_click_piano_key,
+                            ));
+                        }
                     }
                 }
                 Event::MouseWheel { delta, .. } if delta.y != 0.0 => {
@@ -996,6 +1003,41 @@ fn audio_options(ui: &mut Ui, settings: &mut Settings) {
             &mut settings.right_click_piano_enabled,
             "Play piano keys on right-click",
         );
+        ui.add_enabled_ui(settings.right_click_piano_enabled, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Scale");
+                ComboBox::from_id_salt("right-click-piano-scale")
+                    .selected_text(settings.right_click_piano_scale.label())
+                    .show_ui(ui, |ui| {
+                        for scale in PianoScale::ALL {
+                            ui.selectable_value(
+                                &mut settings.right_click_piano_scale,
+                                scale,
+                                scale.label(),
+                            );
+                        }
+                    });
+            });
+            ui.add_enabled_ui(
+                settings.right_click_piano_scale != PianoScale::Chromatic,
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Key");
+                        ComboBox::from_id_salt("right-click-piano-key")
+                            .selected_text(settings.right_click_piano_key.label())
+                            .show_ui(ui, |ui| {
+                                for key in PianoKey::ALL {
+                                    ui.selectable_value(
+                                        &mut settings.right_click_piano_key,
+                                        key,
+                                        key.label(),
+                                    );
+                                }
+                            });
+                    });
+                },
+            );
+        });
     });
 }
 

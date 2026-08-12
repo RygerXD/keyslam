@@ -28,6 +28,92 @@ pub enum PointerSound {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PianoScale {
+    Chromatic,
+    Major,
+    Minor,
+}
+
+impl PianoScale {
+    pub const ALL: [Self; 3] = [Self::Chromatic, Self::Major, Self::Minor];
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Chromatic => "Chromatic",
+            Self::Major => "Major",
+            Self::Minor => "Minor",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PianoKey {
+    C,
+    CSharp,
+    D,
+    EFlat,
+    E,
+    F,
+    FSharp,
+    G,
+    AFlat,
+    A,
+    BFlat,
+    B,
+}
+
+impl PianoKey {
+    pub const ALL: [Self; 12] = [
+        Self::C,
+        Self::CSharp,
+        Self::D,
+        Self::EFlat,
+        Self::E,
+        Self::F,
+        Self::FSharp,
+        Self::G,
+        Self::AFlat,
+        Self::A,
+        Self::BFlat,
+        Self::B,
+    ];
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::C => "C",
+            Self::CSharp => "C♯ / D♭",
+            Self::D => "D",
+            Self::EFlat => "E♭",
+            Self::E => "E",
+            Self::F => "F",
+            Self::FSharp => "F♯ / G♭",
+            Self::G => "G",
+            Self::AFlat => "A♭",
+            Self::A => "A",
+            Self::BFlat => "B♭",
+            Self::B => "B",
+        }
+    }
+
+    pub const fn semitone(self) -> i32 {
+        match self {
+            Self::C => 0,
+            Self::CSharp => 1,
+            Self::D => 2,
+            Self::EFlat => 3,
+            Self::E => 4,
+            Self::F => 5,
+            Self::FSharp => 6,
+            Self::G => 7,
+            Self::AFlat => 8,
+            Self::A => 9,
+            Self::BFlat => 10,
+            Self::B => 11,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CursorStyle {
     Arrow,
     Hand,
@@ -127,6 +213,8 @@ pub struct Settings {
     pub pointer_sound: PointerSound,
     pub sine_wave_volume_percent: u8,
     pub right_click_piano_enabled: bool,
+    pub right_click_piano_scale: PianoScale,
+    pub right_click_piano_key: PianoKey,
     pub spawn_animations: bool,
     pub interaction_animations: bool,
     pub faces_on_shapes: bool,
@@ -148,6 +236,8 @@ impl Default for Settings {
             pointer_sound: PointerSound::SineWave,
             sine_wave_volume_percent: 35,
             right_click_piano_enabled: true,
+            right_click_piano_scale: PianoScale::Chromatic,
+            right_click_piano_key: PianoKey::C,
             spawn_animations: true,
             interaction_animations: true,
             faces_on_shapes: true,

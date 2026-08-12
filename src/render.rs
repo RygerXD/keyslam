@@ -212,9 +212,9 @@ fn shape_points(kind: ShapeKind, rect: Rect) -> Vec<Pos2> {
         ],
         ShapeKind::Triangle => regular_polygon(center, radius, 3, -90.0),
         ShapeKind::Pentagon => regular_polygon(center, radius, 5, -90.0),
-        ShapeKind::Hexagon => regular_polygon(center, radius, 6, -90.0),
+        ShapeKind::Hexagon => regular_polygon(center, radius, 6, 0.0),
         ShapeKind::Septagon => regular_polygon(center, radius, 7, -90.0),
-        ShapeKind::Octagon => regular_polygon(center, radius, 8, -90.0),
+        ShapeKind::Octagon => regular_polygon(center, radius, 8, -112.5),
         ShapeKind::Trapezoid => vec![
             pos2(center.x - radius.x * 0.55, center.y - radius.y),
             pos2(center.x + radius.x * 0.55, center.y - radius.y),
@@ -313,6 +313,17 @@ pub fn draw_pointer_effects(painter: &Painter, state: &PointerState, now: Instan
     draw_trail_marks(painter, &state.trail_marks, now);
     for particle in &state.particles {
         draw_particle(painter, particle, now);
+    }
+    for ripple in &state.piano_ripples {
+        let progress = ripple.progress(now);
+        let eased = 1.0 - (1.0 - progress).powi(3);
+        let radius = 8.0 + 82.0 * eased;
+        let opacity = (1.0 - progress).powi(2);
+        painter.circle_stroke(
+            ripple.position,
+            radius,
+            Stroke::new(3.0 - 1.5 * progress, with_opacity(Color32::WHITE, opacity)),
+        );
     }
 }
 

@@ -65,7 +65,7 @@ Controls:
 | `Alt+O` | Open settings |
 | `Alt+F4` | Exit all BabySmash windows |
 | Left-click / drag | Tap items, draw the pointer effect, and play pointer audio |
-| Right-click | Play a piano note based on vertical position |
+| Right-click | Play a chromatic or key-based major/minor piano note and show a fading ripple |
 | Mouse wheel | Cycle pointer effects |
 
 Coloring mode adds the 12-color palette and Clear screen button along the
