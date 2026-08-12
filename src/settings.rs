@@ -6,7 +6,7 @@ use std::{
 
 use atomic_write_file::AtomicWriteFile;
 use directories::ProjectDirs;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 pub const MIN_FADE_AFTER_SECONDS: f32 = 0.0;
 pub const MAX_FADE_AFTER_SECONDS: f32 = 120.0;
@@ -33,25 +33,53 @@ pub enum CursorStyle {
     Hand,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum CursorEffect {
     None,
     Rainbow,
     FadingTrail,
     NeonWorm,
-    BumpMapTrail,
     Sparkles,
     Bubbles,
     Coloring,
 }
 
+#[derive(Deserialize)]
+enum StoredCursorEffect {
+    None,
+    Rainbow,
+    FadingTrail,
+    NeonWorm,
+    Sparkles,
+    Bubbles,
+    Coloring,
+    #[serde(other)]
+    Removed,
+}
+
+impl<'de> Deserialize<'de> for CursorEffect {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(match StoredCursorEffect::deserialize(deserializer)? {
+            StoredCursorEffect::None | StoredCursorEffect::Removed => Self::None,
+            StoredCursorEffect::Rainbow => Self::Rainbow,
+            StoredCursorEffect::FadingTrail => Self::FadingTrail,
+            StoredCursorEffect::NeonWorm => Self::NeonWorm,
+            StoredCursorEffect::Sparkles => Self::Sparkles,
+            StoredCursorEffect::Bubbles => Self::Bubbles,
+            StoredCursorEffect::Coloring => Self::Coloring,
+        })
+    }
+}
+
 impl CursorEffect {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 7] = [
         Self::None,
         Self::Rainbow,
         Self::FadingTrail,
         Self::NeonWorm,
-        Self::BumpMapTrail,
         Self::Sparkles,
         Self::Bubbles,
         Self::Coloring,
@@ -63,7 +91,6 @@ impl CursorEffect {
             Self::Rainbow => "Rainbow ribbon",
             Self::FadingTrail => "Fading mouse trails",
             Self::NeonWorm => "Neon worm",
-            Self::BumpMapTrail => "Mouse trail bump map",
             Self::Sparkles => "Sparkles",
             Self::Bubbles => "Bubbles",
             Self::Coloring => "Coloring mode",
@@ -74,7 +101,6 @@ impl CursorEffect {
         match self {
             Self::FadingTrail => Some("https://www.shadertoy.com/view/mtSGDy"),
             Self::NeonWorm => Some("https://www.shadertoy.com/view/clB3RK"),
-            Self::BumpMapTrail => Some("https://www.shadertoy.com/view/md3XD4"),
             _ => None,
         }
     }
@@ -271,15 +297,17 @@ mod tests {
                 "Neon worm",
                 "https://www.shadertoy.com/view/clB3RK",
             ),
-            (
-                CursorEffect::BumpMapTrail,
-                "Mouse trail bump map",
-                "https://www.shadertoy.com/view/md3XD4",
-            ),
         ] {
             assert_eq!(effect.label(), label);
             assert_eq!(effect.shadertoy_url(), Some(url));
         }
+    }
+
+    #[test]
+    fn removed_bump_map_setting_migrates_to_no_effect() -> serde_json::Result<()> {
+        let effect = serde_json::from_str::<CursorEffect>("\"BumpMapTrail\"")?;
+        assert_eq!(effect, CursorEffect::None);
+        Ok(())
     }
 
     #[test]

@@ -19,8 +19,6 @@ const MAX_PARTICLES: usize = 72;
 const MAX_TRAIL_MARKS: usize = 512;
 const TRAIL_MARK_SPACING: f32 = 5.0;
 const FADING_TRAIL_SECONDS: f32 = 1.35;
-const BUMP_MAP_TRAIL_SECONDS: f32 = 2.45;
-const BUMP_MAP_STROKE_RADIUS: f32 = 30.0;
 const NEON_POINT_COUNT: usize = 1_024;
 const NEON_WINDOW_LENGTH: usize = 32;
 const NEON_WINDOW_OFFSET: isize = (NEON_WINDOW_LENGTH / 2) as isize;
@@ -656,8 +654,6 @@ pub struct PointerState {
     last_effect_position: Option<Pos2>,
     next_effect_spacing: f32,
     stroke_sequence: u64,
-    bump_demo_started: Option<Instant>,
-    bump_has_input: bool,
     cursor_pulse: Option<CursorPulse>,
 }
 
@@ -667,10 +663,6 @@ impl PointerState {
         self.position = Some(position);
         self.last_effect_position = None;
         self.stroke_sequence = self.stroke_sequence.wrapping_add(1);
-        if effect == CursorEffect::BumpMapTrail {
-            self.bump_has_input = true;
-            self.bump_demo_started = None;
-        }
         self.emit(position, effect, now);
     }
 
@@ -720,11 +712,6 @@ impl PointerState {
             self.neon_worm.stop(now);
         }
         self.neon_worm.advance(now, frame_seconds, bounds);
-        if effect == CursorEffect::BumpMapTrail && !self.bump_has_input {
-            self.update_bump_demo(now, bounds);
-        } else if effect != CursorEffect::BumpMapTrail {
-            self.bump_demo_started = None;
-        }
         self.particles.retain(|particle| {
             now.duration_since(particle.created).as_secs_f32() < particle.duration
         });
@@ -749,20 +736,10 @@ impl PointerState {
                 self.neon_worm.stop(now);
                 self.trail.move_to(position);
             }
-            CursorEffect::FadingTrail | CursorEffect::BumpMapTrail => {
+            CursorEffect::FadingTrail => {
                 self.trail.stop(now);
                 self.neon_worm.stop(now);
-                if effect == CursorEffect::BumpMapTrail && !self.bump_has_input {
-                    self.stroke_sequence = self.stroke_sequence.wrapping_add(1);
-                    self.bump_has_input = true;
-                    self.bump_demo_started = None;
-                }
-                let duration = match effect {
-                    CursorEffect::FadingTrail => FADING_TRAIL_SECONDS,
-                    CursorEffect::BumpMapTrail => BUMP_MAP_TRAIL_SECONDS,
-                    _ => unreachable!(),
-                };
-                self.push_trail_mark(position, effect, now, duration);
+                self.push_trail_mark(position, effect, now, FADING_TRAIL_SECONDS);
             }
             CursorEffect::NeonWorm => {
                 self.last_effect_position = None;
@@ -839,30 +816,6 @@ impl PointerState {
             let remove_count = self.trail_marks.len() - MAX_TRAIL_MARKS;
             self.trail_marks.drain(0..remove_count);
         }
-    }
-
-    fn update_bump_demo(&mut self, now: Instant, bounds: Vec2) {
-        let started = if let Some(started) = self.bump_demo_started {
-            started
-        } else {
-            self.stroke_sequence = self.stroke_sequence.wrapping_add(1);
-            self.bump_demo_started = Some(now);
-            now
-        };
-        let time = now.duration_since(started).as_secs_f32();
-        let distance = (bounds.y * 0.5 - BUMP_MAP_STROKE_RADIUS).max(1.0);
-        let aspect_difference = (bounds.x - bounds.y) * 0.5 + BUMP_MAP_STROKE_RADIUS;
-        let source_y = (time * 0.5).sin() * distance + distance + BUMP_MAP_STROKE_RADIUS;
-        let position = pos2(
-            (time * 0.5).cos() * distance + distance + aspect_difference,
-            bounds.y - source_y,
-        );
-        self.push_trail_mark(
-            position,
-            CursorEffect::BumpMapTrail,
-            now,
-            BUMP_MAP_TRAIL_SECONDS,
-        );
     }
 }
 
@@ -1390,35 +1343,6 @@ mod tests {
         assert_eq!(weights.len(), NEON_WINDOW_LENGTH + 1);
         assert!((weights.iter().sum::<f32>() - 1.0).abs() < 0.0001);
         assert!(weights.iter().any(|weight| *weight < 0.0));
-    }
-
-    #[test]
-    fn bump_map_trail_starts_in_the_reference_demo_mode() {
-        let started = Instant::now();
-        let mut pointer = PointerState::default();
-        let bounds = vec2(640.0, 360.0);
-
-        pointer.update(started, 1.0 / 60.0, bounds, CursorEffect::BumpMapTrail);
-        pointer.update(
-            started + Duration::from_millis(100),
-            0.1,
-            bounds,
-            CursorEffect::BumpMapTrail,
-        );
-
-        assert!(pointer.trail_marks.len() >= 2);
-        assert!(
-            pointer
-                .trail_marks
-                .iter()
-                .all(|mark| mark.effect == CursorEffect::BumpMapTrail)
-        );
-        assert!(
-            pointer
-                .trail_marks
-                .iter()
-                .all(|mark| (mark.duration - BUMP_MAP_TRAIL_SECONDS).abs() < f32::EPSILON)
-        );
     }
 
     #[test]

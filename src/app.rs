@@ -499,11 +499,7 @@ impl BabySmashApp {
         } else {
             self.settings.background_brightness_percent
         };
-        let channel = match self.settings.cursor_effect {
-            CursorEffect::NeonWorm => 0,
-            CursorEffect::BumpMapTrail => 128,
-            _ => (f32::from(brightness) * 2.55).round() as u8,
-        };
+        let channel = (f32::from(brightness) * 2.55).round() as u8;
         ui.painter()
             .rect_filled(rect, 0.0, Color32::from_gray(channel));
         self.draw_painting(ui.painter(), display_index);
@@ -523,7 +519,7 @@ impl BabySmashApp {
         }
 
         if display_index == 0 {
-            let light_background = channel >= 140;
+            let light_background = brightness >= 55;
             let secondary = if light_background {
                 Color32::from_gray(55)
             } else {
@@ -672,7 +668,7 @@ impl BabySmashApp {
                 Event::Key {
                     key,
                     physical_key,
-                    pressed: true,
+                    pressed: false,
                     ..
                 } => {
                     let selected = physical_key.unwrap_or(key);

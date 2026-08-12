@@ -108,7 +108,7 @@ mod keyboard {
 
             if let Some(key_name) = numpad_key_name(virtual_key, keyboard.scanCode, keyboard.flags)
             {
-                if is_down && let Some(events) = EVENTS.get() {
+                if is_up && let Some(events) = EVENTS.get() {
                     let _ = events.try_send(PlatformEvent::Key(key_name.to_owned()));
                 }
                 return 1;

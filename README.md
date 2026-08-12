@@ -18,8 +18,8 @@ embedded in the executable.
   animation, and tap animation
 - Speech, click audio, continuous stereo sinewave, and right-click piano
 - Arrow/original blue hand pointers plus rainbow, fading-afterimage, neon-worm,
-  bump-map, sparkle, bubble, and background-coloring modes; the mouse wheel
-  cycles effects and briefly pulses the hand larger or smaller
+  sparkle, bubble, and background-coloring modes; the mouse wheel cycles
+  effects and briefly pulses the hand larger or smaller
 - One borderless, always-on-top game viewport per monitor (Windows uses native
   borderless fullscreen)
 - Single-instance protection and Windows low-level protection for Windows keys,
