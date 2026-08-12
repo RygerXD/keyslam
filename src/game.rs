@@ -24,6 +24,7 @@ const NEON_WINDOW_LENGTH: usize = 32;
 const NEON_WINDOW_OFFSET: isize = (NEON_WINDOW_LENGTH / 2) as isize;
 const NEON_REFERENCE_FPS: f32 = 165.0;
 const NEON_MAX_STEPS_PER_FRAME: usize = 8;
+const MAX_CONCURRENT_ITEM_ANIMATIONS: usize = 50;
 const REMOVAL_FADE_SECONDS: f32 = 1.0;
 const CURSOR_PULSE_SECONDS: f32 = 0.3;
 const CURSOR_GROW_SCALE: f32 = 1.28;
@@ -158,6 +159,25 @@ impl Figure {
                 })
             })
     }
+
+    fn finish_active_animations(&mut self, now: Instant) {
+        let age = now.duration_since(self.created).as_secs_f32();
+        if self.animate_spawn && age < 1.0 {
+            self.animate_spawn = false;
+        }
+        if self.fade_after.is_some_and(|visible_seconds| {
+            age >= visible_seconds && age < visible_seconds + REMOVAL_FADE_SECONDS
+        }) {
+            self.fade_after = Some(age - REMOVAL_FADE_SECONDS);
+        }
+        for placement in &mut self.placements {
+            if placement.interaction.as_ref().is_some_and(|interaction| {
+                now.duration_since(interaction.started).as_secs_f32() < interaction.kind.duration()
+            }) {
+                placement.interaction = None;
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -255,6 +275,24 @@ impl Game {
 
     pub fn has_active_item_animation(&self, now: Instant) -> bool {
         self.figures.iter().any(|figure| figure.is_animating(now))
+    }
+
+    pub fn limit_active_item_animations(&mut self, now: Instant) {
+        let mut animations_to_finish = self
+            .figures
+            .iter()
+            .filter(|figure| figure.is_animating(now))
+            .count()
+            .saturating_sub(MAX_CONCURRENT_ITEM_ANIMATIONS);
+        for figure in &mut self.figures {
+            if animations_to_finish == 0 {
+                break;
+            }
+            if figure.is_animating(now) {
+                figure.finish_active_animations(now);
+                animations_to_finish -= 1;
+            }
+        }
     }
 
     pub fn add_response(

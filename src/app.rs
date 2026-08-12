@@ -500,6 +500,7 @@ impl BabySmashApp {
             );
         }
         self.handle_input(ui, display_index, now);
+        self.game.limit_active_item_animations(now);
 
         let brightness = if self.options_open {
             self.draft_settings.background_brightness_percent
