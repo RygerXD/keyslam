@@ -920,6 +920,9 @@ impl eframe::App for BabySmashApp {
                 self.render_viewport(ui, display_index);
             });
         }
+        if self.game.has_active_item_animation(Instant::now()) {
+            ctx.request_repaint();
+        }
     }
 }
 

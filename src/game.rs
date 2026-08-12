@@ -142,6 +142,22 @@ impl Figure {
         let eased = 1.0 - (1.0 - progress).powi(3);
         (eased, 360.0 * (1.0 - eased))
     }
+
+    fn is_animating(&self, now: Instant) -> bool {
+        let age = now.duration_since(self.created).as_secs_f32();
+        let spawn_is_active = self.animate_spawn && age < 1.0;
+        let fade_is_active = self.fade_after.is_some_and(|visible_seconds| {
+            age >= visible_seconds && age < visible_seconds + REMOVAL_FADE_SECONDS
+        });
+        spawn_is_active
+            || fade_is_active
+            || self.placements.iter().any(|placement| {
+                placement.interaction.as_ref().is_some_and(|interaction| {
+                    now.duration_since(interaction.started).as_secs_f32()
+                        < interaction.kind.duration()
+                })
+            })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -235,6 +251,10 @@ impl Game {
             next_color_index: 0,
             active_word: None,
         }
+    }
+
+    pub fn has_active_item_animation(&self, now: Instant) -> bool {
+        self.figures.iter().any(|figure| figure.is_animating(now))
     }
 
     pub fn add_response(
