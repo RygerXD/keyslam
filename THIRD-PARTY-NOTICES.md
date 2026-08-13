@@ -1,9 +1,11 @@
 # Third-party notices
 
-BabySmash Rust is a clean Rust reimplementation of the MIT-licensed
-[BabySmash](https://github.com/RygerXD/babysmash) project. Its bundled sound,
-localization, icon, and emoji resources are redistributed under the notices
-that accompanied that project.
+KeySlam began as a clean Rust reimplementation of Scott Hanselman's
+MIT-licensed [BabySmash](https://github.com/shanselman/babysmash) project.
+KeySlam is now an independent project with its own name, architecture, and
+features, while retaining clear credit for its roots. Bundled sound,
+localization, icon, and emoji resources derived from that work are redistributed
+under the notices that accompanied BabySmash.
 
 ## Microsoft Fluent Emoji
 

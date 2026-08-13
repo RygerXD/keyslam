@@ -1,15 +1,21 @@
-# BabySmash Rust
+# KeySlam
 
-A from-scratch Rust reimplementation of
-[BabySmash](https://github.com/RygerXD/babysmash): press keys to fill every
-display with colorful letters, animals, and smiling shapes while the app speaks
-their names.
+KeySlam is a keyboard and pointer playground for young children. Press keys to
+fill every display with colorful letters, animals, and smiling shapes while the
+app speaks their names; use the pointer to paint, make animated trails, and play
+musical notes.
+
+KeySlam began as a from-scratch Rust reimplementation of Scott Hanselman's
+[BabySmash](https://github.com/shanselman/babysmash). It preserves that
+project's delightful central idea while developing its own architecture,
+identity, interaction modes, audio system, and visual effects. KeySlam is an
+independent project and is not an official BabySmash release.
 
 The implementation favors a small number of typed, reusable systems over a
 platform-specific class hierarchy. All art, sounds, and translations are
 embedded in the executable.
 
-## Parity
+## Features
 
 - Letters, top-row numbers, the full special-key animal map, and numpad shapes
 - Pre-recorded Opus speech for English, German, Greek, Spanish, French,
@@ -32,13 +38,13 @@ embedded in the executable.
 - Persistent settings
 
 On Windows, the low-level keyboard guard runs as a hidden companion mode of
-the same executable. It is scoped to BabySmash's foreground windows and exits
+the same executable. It is scoped to KeySlam's foreground windows and exits
 automatically with the game; no additional binary is installed.
 
 The original application's self-updater is intentionally not copied. Release
 and package updates should be handled by the platform package manager. Some
 secure operating-system shortcuts (notably Ctrl+Alt+Delete) and the gesture
-itself cannot be intercepted by an ordinary application. BabySmash responds to
+itself cannot be intercepted by an ordinary application. KeySlam responds to
 desktop-level touchpad gestures by immediately reclaiming its fullscreen focus.
 For an OS-enforced lock that prevents the Windows shell from appearing at all,
 use Windows Assigned Access with a dedicated account. On Linux, the window
@@ -67,7 +73,7 @@ Controls:
 |---|---|
 | Any key | Show and announce its letter, animal, or shape |
 | `Alt+O` | Open settings |
-| `Alt+F4` | Exit all BabySmash windows |
+| `Alt+F4` | Exit all KeySlam windows |
 | Left-click / drag | Tap items, draw the pointer effect, and play pointer audio |
 | Right-click | Play a chromatic or key-based major/minor piano note and show a fading ripple |
 | Mouse wheel | Cycle pointer effects |
@@ -83,19 +89,19 @@ For a release executable:
 cargo build --release
 ```
 
-The result is `target/release/babysmash-rs.exe` on Windows.
+The result is `target/release/keyslam.exe` on Windows.
 
 ## Custom voice recordings
 
-BabySmash copies the active language's speech clips to an editable folder the
+KeySlam copies the active language's speech clips to an editable folder the
 first time it runs. On Windows, paste this path into File Explorer:
 
 ```text
-%APPDATA%\BabySmash\BabySmash Rust\config\speech
+%APPDATA%\KeySlam\KeySlam\config\speech
 ```
 
 Replace any `.opus` file with your own Ogg Opus recording, keeping the same
-folder and filename, then restart BabySmash. Record only the word represented by
+folder and filename, then restart KeySlam. Record only the word represented by
 the file: for example, replace `en-EN\colors\red.opus` and
 `en-EN\shapes\circle.opus`, not a combined "red circle" recording. Files in
 `common` contain letters, digits, and animal names shared by languages unless a
@@ -142,8 +148,14 @@ color cycling, delayed one-second fading, coloring controls, settings bounds,
 item placement/caps, pointer pitch/pan mapping, piano range, and decoding of
 every bundled sound.
 
-## License and attribution
+## BabySmash roots, license, and attribution
 
-MIT licensed. BabySmash resources retain their original attribution; bundled
-animal artwork is from Microsoft Fluent Emoji. See [LICENSE](LICENSE) and
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+KeySlam is MIT licensed. It owes its original concept and several parity
+contracts and resources to Scott Hanselman and the contributors to BabySmash,
+which is also MIT licensed. BabySmash resources retain their original
+attribution; bundled animal artwork is from Microsoft Fluent Emoji. See
+[LICENSE](LICENSE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+On first launch under the KeySlam name, existing settings and customized speech
+from the former BabySmash Rust configuration directory are migrated when the
+new KeySlam files do not already exist.

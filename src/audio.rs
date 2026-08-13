@@ -386,10 +386,40 @@ fn try_send_audio(
 }
 
 fn speech_root() -> PathBuf {
-    ProjectDirs::from("com", "BabySmash", "BabySmash Rust").map_or_else(
+    let root = ProjectDirs::from("com", "KeySlam", "KeySlam").map_or_else(
         || PathBuf::from("speech"),
         |dirs| dirs.config_dir().join("speech"),
-    )
+    );
+    migrate_legacy_speech(&root);
+    root
+}
+
+fn migrate_legacy_speech(root: &Path) {
+    if root.exists() {
+        return;
+    }
+    let Some(legacy_dirs) = ProjectDirs::from("com", "BabySmash", "BabySmash Rust") else {
+        return;
+    };
+    let legacy_root = legacy_dirs.config_dir().join("speech");
+    let _ = copy_directory(&legacy_root, root);
+}
+
+fn copy_directory(source: &Path, destination: &Path) -> std::io::Result<()> {
+    if !source.is_dir() {
+        return Ok(());
+    }
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let destination = destination.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_directory(&entry.path(), &destination)?;
+        } else {
+            fs::copy(entry.path(), destination)?;
+        }
+    }
+    Ok(())
 }
 
 fn install_customizable_speech(root: &Path, locale: &str) -> Result<(), String> {
@@ -475,7 +505,7 @@ where
         move |error: Error| {
             let message = match error.kind() {
                 ErrorKind::DeviceChanged => {
-                    "Audio device changed; restart BabySmash to reconnect".to_owned()
+                    "Audio device changed; restart KeySlam to reconnect".to_owned()
                 }
                 ErrorKind::Xrun => "Audio playback fell behind briefly".to_owned(),
                 ErrorKind::RealtimeDenied => {

@@ -270,10 +270,11 @@ pub struct SettingsStore {
 
 impl SettingsStore {
     pub fn open() -> (Self, Settings) {
-        let path = ProjectDirs::from("com", "BabySmash", "BabySmash Rust").map_or_else(
+        let path = ProjectDirs::from("com", "KeySlam", "KeySlam").map_or_else(
             || PathBuf::from("settings.json"),
             |dirs| dirs.config_dir().join("settings.json"),
         );
+        migrate_legacy_settings(&path);
         Self::open_path(path)
     }
 
@@ -317,6 +318,23 @@ impl SettingsStore {
     }
 }
 
+fn migrate_legacy_settings(path: &Path) {
+    if path.exists() {
+        return;
+    }
+    let Some(legacy_dirs) = ProjectDirs::from("com", "BabySmash", "BabySmash Rust") else {
+        return;
+    };
+    let legacy_path = legacy_dirs.config_dir().join("settings.json");
+    if !legacy_path.exists() {
+        return;
+    }
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let _ = fs::copy(legacy_path, path);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -324,7 +342,7 @@ mod tests {
     #[test]
     fn missing_settings_use_upstream_defaults() {
         let path = std::env::temp_dir().join(format!(
-            "babysmash-settings-{}-missing.json",
+            "keyslam-settings-{}-missing.json",
             std::process::id()
         ));
         let (_, settings) = SettingsStore::open_path(path);
@@ -407,7 +425,7 @@ mod tests {
             .map_err(io::Error::other)?
             .as_nanos();
         let directory =
-            std::env::temp_dir().join(format!("babysmash-settings-{}-{nonce}", std::process::id()));
+            std::env::temp_dir().join(format!("keyslam-settings-{}-{nonce}", std::process::id()));
         let path = directory.join("settings.json");
         let (mut store, mut settings) = SettingsStore::open_path(path.clone());
         settings.cursor_effect = CursorEffect::Coloring;

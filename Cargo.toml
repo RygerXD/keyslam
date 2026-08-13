@@ -1,11 +1,11 @@
 [package]
-name = "babysmash-rs"
+name = "keyslam"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.92"
-description = "A stable, cross-platform Rust reimplementation of BabySmash"
+description = "A colorful, cross-platform keyboard and pointer playground for young children"
 license = "MIT"
-repository = "https://github.com/RygerXD/babysmash"
+repository = "https://github.com/RygerXD/keyslam"
 
 [dependencies]
 atomic-write-file = "0.3.0"

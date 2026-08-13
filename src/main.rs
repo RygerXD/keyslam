@@ -9,7 +9,7 @@ mod render;
 mod responses;
 mod settings;
 
-use app::{BabySmashApp, display_configs};
+use app::{KeySlamApp, display_configs};
 use eframe::egui;
 
 fn main() -> eframe::Result {
@@ -26,7 +26,7 @@ fn main() -> eframe::Result {
     }
     let windowed = args.iter().any(|argument| argument == "--windowed");
 
-    let instance = match single_instance::SingleInstance::new("BabySmashRustSingleInstance") {
+    let instance = match single_instance::SingleInstance::new("KeySlamSingleInstance") {
         Ok(instance) => instance,
         Err(error) => {
             eprintln!("Could not establish single-instance protection: {error}");
@@ -34,7 +34,7 @@ fn main() -> eframe::Result {
         }
     };
     if !instance.is_single() {
-        eprintln!("BabySmash is already running.");
+        eprintln!("KeySlam is already running.");
         return Ok(());
     }
 
@@ -48,10 +48,10 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native(
-        "BabySmash! for Rust",
+        "KeySlam",
         native_options,
         Box::new(move |creation_context| {
-            Ok(Box::new(BabySmashApp::new(
+            Ok(Box::new(KeySlamApp::new(
                 displays,
                 &creation_context.egui_ctx,
             )))
@@ -60,7 +60,7 @@ fn main() -> eframe::Result {
 }
 
 fn load_icon() -> std::sync::Arc<egui::IconData> {
-    match image::load_from_memory(include_bytes!("../assets/babysmash.png")) {
+    match image::load_from_memory(include_bytes!("../assets/keyslam.png")) {
         Ok(image) => {
             let image = image.into_rgba8();
             let width = image.width();
