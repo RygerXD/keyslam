@@ -8,18 +8,24 @@ pub enum PlatformEvent {
 #[cfg(windows)]
 mod keyboard {
     use std::{
+        io::{BufRead, BufReader, Read, Write},
+        os::windows::process::CommandExt,
+        process::{Child, ChildStdin, Command, Stdio},
         ptr,
         sync::{
             OnceLock,
-            atomic::{AtomicBool, AtomicU64, Ordering},
+            atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering},
         },
         thread::{self, JoinHandle},
     };
 
-    use crossbeam_channel::Sender;
+    use crossbeam_channel::{Sender, bounded};
     use windows_sys::Win32::{
-        Foundation::{LPARAM, LRESULT, WPARAM},
-        System::{LibraryLoader::GetModuleHandleW, Threading::GetCurrentThreadId},
+        Foundation::{CloseHandle, HANDLE, LPARAM, LRESULT, WAIT_OBJECT_0, WPARAM},
+        System::Threading::{
+            CreateEventW, EVENT_MODIFY_STATE, GetCurrentThreadId, OpenEventW, SetEvent,
+            WaitForSingleObject,
+        },
         UI::{
             Input::KeyboardAndMouse::{
                 GetAsyncKeyState, VK_BACK, VK_CLEAR, VK_CONTROL, VK_DOWN, VK_END, VK_ESCAPE, VK_F4,
@@ -28,9 +34,10 @@ mod keyboard {
                 VK_RWIN, VK_SHIFT, VK_SNAPSHOT, VK_SPACE, VK_TAB, VK_UP,
             },
             WindowsAndMessaging::{
-                CallNextHookEx, GetMessageW, KBDLLHOOKSTRUCT, MSG, PM_NOREMOVE, PeekMessageW,
-                PostThreadMessageW, SetWindowsHookExW, UnhookWindowsHookEx, WH_KEYBOARD_LL,
-                WM_KEYDOWN, WM_KEYUP, WM_QUIT, WM_SYSKEYDOWN, WM_SYSKEYUP,
+                CallNextHookEx, GetForegroundWindow, GetMessageW, GetWindowThreadProcessId,
+                KBDLLHOOKSTRUCT, MSG, PM_NOREMOVE, PeekMessageW, PostThreadMessageW,
+                SetWindowsHookExW, UnhookWindowsHookEx, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP,
+                WM_QUIT, WM_SYSKEYDOWN, WM_SYSKEYUP,
             },
         },
     };
@@ -38,6 +45,9 @@ mod keyboard {
     use super::PlatformEvent;
 
     static EVENTS: OnceLock<Sender<PlatformEvent>> = OnceLock::new();
+    static PARENT_PROCESS_ID: AtomicU32 = AtomicU32::new(0);
+    static PARENT_EXIT_EVENT: AtomicUsize = AtomicUsize::new(0);
+    static HELPER_EXIT_EVENT: AtomicUsize = AtomicUsize::new(0);
     static EXIT_REQUESTED: AtomicBool = AtomicBool::new(false);
     static ALT_DOWN: AtomicBool = AtomicBool::new(false);
     static SHIFT_DOWN: AtomicBool = AtomicBool::new(false);
@@ -50,79 +60,230 @@ mod keyboard {
     ];
     const LLKHF_EXTENDED: u32 = 0x01;
     pub(super) const LLKHF_ALTDOWN: u32 = 0x20;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    pub const HELPER_ARGUMENT_PREFIX: &str = "--keyboard-guard-helper=";
 
     pub struct KeyboardGuard {
-        thread_id: u32,
-        thread: Option<JoinHandle<()>>,
+        child: Child,
+        stdin: Option<ChildStdin>,
+        reader: Option<JoinHandle<()>>,
+        exit_event: HANDLE,
     }
 
     impl KeyboardGuard {
         pub fn install(sender: Sender<PlatformEvent>) -> Result<Self, String> {
-            let _ = EVENTS.set(sender);
-            let (ready_sender, ready_receiver) = std::sync::mpsc::sync_channel(1);
-            let thread = thread::Builder::new()
-                .name("windows-keyboard-guard".to_owned())
-                .spawn(move || run_hook(ready_sender))
-                .map_err(|error| format!("Windows keyboard protection could not start: {error}"))?;
-            match ready_receiver.recv() {
-                Ok(Ok(thread_id)) => Ok(Self {
-                    thread_id,
-                    thread: Some(thread),
-                }),
-                Ok(Err(error)) => {
-                    let _ = thread.join();
-                    Err(error)
-                }
-                Err(_) => {
-                    let _ = thread.join();
-                    Err("Windows keyboard protection stopped during startup".to_owned())
-                }
+            // The full eframe process successfully registered WH_KEYBOARD_LL
+            // but USER32 never invoked its callback. Run the same hook in a
+            // minimal hidden mode of this executable and keep it tied to the
+            // game through pipes instead.
+            let executable = std::env::current_exe().map_err(|error| {
+                format!("Windows keyboard protection could not locate BabySmash: {error}")
+            })?;
+            let process_id = std::process::id();
+            let event_name = wide(&exit_event_name(process_id));
+            let exit_event = unsafe { CreateEventW(ptr::null(), 0, 0, event_name.as_ptr()) };
+            if exit_event.is_null() {
+                return Err(format!(
+                    "Windows keyboard exit authorization could not start: {}",
+                    std::io::Error::last_os_error()
+                ));
             }
+            PARENT_EXIT_EVENT.store(exit_event as usize, Ordering::SeqCst);
+
+            let mut child = match Command::new(executable)
+                .arg(format!("{HELPER_ARGUMENT_PREFIX}{process_id}"))
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .creation_flags(CREATE_NO_WINDOW)
+                .spawn()
+            {
+                Ok(child) => child,
+                Err(error) => {
+                    close_exit_event(exit_event);
+                    return Err(format!(
+                        "Windows keyboard protection could not start: {error}"
+                    ));
+                }
+            };
+            let stdin = child.stdin.take().ok_or_else(|| {
+                stop_child(&mut child);
+                close_exit_event(exit_event);
+                "Windows keyboard protection could not open its lifetime pipe".to_owned()
+            })?;
+            let stdout = child.stdout.take().ok_or_else(|| {
+                stop_child(&mut child);
+                close_exit_event(exit_event);
+                "Windows keyboard protection could not open its event pipe".to_owned()
+            })?;
+            let mut output = BufReader::new(stdout);
+            let mut readiness = String::new();
+            if let Err(error) = output.read_line(&mut readiness) {
+                stop_child(&mut child);
+                close_exit_event(exit_event);
+                return Err(format!(
+                    "Windows keyboard protection stopped during startup: {error}"
+                ));
+            }
+            if readiness.trim_end() != "READY" {
+                stop_child(&mut child);
+                close_exit_event(exit_event);
+                let detail = readiness
+                    .trim_end()
+                    .strip_prefix("ERROR\t")
+                    .unwrap_or("helper did not report ready");
+                return Err(format!(
+                    "Windows keyboard protection could not start: {detail}"
+                ));
+            }
+
+            let reader = thread::Builder::new()
+                .name("windows-keyboard-events".to_owned())
+                .spawn(move || forward_helper_events(output, sender))
+                .map_err(|error| {
+                    stop_child(&mut child);
+                    close_exit_event(exit_event);
+                    format!("Windows keyboard event reader could not start: {error}")
+                })?;
+            Ok(Self {
+                child,
+                stdin: Some(stdin),
+                reader: Some(reader),
+                exit_event,
+            })
         }
     }
 
     impl Drop for KeyboardGuard {
         fn drop(&mut self) {
-            unsafe {
-                PostThreadMessageW(self.thread_id, WM_QUIT, 0, 0);
+            self.stdin.take();
+            stop_child(&mut self.child);
+            if let Some(reader) = self.reader.take() {
+                let _ = reader.join();
             }
-            if let Some(thread) = self.thread.take() {
-                let _ = thread.join();
+            close_exit_event(self.exit_event);
+        }
+    }
+
+    fn stop_child(child: &mut Child) {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
+    fn close_exit_event(event: HANDLE) {
+        if !event.is_null() {
+            PARENT_EXIT_EVENT.store(0, Ordering::SeqCst);
+            unsafe {
+                CloseHandle(event);
             }
         }
     }
 
-    fn run_hook(ready: std::sync::mpsc::SyncSender<Result<u32, String>>) {
+    fn wide(value: &str) -> Vec<u16> {
+        value.encode_utf16().chain([0]).collect()
+    }
+
+    fn exit_event_name(parent_process_id: u32) -> String {
+        format!("Local\\BabySmashRustExit-{parent_process_id}")
+    }
+
+    fn forward_helper_events(
+        mut output: BufReader<std::process::ChildStdout>,
+        sender: Sender<PlatformEvent>,
+    ) {
+        let mut line = String::new();
+        loop {
+            line.clear();
+            match output.read_line(&mut line) {
+                Ok(0) | Err(_) => break,
+                Ok(_) => {
+                    let event = line.trim_end();
+                    if let Some(key) = event.strip_prefix("KEY\t") {
+                        let _ = sender.try_send(PlatformEvent::Key(key.to_owned()));
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn run_helper(parent_process_id: u32) -> Result<(), String> {
+        PARENT_PROCESS_ID.store(parent_process_id, Ordering::SeqCst);
+        let event_name = wide(&exit_event_name(parent_process_id));
+        let exit_event = unsafe { OpenEventW(EVENT_MODIFY_STATE, 0, event_name.as_ptr()) };
+        if exit_event.is_null() {
+            let error = std::io::Error::last_os_error().to_string();
+            println!("ERROR\t{error}");
+            let _ = std::io::stdout().flush();
+            return Err(error);
+        }
+        HELPER_EXIT_EVENT.store(exit_event as usize, Ordering::SeqCst);
+        let (event_sender, event_receiver) = bounded(128);
+        EVENTS
+            .set(event_sender)
+            .map_err(|_| "keyboard helper was initialized twice".to_owned())?;
+
         let thread_id = unsafe { GetCurrentThreadId() };
         let mut message = MSG::default();
         unsafe {
-            // A thread message queue is created lazily. Create it before the
-            // guard is reported ready so Drop can always post WM_QUIT.
             PeekMessageW(&mut message, ptr::null_mut(), 0, 0, PM_NOREMOVE);
         }
-        let module = unsafe { GetModuleHandleW(ptr::null()) };
-        let hook = unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(hook_callback), module, 0) };
+        let hook =
+            unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(hook_callback), ptr::null_mut(), 0) };
         if hook.is_null() {
-            let _ = ready.send(Err(format!(
-                "Windows keyboard protection could not start: {}",
-                std::io::Error::last_os_error()
-            )));
-            return;
-        }
-        if ready.send(Ok(thread_id)).is_err() {
+            let error = std::io::Error::last_os_error().to_string();
+            println!("ERROR\t{error}");
+            let _ = std::io::stdout().flush();
             unsafe {
-                UnhookWindowsHookEx(hook);
+                CloseHandle(exit_event);
             }
-            return;
+            return Err(error);
         }
+
+        thread::Builder::new()
+            .name("keyboard-helper-parent-watch".to_owned())
+            .spawn(move || {
+                let mut byte = [0_u8; 1];
+                let _ = std::io::stdin().read(&mut byte);
+                unsafe {
+                    PostThreadMessageW(thread_id, WM_QUIT, 0, 0);
+                }
+            })
+            .map_err(|error| format!("keyboard helper parent watch failed: {error}"))?;
+        thread::Builder::new()
+            .name("keyboard-helper-events".to_owned())
+            .spawn(move || write_helper_events(event_receiver))
+            .map_err(|error| format!("keyboard helper event writer failed: {error}"))?;
+        println!("READY");
+        std::io::stdout()
+            .flush()
+            .map_err(|error| format!("keyboard helper readiness failed: {error}"))?;
+
         while unsafe { GetMessageW(&mut message, ptr::null_mut(), 0, 0) } > 0 {}
         unsafe {
             UnhookWindowsHookEx(hook);
+            CloseHandle(exit_event);
+        }
+        Ok(())
+    }
+
+    fn write_helper_events(receiver: crossbeam_channel::Receiver<PlatformEvent>) {
+        let stdout = std::io::stdout();
+        while let Ok(event) = receiver.recv() {
+            let mut output = stdout.lock();
+            let result = match event {
+                PlatformEvent::Key(key) => writeln!(output, "KEY\t{key}"),
+            };
+            if result.is_err() || output.flush().is_err() {
+                break;
+            }
         }
     }
 
     unsafe extern "system" fn hook_callback(code: i32, message: WPARAM, data: LPARAM) -> LRESULT {
         if code >= 0 {
+            if !parent_is_foreground() {
+                return unsafe { CallNextHookEx(ptr::null_mut(), code, message, data) };
+            }
             let keyboard = unsafe { &*(data as *const KBDLLHOOKSTRUCT) };
             let virtual_key = keyboard.vkCode;
             let is_down = message == WM_KEYDOWN as usize || message == WM_SYSKEYDOWN as usize;
@@ -163,18 +324,32 @@ mod keyboard {
             };
 
             if alt && virtual_key == VK_F4 as u32 {
-                if is_down {
-                    EXIT_REQUESTED.store(true, Ordering::SeqCst);
+                if is_down && !EXIT_REQUESTED.swap(true, Ordering::SeqCst) {
+                    let exit_event = HELPER_EXIT_EVENT.load(Ordering::SeqCst) as HANDLE;
+                    if !exit_event.is_null() {
+                        unsafe {
+                            SetEvent(exit_event);
+                        }
+                    }
+                } else if is_up {
+                    EXIT_REQUESTED.store(false, Ordering::SeqCst);
                 }
-                // Alt+F4 is the one native close request the kiosk allows.
-                // Pass it onward while authorizing the close guard separately.
+                // Preserve the real Alt+F4 so its native close message wakes
+                // eframe. The parent consumes the event above before applying
+                // its kiosk close guard, including after window recreation.
                 return unsafe { CallNextHookEx(ptr::null_mut(), code, message, data) };
             }
 
-            // Suppress both Windows-logo keys directly on key-down and key-up.
-            // If either half reaches Explorer, it can open the Start menu even
-            // though the app immediately reclaims its fullscreen window.
+            // The Start menu opens on release if either half of the Windows
+            // logo key reaches Explorer, so consume both transitions before
+            // any gameplay event forwarding.
             if virtual_key == VK_LWIN as u32 || virtual_key == VK_RWIN as u32 {
+                if is_up
+                    && let Some(key_name) = blocked_key_name(virtual_key)
+                    && let Some(events) = EVENTS.get()
+                {
+                    let _ = events.try_send(PlatformEvent::Key(key_name.to_owned()));
+                }
                 return 1;
             }
 
@@ -215,6 +390,15 @@ mod keyboard {
             }
         }
         unsafe { CallNextHookEx(ptr::null_mut(), code, message, data) }
+    }
+
+    fn parent_is_foreground() -> bool {
+        let foreground = unsafe { GetForegroundWindow() };
+        let mut process_id = 0;
+        unsafe {
+            GetWindowThreadProcessId(foreground, &mut process_id);
+        }
+        process_id == PARENT_PROCESS_ID.load(Ordering::SeqCst)
     }
 
     fn mark_numpad_down(virtual_key: u32) -> bool {
@@ -331,7 +515,8 @@ mod keyboard {
     }
 
     pub fn take_exit_requested() -> bool {
-        EXIT_REQUESTED.swap(false, Ordering::SeqCst)
+        let exit_event = PARENT_EXIT_EVENT.load(Ordering::SeqCst) as HANDLE;
+        !exit_event.is_null() && unsafe { WaitForSingleObject(exit_event, 0) } == WAIT_OBJECT_0
     }
 
     pub fn exit_chord_down() -> bool {
@@ -344,6 +529,8 @@ mod keyboard {
     use crossbeam_channel::Sender;
 
     use super::PlatformEvent;
+
+    pub const HELPER_ARGUMENT_PREFIX: &str = "--keyboard-guard-helper=";
 
     pub struct KeyboardGuard;
 
@@ -364,9 +551,16 @@ mod keyboard {
     pub fn exit_chord_down() -> bool {
         false
     }
+
+    pub fn run_helper(_parent_process_id: u32) -> Result<(), String> {
+        Err("Windows keyboard helper is only available on Windows".to_owned())
+    }
 }
 
-pub use keyboard::{KeyboardGuard, exit_chord_down, pressed_numpad_key, take_exit_requested};
+pub use keyboard::{
+    HELPER_ARGUMENT_PREFIX, KeyboardGuard, exit_chord_down, pressed_numpad_key,
+    run_helper as run_keyboard_guard_helper, take_exit_requested,
+};
 
 pub fn install_keyboard_guard(sender: Sender<PlatformEvent>) -> Result<KeyboardGuard, String> {
     KeyboardGuard::install(sender)

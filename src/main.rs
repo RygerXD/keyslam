@@ -14,6 +14,16 @@ use eframe::egui;
 
 fn main() -> eframe::Result {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
+    if let Some(parent_process_id) = args.iter().find_map(|argument| {
+        argument
+            .strip_prefix(platform::HELPER_ARGUMENT_PREFIX)
+            .and_then(|value| value.parse::<u32>().ok())
+    }) {
+        if let Err(error) = platform::run_keyboard_guard_helper(parent_process_id) {
+            eprintln!("Windows keyboard helper failed: {error}");
+        }
+        return Ok(());
+    }
     let windowed = args.iter().any(|argument| argument == "--windowed");
 
     let instance = match single_instance::SingleInstance::new("BabySmashRustSingleInstance") {
