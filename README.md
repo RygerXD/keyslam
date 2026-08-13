@@ -31,6 +31,10 @@ embedded in the executable.
   way to exit
 - Persistent settings
 
+On Windows, the low-level keyboard guard runs as a hidden companion mode of
+the same executable. It is scoped to BabySmash's foreground windows and exits
+automatically with the game; no additional binary is installed.
+
 The original application's self-updater is intentionally not copied. Release
 and package updates should be handled by the platform package manager. Some
 secure operating-system shortcuts (notably Ctrl+Alt+Delete) and the gesture
