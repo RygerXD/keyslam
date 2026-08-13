@@ -41,7 +41,7 @@ pub struct DisplayConfig {
 impl DisplayConfig {
     pub fn viewport(&self) -> ViewportBuilder {
         let mut builder = ViewportBuilder::default()
-            .with_title(format!("BabySmash! — {}", self.name))
+            .with_title(format!("KeySlam — {}", self.name))
             .with_position(self.position)
             .with_inner_size(self.size)
             .with_resizable(!self.kiosk)
@@ -253,7 +253,7 @@ fn brush_size_for(position: Pos2, track: Rect) -> f32 {
     MIN_BRUSH_SIZE + (MAX_BRUSH_SIZE - MIN_BRUSH_SIZE) * progress
 }
 
-pub struct BabySmashApp {
+pub struct KeySlamApp {
     displays: Vec<DisplayConfig>,
     settings: Settings,
     draft_settings: Settings,
@@ -275,7 +275,7 @@ pub struct BabySmashApp {
     frame_seconds: f32,
 }
 
-impl BabySmashApp {
+impl KeySlamApp {
     pub fn new(displays: Vec<DisplayConfig>, ctx: &Context) -> Self {
         let (settings_store, settings) = SettingsStore::open();
         let localization = Localization::detect();
@@ -568,7 +568,7 @@ impl BabySmashApp {
                 .map_or(1.0, |display| display.pointer.cursor_scale(now));
             let cursor_painter = ui.ctx().layer_painter(LayerId::new(
                 Order::Debug,
-                Id::new(("babysmash-custom-cursor", display_index)),
+                Id::new(("keyslam-custom-cursor", display_index)),
             ));
             render::draw_cursor(
                 &cursor_painter,
@@ -838,7 +838,7 @@ impl BabySmashApp {
             return;
         }
         let mut open = true;
-        egui::Window::new("BabySmash! Settings")
+        egui::Window::new("KeySlam Settings")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)
@@ -846,7 +846,7 @@ impl BabySmashApp {
             .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
             .show(ctx, |ui| {
                 ui.heading("Settings");
-                ui.label("Tune BabySmash for your child, room, and play style.");
+                ui.label("Tune KeySlam for your child, room, and play style.");
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
                     for (tab, label) in [
@@ -911,7 +911,7 @@ impl BabySmashApp {
     }
 }
 
-impl eframe::App for BabySmashApp {
+impl eframe::App for KeySlamApp {
     fn logic(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.process_platform_events(ctx);
         self.enforce_kiosk(ctx);
@@ -946,7 +946,7 @@ impl eframe::App for BabySmashApp {
 
         for display_index in 1..self.displays.len() {
             let display = self.displays[display_index].clone();
-            let viewport_id = ViewportId::from_hash_of(("babysmash-display", display.id));
+            let viewport_id = ViewportId::from_hash_of(("keyslam-display", display.id));
             ctx.show_viewport_immediate(viewport_id, display.viewport(), |ui, _class| {
                 self.render_viewport(ui, display_index);
             });
@@ -957,7 +957,7 @@ impl eframe::App for BabySmashApp {
     }
 }
 
-impl Drop for BabySmashApp {
+impl Drop for KeySlamApp {
     fn drop(&mut self) {
         if self.displays.iter().any(|display| display.kiosk) {
             restore_taskbar();

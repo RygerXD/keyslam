@@ -77,7 +77,7 @@ mod keyboard {
             // minimal hidden mode of this executable and keep it tied to the
             // game through pipes instead.
             let executable = std::env::current_exe().map_err(|error| {
-                format!("Windows keyboard protection could not locate BabySmash: {error}")
+                format!("Windows keyboard protection could not locate KeySlam: {error}")
             })?;
             let process_id = std::process::id();
             let event_name = wide(&exit_event_name(process_id));
@@ -184,7 +184,7 @@ mod keyboard {
     }
 
     fn exit_event_name(parent_process_id: u32) -> String {
-        format!("Local\\BabySmashRustExit-{parent_process_id}")
+        format!("Local\\KeySlamExit-{parent_process_id}")
     }
 
     fn forward_helper_events(
@@ -626,7 +626,7 @@ pub fn keep_taskbar_behind() {
 
     // Native fullscreen normally asks Explorer to lower these windows. Keep
     // that z-order asserted as a kiosk fallback so an edge right-click cannot
-    // lift an auto-hidden taskbar over BabySmash.
+    // lift an auto-hidden taskbar over KeySlam.
     set_taskbar_z_order(HWND_BOTTOM);
 }
 
