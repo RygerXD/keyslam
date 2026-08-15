@@ -5,8 +5,9 @@ use crate::{
     game::{BabyColor, COLORS, FigureKind, Game, piano_tone, pointer_tone},
     localization::Localization,
     platform::{
-        KeyboardGuard, PlatformEvent, exit_chord_down, install_keyboard_guard, keep_taskbar_behind,
-        pressed_numpad_key, restore_taskbar, take_exit_requested,
+        KeyboardGuard, PlatformEvent, app_is_foreground, exit_chord_down, install_keyboard_guard,
+        keep_taskbar_behind, modifier_key_is_down, pressed_numpad_key, restore_taskbar,
+        take_exit_requested,
     },
     render::{self, TextureCache},
     responses::response_for,
@@ -329,7 +330,7 @@ impl KeySlamApp {
     }
 
     fn enforce_kiosk(&mut self, ctx: &Context) {
-        let (close_requested, minimized, any_focused) = ctx.input(|input| {
+        let (close_requested, minimized, egui_viewport_focused) = ctx.input(|input| {
             let root = input.raw.viewports.get(&ViewportId::ROOT);
             (
                 root.is_some_and(egui::ViewportInfo::close_requested),
@@ -341,6 +342,11 @@ impl KeySlamApp {
                     .any(|viewport| viewport.focused == Some(true)),
             )
         });
+        let any_focused = if cfg!(target_os = "windows") {
+            app_is_foreground()
+        } else {
+            egui_viewport_focused
+        };
 
         // Close requests can originate from shell UI and automation as well as
         // the keyboard. Alt+F4 is the one intentional exit route and marks the
@@ -698,6 +704,14 @@ impl KeySlamApp {
                     ..
                 } => {
                     let selected = physical_key.unwrap_or(key);
+                    // winit injects an extended Alt pulse while activating a
+                    // Windows viewport. Windows labels that pulse AltRight even
+                    // though no physical key is held, so it must not become a koala.
+                    if matches!(selected, Key::AltLeft | Key::AltRight)
+                        && !modifier_key_is_down(selected.name())
+                    {
+                        continue;
+                    }
                     if star_text_entered && modifiers.shift && selected == Key::Num8 {
                         continue;
                     }

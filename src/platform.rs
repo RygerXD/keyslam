@@ -522,6 +522,24 @@ mod keyboard {
     pub fn exit_chord_down() -> bool {
         unsafe { GetAsyncKeyState(VK_MENU as i32) < 0 && GetAsyncKeyState(VK_F4 as i32) < 0 }
     }
+
+    pub fn app_is_foreground() -> bool {
+        let foreground = unsafe { GetForegroundWindow() };
+        let mut process_id = 0;
+        unsafe {
+            GetWindowThreadProcessId(foreground, &mut process_id);
+        }
+        process_id == std::process::id()
+    }
+
+    pub fn modifier_key_is_down(key_name: &str) -> bool {
+        let virtual_key = match key_name {
+            "AltLeft" => VK_LMENU,
+            "AltRight" => VK_RMENU,
+            _ => return true,
+        };
+        unsafe { GetAsyncKeyState(virtual_key as i32) < 0 }
+    }
 }
 
 #[cfg(not(windows))]
@@ -552,14 +570,23 @@ mod keyboard {
         false
     }
 
+    pub fn app_is_foreground() -> bool {
+        true
+    }
+
+    pub fn modifier_key_is_down(_key_name: &str) -> bool {
+        true
+    }
+
     pub fn run_helper(_parent_process_id: u32) -> Result<(), String> {
         Err("Windows keyboard helper is only available on Windows".to_owned())
     }
 }
 
 pub use keyboard::{
-    HELPER_ARGUMENT_PREFIX, KeyboardGuard, exit_chord_down, pressed_numpad_key,
-    run_helper as run_keyboard_guard_helper, take_exit_requested,
+    HELPER_ARGUMENT_PREFIX, KeyboardGuard, app_is_foreground, exit_chord_down,
+    modifier_key_is_down, pressed_numpad_key, run_helper as run_keyboard_guard_helper,
+    take_exit_requested,
 };
 
 pub fn install_keyboard_guard(sender: Sender<PlatformEvent>) -> Result<KeyboardGuard, String> {
