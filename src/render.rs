@@ -426,13 +426,31 @@ pub fn draw_pointer_effects(painter: &Painter, state: &PointerState, now: Instan
     for ripple in &state.piano_ripples {
         let progress = ripple.progress(now);
         let eased = 1.0 - (1.0 - progress).powi(3);
-        let radius = 8.0 + 82.0 * eased;
         let opacity = (1.0 - progress).powi(2);
-        painter.circle_stroke(
-            ripple.position,
-            radius,
-            Stroke::new(3.0 - 1.5 * progress, with_opacity(Color32::WHITE, opacity)),
-        );
+        if let Some(note_label) = &ripple.note_label {
+            let font = FontId::proportional(24.0 + 28.0 * eased);
+            painter.text(
+                ripple.position + vec2(2.0, 2.0),
+                Align2::CENTER_CENTER,
+                note_label,
+                font.clone(),
+                with_opacity(Color32::BLACK, opacity * 0.8),
+            );
+            painter.text(
+                ripple.position,
+                Align2::CENTER_CENTER,
+                note_label,
+                font,
+                with_opacity(Color32::WHITE, opacity),
+            );
+        } else {
+            let radius = 8.0 + 82.0 * eased;
+            painter.circle_stroke(
+                ripple.position,
+                radius,
+                Stroke::new(3.0 - 1.5 * progress, with_opacity(Color32::WHITE, opacity)),
+            );
+        }
     }
 }
 
