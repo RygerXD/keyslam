@@ -427,6 +427,7 @@ pub fn draw_pointer_effects(painter: &Painter, state: &PointerState, now: Instan
         let progress = ripple.progress(now);
         let eased = 1.0 - (1.0 - progress).powi(3);
         let opacity = (1.0 - progress).powi(2);
+        let color = rgb(ripple.color);
         if let Some(note_label) = &ripple.note_label {
             let font = FontId::proportional(24.0 + 28.0 * eased);
             painter.text(
@@ -441,14 +442,14 @@ pub fn draw_pointer_effects(painter: &Painter, state: &PointerState, now: Instan
                 Align2::CENTER_CENTER,
                 note_label,
                 font,
-                with_opacity(Color32::WHITE, opacity),
+                with_opacity(color, opacity),
             );
         } else {
             let radius = 8.0 + 82.0 * eased;
             painter.circle_stroke(
                 ripple.position,
                 radius,
-                Stroke::new(3.0 - 1.5 * progress, with_opacity(Color32::WHITE, opacity)),
+                Stroke::new(3.0 - 1.5 * progress, with_opacity(color, opacity)),
             );
         }
     }

@@ -1,6 +1,5 @@
 param(
     [string]$OutputRoot = (Join-Path $PSScriptRoot '..\assets\speech'),
-    [string[]]$Locales = @(),
     [switch]$SkipCommon
 )
 
@@ -39,10 +38,10 @@ if (-not $SkipCommon) {
     $commonSynth = New-LocaleSynthesizer 'en-EN'
     try {
         foreach ($letter in [char[]]'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
-            Write-Clip $commonSynth "common\letters\$($letter.ToString().ToLowerInvariant()).wav" $letter
+            Write-Clip $commonSynth "letters\$($letter.ToString().ToLowerInvariant()).wav" $letter
         }
         foreach ($digit in 0..9) {
-            Write-Clip $commonSynth "common\numbers\$digit.wav" $digit
+            Write-Clip $commonSynth "numbers\$digit.wav" $digit
         }
 
         $source = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\responses.rs'))
@@ -56,7 +55,7 @@ if (-not $SkipCommon) {
                 ForEach-Object { $_.Groups['name'].Value }
         )
         foreach ($animal in $animals) {
-            Write-Clip $commonSynth "common\animals\$($animal.ToLowerInvariant()).wav" $animal
+            Write-Clip $commonSynth "animals\$($animal.ToLowerInvariant()).wav" $animal
         }
     }
     finally {
@@ -66,34 +65,29 @@ if (-not $SkipCommon) {
 
 $colors = @('Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Indigo', 'Violet', 'Pink', 'Brown', 'White', 'Gray', 'Black')
 $shapes = @('Star', 'Oval', 'Rectangle', 'Triangle', 'Square', 'Pentagon', 'Hexagon', 'Septagon', 'Octagon', 'Trapezoid', 'Circle')
-$stringFiles = Get-ChildItem (Join-Path $PSScriptRoot '..\assets\strings\*.json')
-if ($Locales.Count -gt 0) {
-    $stringFiles = $stringFiles | Where-Object { $_.BaseName -in $Locales }
+$locale = 'en-EN'
+$strings = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\assets\strings\en-EN.json')) | ConvertFrom-Json
+$synth = New-LocaleSynthesizer $locale
+try {
+    $strings.PSObject.Properties |
+        Where-Object { $_.Name -match '^[A-Za-z0-9]$' } |
+        ForEach-Object {
+            Write-Clip $synth "letters\$($_.Name.ToLowerInvariant()).wav" $_.Value
+        }
+    foreach ($color in $colors) {
+        $property = $strings.PSObject.Properties[$color]
+        $text = if ($null -eq $property) { $color } else { $property.Value }
+        Write-Clip $synth "colors\standalone\$($color.ToLowerInvariant()).wav" "$text."
+        Write-Clip $synth "colors\modifier\$($color.ToLowerInvariant()).wav" $text
+    }
+    foreach ($shape in $shapes) {
+        $property = $strings.PSObject.Properties[$shape]
+        $text = if ($null -eq $property) { $shape } else { $property.Value }
+        Write-Clip $synth "shapes\$($shape.ToLowerInvariant()).wav" $text
+    }
 }
-$stringFiles | ForEach-Object {
-    $locale = $_.BaseName
-    $strings = [System.IO.File]::ReadAllText($_.FullName) | ConvertFrom-Json
-    $synth = New-LocaleSynthesizer $locale
-    try {
-        $strings.PSObject.Properties |
-            Where-Object { $_.Name -match '^[A-Za-z0-9]$' } |
-            ForEach-Object {
-                Write-Clip $synth "$locale\letters\$($_.Name.ToLowerInvariant()).wav" $_.Value
-            }
-        foreach ($color in $colors) {
-            $property = $strings.PSObject.Properties[$color]
-            $text = if ($null -eq $property) { $color } else { $property.Value }
-            Write-Clip $synth "$locale\colors\$($color.ToLowerInvariant()).wav" $text
-        }
-        foreach ($shape in $shapes) {
-            $property = $strings.PSObject.Properties[$shape]
-            $text = if ($null -eq $property) { $shape } else { $property.Value }
-            Write-Clip $synth "$locale\shapes\$($shape.ToLowerInvariant()).wav" $text
-        }
-    }
-    finally {
-        $synth.Dispose()
-    }
+finally {
+    $synth.Dispose()
 }
 
 Push-Location (Join-Path $PSScriptRoot '..')

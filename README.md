@@ -12,14 +12,14 @@ identity, interaction modes, audio system, and visual effects. KeySlam is an
 independent project and is not an official BabySmash release.
 
 The implementation favors a small number of typed, reusable systems over a
-platform-specific class hierarchy. All art, sounds, and translations are
-embedded in the executable.
+platform-specific class hierarchy. All art and sounds are embedded in the
+executable.
 
 ## Features
 
 - Letters, top-row numbers, the full special-key animal map, and numpad shapes
-- Pre-recorded Opus speech for English, German, Greek, Spanish, French,
-  Latvian, Portuguese, and Russian
+- Pre-recorded English Opus speech, including distinct standalone and modifier
+  performances for color names
 - Matching defaults, letter grouping, fading, item limits, faces, spawn
   animation, and tap animation
 - Speech, click audio, continuous stereo sinewave, and right-click piano
@@ -95,8 +95,8 @@ The result is `target/release/keyslam.exe` on Windows.
 
 ## Custom voice recordings
 
-KeySlam copies the active language's speech clips to an editable folder the
-first time it runs. On Windows, paste this path into File Explorer:
+KeySlam copies its English speech clips to an editable folder the first time it
+runs. On Windows, paste this path into File Explorer:
 
 ```text
 %APPDATA%\KeySlam\KeySlam\config\speech
@@ -104,11 +104,19 @@ first time it runs. On Windows, paste this path into File Explorer:
 
 Replace any `.opus` file with your own Ogg Opus recording, keeping the same
 folder and filename, then restart KeySlam. Record only the word represented by
-the file: for example, replace `en-EN\colors\red.opus` and
-`en-EN\shapes\circle.opus`, not a combined "red circle" recording. Files in
-`common` contain letters, digits, and animal names shared by languages unless a
-locale has an explicit pronunciation override (such as Canadian English “Zed”).
-Existing custom files are never overwritten.
+the file: `colors\standalone\red.opus` is the complete utterance “red,” while
+`colors\modifier\red.opus` has the continuing delivery used before
+`shapes\circle.opus`. Do not record a combined “red circle” clip. The `speech`
+folder directly contains `animals`, `letters`, `numbers`, `colors`, and
+`shapes`. Existing custom files are never overwritten.
+
+Existing custom recordings from the former `common` and `en-EN` layouts are
+copied into the flat folders without overwriting files already there.
+
+To add alternate takes, append a number to the word's filename: `red1.opus`,
+`red2.opus`, and so on. KeySlam discovers numbered takes in the same folder and
+randomly chooses among the base file and all numbered versions each time the
+word is spoken.
 
 ## Stability and DRY design
 
@@ -145,7 +153,7 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 ```
 
-The automated suite checks the key map, numpad behavior, localized word order,
+The automated suite checks the key map, numpad behavior, composed speech keys,
 color cycling, delayed one-second fading, coloring controls, settings bounds,
 item placement/caps, pointer pitch/pan mapping, piano range, and decoding of
 every bundled sound.
