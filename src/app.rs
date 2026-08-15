@@ -330,7 +330,6 @@ fn brush_size_for(position: Pos2, track: Rect) -> f32 {
 pub struct KeySlamApp {
     displays: Vec<DisplayConfig>,
     settings: Settings,
-    draft_settings: Settings,
     settings_store: SettingsStore,
     localization: Localization,
     game: Game,
@@ -368,7 +367,6 @@ impl KeySlamApp {
         let coloring = ColoringState::new(displays.len());
         Self {
             displays,
-            draft_settings: settings.clone(),
             settings,
             settings_store,
             localization,
@@ -653,11 +651,7 @@ impl KeySlamApp {
         self.handle_input(ui, display_index, now);
         self.game.limit_active_item_animations(now);
 
-        let brightness = if self.options_open {
-            self.draft_settings.background_brightness_percent
-        } else {
-            self.settings.background_brightness_percent
-        };
+        let brightness = self.settings.background_brightness_percent;
         let channel = (f32::from(brightness) * 2.55).round() as u8;
         ui.painter()
             .rect_filled(rect, 0.0, Color32::from_gray(channel));
@@ -1007,7 +1001,6 @@ impl KeySlamApp {
         for display in &mut self.game.displays {
             display.pointer.release(now);
         }
-        self.draft_settings = self.settings.clone();
         self.options_open = true;
     }
 
@@ -1037,32 +1030,31 @@ impl KeySlamApp {
                     }
                 });
                 ui.separator();
+                let previous_settings = self.settings.clone();
                 egui::ScrollArea::vertical()
                     .max_height(480.0)
                     .show(ui, |ui| match self.options_tab {
-                        OptionsTab::Audio => audio_options(ui, &mut self.draft_settings),
-                        OptionsTab::Visuals => visual_options(ui, &mut self.draft_settings),
-                        OptionsTab::Input => input_options(ui, &mut self.draft_settings),
-                        OptionsTab::Letters => letter_options(ui, &mut self.draft_settings),
+                        OptionsTab::Audio => audio_options(ui, &mut self.settings),
+                        OptionsTab::Visuals => visual_options(ui, &mut self.settings),
+                        OptionsTab::Input => input_options(ui, &mut self.settings),
+                        OptionsTab::Letters => letter_options(ui, &mut self.settings),
                     });
+                if self.settings != previous_settings {
+                    self.settings.normalize();
+                    match self.settings_store.save(&self.settings) {
+                        Ok(()) => self.status = None,
+                        Err(error) => {
+                            self.status = Some(format!("Could not save settings: {error}"))
+                        }
+                    }
+                }
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label(
                         RichText::new(format!("Version {}", env!("CARGO_PKG_VERSION"))).small(),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("Save changes").clicked() {
-                            self.draft_settings.normalize();
-                            self.settings = self.draft_settings.clone();
-                            match self.settings_store.save(&self.settings) {
-                                Ok(()) => self.status = None,
-                                Err(error) => {
-                                    self.status = Some(format!("Could not save settings: {error}"))
-                                }
-                            }
-                            self.options_open = false;
-                        }
-                        if ui.button("Cancel").clicked() {
+                        if ui.button("Close").clicked() {
                             self.options_open = false;
                         }
                     });
@@ -1111,11 +1103,7 @@ impl eframe::App for KeySlamApp {
             .clamp(1.0 / 240.0, 0.1);
         self.last_frame = now;
         self.game.remove_expired(Instant::now());
-        let brightness = if self.options_open {
-            self.draft_settings.background_brightness_percent
-        } else {
-            self.settings.background_brightness_percent
-        };
+        let brightness = self.settings.background_brightness_percent;
         let background = Color32::from_gray((f32::from(brightness) * 2.55).round() as u8);
         Frame::new()
             .fill(background)
