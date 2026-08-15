@@ -714,14 +714,15 @@ pub struct PointerState {
     cursor_pulse: Option<CursorPulse>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct PianoRipple {
     pub position: Pos2,
     pub created: Instant,
+    pub note_label: Option<String>,
 }
 
 impl PianoRipple {
-    pub fn progress(self, now: Instant) -> f32 {
+    pub fn progress(&self, now: Instant) -> f32 {
         (now.duration_since(self.created).as_secs_f32() / PIANO_RIPPLE_SECONDS).clamp(0.0, 1.0)
     }
 }
@@ -760,13 +761,14 @@ impl PointerState {
         });
     }
 
-    pub fn piano_ripple(&mut self, position: Pos2, now: Instant) {
+    pub fn piano_ripple(&mut self, position: Pos2, note_label: Option<String>, now: Instant) {
         if self.piano_ripples.len() == MAX_PIANO_RIPPLES {
             self.piano_ripples.remove(0);
         }
         self.piano_ripples.push(PianoRipple {
             position,
             created: now,
+            note_label,
         });
     }
 
@@ -807,7 +809,7 @@ impl PointerState {
 
     fn emit(&mut self, position: Pos2, effect: CursorEffect, now: Instant) {
         match effect {
-            CursorEffect::None | CursorEffect::Coloring => {
+            CursorEffect::None | CursorEffect::Coloring | CursorEffect::PianoRoll => {
                 self.last_effect_position = None;
                 self.trail.stop(now);
                 self.neon_worm.stop(now);
@@ -1151,24 +1153,28 @@ pub fn pointer_tone(point: Pos2, size: Vec2) -> (f32, f32) {
 }
 
 pub fn piano_tone(point: Pos2, size: Vec2, scale: PianoScale, key: PianoKey) -> f32 {
+    let note = piano_note(point, size, scale, key);
+    440.0 * 2.0_f32.powf((note - 69) as f32 / 12.0)
+}
+
+pub fn piano_note(point: Pos2, size: Vec2, scale: PianoScale, key: PianoKey) -> i32 {
     let (frequency, _) = pointer_tone(point, size);
+    let target_note = 69.0 + 12.0 * (frequency / 440.0).log2();
     if scale == PianoScale::Chromatic {
-        return frequency;
+        return target_note.round() as i32;
     }
 
-    let target_note = 69.0 + 12.0 * (frequency / 440.0).log2();
     let intervals: &[i32] = match scale {
         PianoScale::Chromatic => unreachable!(),
         PianoScale::Major => &[0, 2, 4, 5, 7, 9, 11],
         PianoScale::Minor => &[0, 2, 3, 5, 7, 8, 10],
     };
-    let note = ((target_note.floor() as i32 - 6)..=(target_note.ceil() as i32 + 6))
+    ((target_note.floor() as i32 - 6)..=(target_note.ceil() as i32 + 6))
         .filter(|note| intervals.contains(&((*note - key.semitone()).rem_euclid(12))))
         .min_by(|left, right| {
             ((*left as f32 - target_note).abs()).total_cmp(&((*right as f32 - target_note).abs()))
         })
-        .unwrap_or(target_note.round() as i32);
-    440.0 * 2.0_f32.powf((note - 69) as f32 / 12.0)
+        .unwrap_or(target_note.round() as i32)
 }
 
 #[cfg(test)]

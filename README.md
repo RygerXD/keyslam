@@ -24,15 +24,13 @@ embedded in the executable.
   animation, and tap animation
 - Speech, click audio, continuous stereo sinewave, and right-click piano
 - Arrow/original blue hand pointers plus rainbow, fading-afterimage, neon-worm,
-  sparkle, bubble, and background-coloring modes; the mouse wheel cycles
+  sparkle, bubble, background-coloring, and piano-roll modes; the mouse wheel cycles
   effects and briefly pulses the hand larger or smaller
 - One borderless, always-on-top game viewport per monitor (Windows uses native
   borderless fullscreen)
 - Single-instance protection and Windows low-level protection for Windows keys,
   Alt+Tab, Alt+Escape, Ctrl+Escape, Print Screen, numpad reinterpretation, and
   related kiosk shortcuts
-- Windows kiosk focus recovery that restores a minimized or deactivated game
-  after Task View, Show Desktop, or app-switching touchpad gestures
 - External window-close requests are ignored; Alt+F4 remains the intentional
   way to exit
 - Persistent settings
@@ -43,11 +41,10 @@ automatically with the game; no additional binary is installed.
 
 The original application's self-updater is intentionally not copied. Release
 and package updates should be handled by the platform package manager. Some
-secure operating-system shortcuts (notably Ctrl+Alt+Delete) and the gesture
-itself cannot be intercepted by an ordinary application. KeySlam responds to
-desktop-level touchpad gestures by immediately reclaiming its fullscreen focus.
-For an OS-enforced lock that prevents the Windows shell from appearing at all,
-use Windows Assigned Access with a dedicated account. On Linux, the window
+secure operating-system shortcuts (notably Ctrl+Alt+Delete) and desktop-level
+touchpad gestures cannot be intercepted by an ordinary application. For an
+OS-enforced lock that prevents the Windows shell from appearing at all, use
+Windows Assigned Access with a dedicated account. On Linux, the window
 consumes keys it receives, but the desktop compositor may retain its own global
 shortcuts.
 
@@ -82,6 +79,11 @@ Coloring mode adds the 12-color palette and Clear screen button along the
 bottom edge, plus a vertical brush-size slider on the left. Paint remains behind
 letters, animals, and shapes. Clicks and drags use the same round brush, with a
 live circular size preview under the custom cursor.
+
+Piano-roll mode adds labeled keys down the left edge and extends each note's
+click-zone boundary across the screen. The row under the pointer is highlighted,
+and the available notes follow the configured Chromatic, Major, or Minor scale
+and key used by right-click piano playback.
 
 For a release executable:
 

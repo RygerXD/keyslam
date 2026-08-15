@@ -81,16 +81,16 @@ impl PianoKey {
     pub const fn label(self) -> &'static str {
         match self {
             Self::C => "C",
-            Self::CSharp => "C♯ / D♭",
+            Self::CSharp => "C# / Db",
             Self::D => "D",
-            Self::EFlat => "E♭",
+            Self::EFlat => "Eb",
             Self::E => "E",
             Self::F => "F",
-            Self::FSharp => "F♯ / G♭",
+            Self::FSharp => "F# / Gb",
             Self::G => "G",
-            Self::AFlat => "A♭",
+            Self::AFlat => "Ab",
             Self::A => "A",
-            Self::BFlat => "B♭",
+            Self::BFlat => "Bb",
             Self::B => "B",
         }
     }
@@ -128,6 +128,7 @@ pub enum CursorEffect {
     Sparkles,
     Bubbles,
     Coloring,
+    PianoRoll,
 }
 
 #[derive(Deserialize)]
@@ -139,6 +140,7 @@ enum StoredCursorEffect {
     Sparkles,
     Bubbles,
     Coloring,
+    PianoRoll,
     #[serde(other)]
     Removed,
 }
@@ -156,12 +158,13 @@ impl<'de> Deserialize<'de> for CursorEffect {
             StoredCursorEffect::Sparkles => Self::Sparkles,
             StoredCursorEffect::Bubbles => Self::Bubbles,
             StoredCursorEffect::Coloring => Self::Coloring,
+            StoredCursorEffect::PianoRoll => Self::PianoRoll,
         })
     }
 }
 
 impl CursorEffect {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::None,
         Self::Rainbow,
         Self::FadingTrail,
@@ -169,6 +172,7 @@ impl CursorEffect {
         Self::Sparkles,
         Self::Bubbles,
         Self::Coloring,
+        Self::PianoRoll,
     ];
 
     pub const fn label(self) -> &'static str {
@@ -180,6 +184,7 @@ impl CursorEffect {
             Self::Sparkles => "Sparkles",
             Self::Bubbles => "Bubbles",
             Self::Coloring => "Coloring mode",
+            Self::PianoRoll => "Piano roll",
         }
     }
 
@@ -386,10 +391,11 @@ mod tests {
     }
 
     #[test]
-    fn coloring_mode_is_part_of_the_scroll_wheel_cycle() {
+    fn special_modes_are_part_of_the_scroll_wheel_cycle() {
         assert_eq!(CursorEffect::Bubbles.cycle(true), CursorEffect::Coloring);
-        assert_eq!(CursorEffect::Coloring.cycle(true), CursorEffect::None);
-        assert_eq!(CursorEffect::Coloring.cycle(false), CursorEffect::Bubbles);
+        assert_eq!(CursorEffect::Coloring.cycle(true), CursorEffect::PianoRoll);
+        assert_eq!(CursorEffect::PianoRoll.cycle(true), CursorEffect::None);
+        assert_eq!(CursorEffect::PianoRoll.cycle(false), CursorEffect::Coloring);
     }
 
     #[test]

@@ -2,12 +2,11 @@ use std::time::{Duration, Instant};
 
 use crate::{
     audio::AudioSystem,
-    game::{BabyColor, COLORS, FigureKind, Game, piano_tone, pointer_tone},
+    game::{BabyColor, COLORS, FigureKind, Game, piano_note, piano_tone, pointer_tone},
     localization::Localization,
     platform::{
-        KeyboardGuard, PlatformEvent, app_is_foreground, exit_chord_down, install_keyboard_guard,
-        keep_taskbar_behind, modifier_key_is_down, pressed_numpad_key, restore_taskbar,
-        take_exit_requested,
+        KeyboardGuard, PlatformEvent, exit_chord_down, install_keyboard_guard, keep_taskbar_behind,
+        modifier_key_is_down, pressed_numpad_key, restore_taskbar, take_exit_requested,
     },
     render::{self, TextureCache},
     responses::response_for,
@@ -28,6 +27,8 @@ const MAX_BRUSH_SIZE: f32 = 96.0;
 const MAX_COLOR_SWATCH_SIZE: f32 = 56.0;
 const MAX_PAINT_POINTS_PER_DISPLAY: usize = 20_000;
 const MAX_RENDERED_FADING_ITEMS: usize = 10;
+const PIANO_ROLL_MIN_WIDTH: f32 = 92.0;
+const PIANO_ROLL_MAX_WIDTH: f32 = 132.0;
 
 #[derive(Debug, Clone)]
 pub struct DisplayConfig {
@@ -192,6 +193,78 @@ enum ColoringControl {
     Panel,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct PianoRollRow {
+    note: i32,
+    top: f32,
+    bottom: f32,
+}
+
+fn piano_roll_width(display_width: f32) -> f32 {
+    (display_width * 0.1).clamp(PIANO_ROLL_MIN_WIDTH, PIANO_ROLL_MAX_WIDTH)
+}
+
+fn piano_roll_rows(display: Vec2, scale: PianoScale, key: PianoKey) -> Vec<PianoRollRow> {
+    let height = display.y.max(1.0);
+    let sample_count = (height.ceil() as usize).max(72);
+    let step = height / sample_count as f32;
+    let note_at = |y| piano_note(pos2(0.0, y), display, scale, key);
+    let mut rows = Vec::new();
+    let mut row_top = 0.0;
+    let mut current_note = note_at(0.0);
+
+    for sample in 1..=sample_count {
+        let y = (sample as f32 * step).min(height);
+        let next_note = note_at(y);
+        if next_note == current_note {
+            continue;
+        }
+
+        let mut low = y - step;
+        let mut high = y;
+        for _ in 0..12 {
+            let middle = (low + high) * 0.5;
+            if note_at(middle) == current_note {
+                low = middle;
+            } else {
+                high = middle;
+            }
+        }
+        rows.push(PianoRollRow {
+            note: current_note,
+            top: row_top,
+            bottom: high,
+        });
+        row_top = high;
+        current_note = next_note;
+    }
+    rows.push(PianoRollRow {
+        note: current_note,
+        top: row_top,
+        bottom: height,
+    });
+    rows
+}
+
+fn is_black_piano_key(note: i32) -> bool {
+    matches!(note.rem_euclid(12), 1 | 3 | 6 | 8 | 10)
+}
+
+fn piano_note_label(note: i32, key: PianoKey) -> String {
+    let use_flats = matches!(key, PianoKey::EFlat | PianoKey::AFlat | PianoKey::BFlat);
+    let names = if use_flats {
+        [
+            "C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B",
+        ]
+    } else {
+        [
+            "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+        ]
+    };
+    let octave = note.div_euclid(12) - 1;
+    format!("{}{octave}", names[note.rem_euclid(12) as usize])
+}
+
 fn coloring_layout(display: Vec2) -> ColoringLayout {
     let margin = 12.0;
     let gap = 6.0;
@@ -330,23 +403,13 @@ impl KeySlamApp {
     }
 
     fn enforce_kiosk(&mut self, ctx: &Context) {
-        let (close_requested, minimized, egui_viewport_focused) = ctx.input(|input| {
+        let (close_requested, minimized) = ctx.input(|input| {
             let root = input.raw.viewports.get(&ViewportId::ROOT);
             (
                 root.is_some_and(egui::ViewportInfo::close_requested),
                 root.and_then(|viewport| viewport.minimized) == Some(true),
-                input
-                    .raw
-                    .viewports
-                    .values()
-                    .any(|viewport| viewport.focused == Some(true)),
             )
         });
-        let any_focused = if cfg!(target_os = "windows") {
-            app_is_foreground()
-        } else {
-            egui_viewport_focused
-        };
 
         // Close requests can originate from shell UI and automation as well as
         // the keyboard. Alt+F4 is the one intentional exit route and marks the
@@ -366,19 +429,6 @@ impl KeySlamApp {
             ctx.send_viewport_cmd_to(ViewportId::ROOT, ViewportCommand::Minimized(false));
         }
         keep_taskbar_behind();
-        if !any_focused {
-            // Precision-touchpad three/four-finger gestures are owned by the
-            // Windows shell, so a desktop app cannot cancel the gesture itself.
-            // Reassert the kiosk window immediately if one invokes Task View,
-            // Show Desktop, or app switching.
-            ctx.send_viewport_cmd_to(ViewportId::ROOT, ViewportCommand::Visible(true));
-            ctx.send_viewport_cmd_to(ViewportId::ROOT, ViewportCommand::Fullscreen(true));
-            ctx.send_viewport_cmd_to(
-                ViewportId::ROOT,
-                ViewportCommand::WindowLevel(WindowLevel::AlwaysOnTop),
-            );
-            ctx.send_viewport_cmd_to(ViewportId::ROOT, ViewportCommand::Focus);
-        }
     }
 
     fn process_key(&mut self, key_name: &str) {
@@ -495,6 +545,99 @@ impl KeySlamApp {
         painter.circle_stroke(position, radius, Stroke::new(1.0, Color32::WHITE));
     }
 
+    fn draw_piano_roll(
+        &self,
+        painter: &Painter,
+        rect: Rect,
+        pointer_position: Option<Pos2>,
+        light_background: bool,
+    ) {
+        let display = rect.size();
+        let keyboard_width = piano_roll_width(display.x);
+        let keyboard_right = rect.left() + keyboard_width;
+        let hovered_note = pointer_position.map(|position| {
+            piano_note(
+                position,
+                display,
+                self.settings.right_click_piano_scale,
+                self.settings.right_click_piano_key,
+            )
+        });
+        let rows = piano_roll_rows(
+            display,
+            self.settings.right_click_piano_scale,
+            self.settings.right_click_piano_key,
+        );
+        let grid_color = if light_background {
+            Color32::from_black_alpha(72)
+        } else {
+            Color32::from_white_alpha(72)
+        };
+
+        for row in rows {
+            let top = rect.top() + row.top;
+            let bottom = rect.top() + row.bottom;
+            let row_rect = Rect::from_min_max(pos2(rect.left(), top), pos2(rect.right(), bottom));
+            let is_hovered = hovered_note == Some(row.note);
+            if is_hovered {
+                painter.rect_filled(
+                    row_rect,
+                    0.0,
+                    Color32::from_rgba_unmultiplied(255, 196, 50, 40),
+                );
+            }
+
+            painter.line_segment(
+                [pos2(keyboard_right, top), pos2(rect.right(), top)],
+                Stroke::new(if is_hovered { 2.0 } else { 1.0 }, grid_color),
+            );
+
+            let black_key = is_black_piano_key(row.note);
+            let key_right = if black_key {
+                rect.left() + keyboard_width * 0.68
+            } else {
+                keyboard_right
+            };
+            let key_rect = Rect::from_min_max(
+                pos2(rect.left(), top),
+                pos2(key_right, bottom.max(top + 1.0)),
+            );
+            let fill = if is_hovered {
+                Color32::from_rgb(255, 196, 50)
+            } else if black_key {
+                Color32::from_gray(28)
+            } else {
+                Color32::from_gray(238)
+            };
+            painter.rect_filled(key_rect, 0.0, fill);
+            painter.rect_stroke(
+                key_rect,
+                0.0,
+                Stroke::new(1.0, Color32::from_gray(75)),
+                egui::StrokeKind::Inside,
+            );
+            let text_color = if black_key && !is_hovered {
+                Color32::WHITE
+            } else {
+                Color32::BLACK
+            };
+            painter.text(
+                key_rect.right_center() - vec2(7.0, 0.0),
+                Align2::RIGHT_CENTER,
+                piano_note_label(row.note, self.settings.right_click_piano_key),
+                FontId::proportional((key_rect.height() * 0.46).clamp(10.0, 16.0)),
+                text_color,
+            );
+        }
+        painter.line_segment(
+            [
+                pos2(keyboard_right, rect.top()),
+                pos2(keyboard_right, rect.bottom()),
+            ],
+            Stroke::new(2.0, grid_color),
+        );
+    }
+
     fn render_viewport(&mut self, ui: &mut Ui, display_index: usize) {
         let now = Instant::now();
         let rect = ui.max_rect();
@@ -532,6 +675,14 @@ impl KeySlamApp {
                 self.settings.faces_on_shapes,
             );
         }
+        let pointer_position = self
+            .game
+            .displays
+            .get(display_index)
+            .and_then(|display| display.pointer.position);
+        if !self.options_open && self.settings.cursor_effect == CursorEffect::PianoRoll {
+            self.draw_piano_roll(ui.painter(), rect, pointer_position, brightness >= 55);
+        }
         if let Some(display) = self.game.displays.get(display_index) {
             render::draw_pointer_effects(ui.painter(), &display.pointer, now);
         }
@@ -543,19 +694,20 @@ impl KeySlamApp {
             } else {
                 Color32::from_gray(205)
             };
+            let instruction_left =
+                if !self.options_open && self.settings.cursor_effect == CursorEffect::PianoRoll {
+                    piano_roll_width(rect.width())
+                } else {
+                    0.0
+                };
             ui.painter().text(
-                rect.left_top() + vec2(15.0, 15.0),
+                rect.left_top() + vec2(instruction_left + 15.0, 15.0),
                 Align2::LEFT_TOP,
                 "Alt+F4 exits • Alt+O opens settings",
                 FontId::proportional(14.0),
                 secondary,
             );
         }
-        let pointer_position = self
-            .game
-            .displays
-            .get(display_index)
-            .and_then(|display| display.pointer.position);
         if let Some(position) = pointer_position {
             ui.ctx().set_cursor_icon(egui::CursorIcon::None);
             if !self.options_open && self.settings.cursor_effect == CursorEffect::Coloring {
@@ -802,7 +954,19 @@ impl KeySlamApp {
                     ..
                 } => {
                     if let Some(display) = self.game.displays.get_mut(display_index) {
-                        display.pointer.piano_ripple(pos, now);
+                        let note_label = (self.settings.cursor_effect == CursorEffect::PianoRoll)
+                            .then(|| {
+                                piano_note_label(
+                                    piano_note(
+                                        pos,
+                                        display.size,
+                                        self.settings.right_click_piano_scale,
+                                        self.settings.right_click_piano_key,
+                                    ),
+                                    self.settings.right_click_piano_key,
+                                )
+                            });
+                        display.pointer.piano_ripple(pos, note_label, now);
                         if self.settings.right_click_piano_enabled {
                             self.audio.play_piano(piano_tone(
                                 pos,
