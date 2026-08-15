@@ -1,15 +1,21 @@
 # Speech clips
 
-KeySlam uses one Ogg Opus file per spoken word. `common` contains shared
-letters, digits, and animal names; locale folders contain translated color and
-shape names plus any pronunciation overrides. Color and shape clips are played
-in the locale's configured word order, so phrases such as "red circle" do not
-need their own recording.
+KeySlam uses one English Ogg Opus file per spoken word. This directory directly
+contains `animals`, `letters`, `numbers`, `colors`, and `shapes`. Colors have
+two readings: `colors/standalone` for a color spoken by itself and
+`colors/modifier` for the attributive reading composed with a shape. Phrases
+such as "red circle" therefore retain natural continuation intonation without
+needing a recording of every complete phrase.
 
-At runtime the clips for the active locale are copied to the user's KeySlam
-configuration directory without overwriting existing files. Replace any file
-there with another Ogg Opus recording of the same word, then restart KeySlam.
-Keep the same directory and filename. Mono or stereo Opus files are supported.
+At runtime the English clips are copied to the user's KeySlam configuration
+directory without overwriting existing files. Replace any file there with
+another Ogg Opus recording of the same word and performance, then restart
+KeySlam. Keep the same directory and filename. Mono or stereo Opus files are
+supported.
+
+Additional takes use a numeric suffix: `red1.opus`, `red2.opus`, and so on.
+KeySlam randomly selects from the base clip and every numbered take in that
+same directory each time it speaks the word.
 
 On Windows the editable folder is:
 

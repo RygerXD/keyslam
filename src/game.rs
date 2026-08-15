@@ -36,58 +36,98 @@ const MAX_PIANO_RIPPLES: usize = 12;
 pub struct BabyColor {
     pub rgb: [u8; 3],
     pub name: &'static str,
+    pub speech_name: &'static str,
 }
 
-pub const COLORS: [BabyColor; 12] = [
+// Chroma-Notes pitch colors occupy the first twelve entries in chromatic order
+// from C through B. The remaining four colors are additional painting/item
+// choices and intentionally stay at the end of the palette.
+pub const COLORS: [BabyColor; 16] = [
     BabyColor {
         rgb: [255, 0, 0],
         name: "Red",
+        speech_name: "Red",
     },
     BabyColor {
-        rgb: [255, 165, 0],
+        rgb: [255, 69, 0],
+        name: "Red-orange",
+        speech_name: "Orange",
+    },
+    BabyColor {
+        rgb: [255, 140, 0],
         name: "Orange",
+        speech_name: "Orange",
+    },
+    BabyColor {
+        rgb: [255, 191, 0],
+        name: "Yellow-orange",
+        speech_name: "Yellow",
     },
     BabyColor {
         rgb: [255, 255, 0],
         name: "Yellow",
+        speech_name: "Yellow",
     },
     BabyColor {
-        rgb: [0, 128, 0],
+        rgb: [154, 205, 50],
+        name: "Yellow-green",
+        speech_name: "Green",
+    },
+    BabyColor {
+        rgb: [0, 170, 70],
         name: "Green",
+        speech_name: "Green",
+    },
+    BabyColor {
+        rgb: [0, 170, 170],
+        name: "Blue-green",
+        speech_name: "Blue",
     },
     BabyColor {
         rgb: [0, 0, 255],
         name: "Blue",
+        speech_name: "Blue",
     },
     BabyColor {
-        rgb: [75, 0, 130],
-        name: "Indigo",
+        rgb: [75, 0, 180],
+        name: "Blue-violet",
+        speech_name: "Violet",
     },
     BabyColor {
         rgb: [148, 0, 211],
         name: "Violet",
+        speech_name: "Violet",
+    },
+    BabyColor {
+        rgb: [220, 0, 120],
+        name: "Violet-red",
+        speech_name: "Pink",
     },
     BabyColor {
         rgb: [255, 20, 147],
         name: "Pink",
-    },
-    BabyColor {
-        rgb: [139, 90, 43],
-        name: "Brown",
+        speech_name: "Pink",
     },
     BabyColor {
         rgb: [255, 255, 255],
         name: "White",
+        speech_name: "White",
     },
     BabyColor {
         rgb: [128, 128, 128],
         name: "Gray",
+        speech_name: "Gray",
     },
     BabyColor {
         rgb: [0, 0, 0],
         name: "Black",
+        speech_name: "Black",
     },
 ];
+
+pub fn chroma_color_for_note(note: i32) -> BabyColor {
+    COLORS[note.rem_euclid(12) as usize]
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FigureKind {
@@ -719,6 +759,7 @@ pub struct PianoRipple {
     pub position: Pos2,
     pub created: Instant,
     pub note_label: Option<String>,
+    pub color: BabyColor,
 }
 
 impl PianoRipple {
@@ -761,7 +802,13 @@ impl PointerState {
         });
     }
 
-    pub fn piano_ripple(&mut self, position: Pos2, note_label: Option<String>, now: Instant) {
+    pub fn piano_ripple(
+        &mut self,
+        position: Pos2,
+        note_label: Option<String>,
+        color: BabyColor,
+        now: Instant,
+    ) {
         if self.piano_ripples.len() == MAX_PIANO_RIPPLES {
             self.piano_ripples.remove(0);
         }
@@ -769,6 +816,7 @@ impl PointerState {
             position,
             created: now,
             note_label,
+            color,
         });
     }
 
@@ -1225,6 +1273,7 @@ mod tests {
         let now = Instant::now();
         for key in [
             "A", "1", "NumPad0", "B", "2", "NumPad1", "C", "3", "NumPad2", "D", "4", "NumPad3",
+            "E", "5", "NumPad4", "F",
         ] {
             game.add_response(response_for(key), &settings, now);
         }
@@ -1237,12 +1286,26 @@ mod tests {
         assert_eq!(
             names,
             [
-                "Red", "Orange", "Yellow", "Green", "Blue", "Indigo", "Violet", "Pink", "Brown",
-                "White", "Gray", "Black",
+                "Red",
+                "Red-orange",
+                "Orange",
+                "Yellow-orange",
+                "Yellow",
+                "Yellow-green",
+                "Green",
+                "Blue-green",
+                "Blue",
+                "Blue-violet",
+                "Violet",
+                "Violet-red",
+                "Pink",
+                "White",
+                "Gray",
+                "Black",
             ]
         );
 
-        game.add_response(response_for("E"), &settings, now);
+        game.add_response(response_for("6"), &settings, now);
         assert_eq!(
             game.figures.back().map(|figure| figure.color.name),
             Some("Red")
@@ -1283,7 +1346,7 @@ mod tests {
         );
         assert_eq!(
             game.figures.back().map(|figure| figure.color.name),
-            Some("Orange")
+            Some("Red-orange")
         );
     }
 
@@ -1303,7 +1366,7 @@ mod tests {
             .iter()
             .map(|figure| figure.color.name)
             .collect::<Vec<_>>();
-        assert_eq!(colors, ["Red", "Orange"]);
+        assert_eq!(colors, ["Red", "Red-orange"]);
     }
 
     #[test]

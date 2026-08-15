@@ -15,6 +15,7 @@ use cpal::{
 use crossbeam_channel::{Receiver, Sender, TrySendError, bounded};
 use directories::ProjectDirs;
 use include_dir::{Dir, include_dir};
+use rand::Rng;
 use rodio::Source;
 
 static SOUNDS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/sounds");
@@ -187,7 +188,7 @@ pub struct AudioSystem {
 }
 
 impl AudioSystem {
-    pub fn new(locale: &str) -> Self {
+    pub fn new() -> Self {
         let (sender, receiver) = bounded(64);
         let status = Arc::new(Mutex::new(None));
         let mut clips = HashMap::new();
@@ -203,7 +204,7 @@ impl AudioSystem {
             }
         }
         let speech_root = speech_root();
-        if let Err(error) = install_customizable_speech(&speech_root, locale) {
+        if let Err(error) = install_customizable_speech(&speech_root) {
             set_status(
                 &status,
                 format!("Could not prepare the customizable speech folder: {error}"),
@@ -220,7 +221,6 @@ impl AudioSystem {
         start_speech_workers(
             speech_receiver,
             sender.clone(),
-            locale.to_owned(),
             speech_root,
             Arc::clone(&status),
         );
@@ -298,7 +298,6 @@ impl AudioSystem {
 fn start_speech_workers(
     receiver: Receiver<Vec<String>>,
     audio_sender: Sender<AudioCommand>,
-    locale: String,
     speech_root: PathBuf,
     status: Arc<Mutex<Option<String>>>,
 ) {
@@ -306,7 +305,6 @@ fn start_speech_workers(
     for worker_index in 0..SPEECH_LOADER_THREADS {
         let receiver = receiver.clone();
         let audio_sender = audio_sender.clone();
-        let locale = locale.clone();
         let speech_root = speech_root.clone();
         let status = Arc::clone(&status);
         let cache = Arc::clone(&cache);
@@ -316,7 +314,7 @@ fn start_speech_workers(
                 while let Ok(keys) = receiver.recv() {
                     let clips = keys
                         .iter()
-                        .filter_map(|key| speech_clip(key, &locale, &speech_root, &cache, &status))
+                        .filter_map(|key| speech_clip(key, &speech_root, &cache, &status))
                         .collect::<Vec<_>>();
                     if clips.len() == keys.len() {
                         try_send_audio(&audio_sender, &status, AudioCommand::Play(clips, 1.0));
@@ -328,47 +326,91 @@ fn start_speech_workers(
 
 fn speech_clip(
     key: &str,
-    locale: &str,
     speech_root: &Path,
     cache: &Mutex<HashMap<String, Arc<AudioClip>>>,
     status: &Arc<Mutex<Option<String>>>,
 ) -> Option<Arc<AudioClip>> {
-    if let Some(clip) = cache.lock().ok().and_then(|clips| clips.get(key).cloned()) {
+    let takes = speech_takes(Path::new(key), speech_root);
+    let Some(relative) = takes
+        .get(rand::rng().random_range(0..takes.len().max(1)))
+        .cloned()
+    else {
+        set_status(status, format!("Speech clip is missing: {key}"));
+        return None;
+    };
+    let cache_key = relative.to_string_lossy().into_owned();
+    if let Some(clip) = cache
+        .lock()
+        .ok()
+        .and_then(|clips| clips.get(&cache_key).cloned())
+    {
         return Some(clip);
     }
 
-    let localized = Path::new(locale).join(key);
-    let common = Path::new("common").join(key);
-    let loaded = [localized, common].into_iter().find_map(|relative| {
-        let external = speech_root.join(&relative);
-        let bytes = fs::read(&external).ok().or_else(|| {
-            SPEECH
-                .get_file(&relative)
-                .map(|file| file.contents().to_vec())
-        })?;
-        match decode_opus(&bytes) {
-            Ok(clip) => Some(Arc::new(trim_speech_silence(clip))),
-            Err(error) => {
-                set_status(
-                    status,
-                    format!(
-                        "Could not decode speech clip {}: {error}",
-                        external.display()
-                    ),
-                );
-                None
-            }
+    let external = speech_root.join(&relative);
+    let bytes = fs::read(&external).ok().or_else(|| {
+        SPEECH
+            .get_file(&relative)
+            .map(|file| file.contents().to_vec())
+    });
+    let loaded = bytes.and_then(|bytes| match decode_opus(&bytes) {
+        Ok(clip) => Some(Arc::new(trim_speech_silence(clip))),
+        Err(error) => {
+            set_status(
+                status,
+                format!(
+                    "Could not decode speech clip {}: {error}",
+                    external.display()
+                ),
+            );
+            None
         }
     });
     if let Some(clip) = &loaded
         && let Ok(mut clips) = cache.lock()
     {
-        clips.insert(key.to_owned(), Arc::clone(clip));
-    }
-    if loaded.is_none() {
-        set_status(status, format!("Speech clip is missing: {key}"));
+        clips.insert(cache_key, Arc::clone(clip));
     }
     loaded
+}
+
+fn speech_takes(relative: &Path, speech_root: &Path) -> Vec<PathBuf> {
+    let Some(parent) = relative.parent() else {
+        return Vec::new();
+    };
+    let Some(base_stem) = relative.file_stem().and_then(|stem| stem.to_str()) else {
+        return Vec::new();
+    };
+    let mut names = std::collections::BTreeSet::new();
+    if let Ok(entries) = fs::read_dir(speech_root.join(parent)) {
+        for entry in entries.flatten() {
+            if is_speech_take(&entry.file_name(), base_stem) {
+                names.insert(entry.file_name());
+            }
+        }
+    }
+    if let Some(directory) = SPEECH.get_dir(parent) {
+        for file in directory.files() {
+            if let Some(name) = file.path().file_name()
+                && is_speech_take(name, base_stem)
+            {
+                names.insert(name.to_owned());
+            }
+        }
+    }
+    names.into_iter().map(|name| parent.join(name)).collect()
+}
+
+fn is_speech_take(name: &std::ffi::OsStr, base_stem: &str) -> bool {
+    let path = Path::new(name);
+    if path.extension().and_then(|extension| extension.to_str()) != Some("opus") {
+        return false;
+    }
+    let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+        return false;
+    };
+    stem.strip_prefix(base_stem)
+        .is_some_and(|suffix| suffix.chars().all(|character| character.is_ascii_digit()))
 }
 
 fn try_send_audio(
@@ -391,6 +433,7 @@ fn speech_root() -> PathBuf {
         |dirs| dirs.config_dir().join("speech"),
     );
     migrate_legacy_speech(&root);
+    migrate_flat_speech_layout(&root);
     root
 }
 
@@ -415,26 +458,32 @@ fn copy_directory(source: &Path, destination: &Path) -> std::io::Result<()> {
         let destination = destination.join(entry.file_name());
         if entry.file_type()?.is_dir() {
             copy_directory(&entry.path(), &destination)?;
-        } else {
+        } else if !destination.exists() {
             fs::copy(entry.path(), destination)?;
         }
     }
     Ok(())
 }
 
-fn install_customizable_speech(root: &Path, locale: &str) -> Result<(), String> {
-    copy_speech_dir(&SPEECH, root, locale)
+fn migrate_flat_speech_layout(root: &Path) {
+    for (old, new) in [
+        ("common/animals", "animals"),
+        ("common/letters", "letters"),
+        ("common/numbers", "numbers"),
+        ("en-EN/colors", "colors"),
+        ("en-EN/shapes", "shapes"),
+    ] {
+        let _ = copy_directory(&root.join(old), &root.join(new));
+    }
 }
 
-fn copy_speech_dir(directory: &Dir<'_>, root: &Path, locale: &str) -> Result<(), String> {
+fn install_customizable_speech(root: &Path) -> Result<(), String> {
+    copy_speech_dir(&SPEECH, root)
+}
+
+fn copy_speech_dir(directory: &Dir<'_>, root: &Path) -> Result<(), String> {
     for file in directory.files() {
         let path = file.path();
-        let is_selected = path.components().next().is_some_and(|component| {
-            component.as_os_str() == "common" || component.as_os_str() == locale
-        });
-        if !is_selected {
-            continue;
-        }
         let destination = root.join(path);
         if destination.exists() {
             continue;
@@ -445,7 +494,7 @@ fn copy_speech_dir(directory: &Dir<'_>, root: &Path, locale: &str) -> Result<(),
         fs::write(destination, file.contents()).map_err(|error| error.to_string())?;
     }
     for child in directory.dirs() {
-        copy_speech_dir(child, root, locale)?;
+        copy_speech_dir(child, root)?;
     }
     Ok(())
 }

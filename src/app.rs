@@ -2,7 +2,10 @@ use std::time::{Duration, Instant};
 
 use crate::{
     audio::AudioSystem,
-    game::{BabyColor, COLORS, FigureKind, Game, piano_note, piano_tone, pointer_tone},
+    game::{
+        BabyColor, COLORS, FigureKind, Game, chroma_color_for_note, piano_note, piano_tone,
+        pointer_tone,
+    },
     localization::Localization,
     platform::{
         KeyboardGuard, PlatformEvent, exit_chord_down, install_keyboard_guard, keep_taskbar_behind,
@@ -269,9 +272,10 @@ fn coloring_layout(display: Vec2) -> ColoringLayout {
     let margin = 12.0;
     let gap = 6.0;
     let clear_width = 112.0_f32.min((display.x * 0.18).max(72.0));
-    let swatch_size = ((display.x - margin * 2.0 - clear_width - gap * 12.0) / 12.0)
+    let color_count = COLORS.len() as f32;
+    let swatch_size = ((display.x - margin * 2.0 - clear_width - gap * color_count) / color_count)
         .clamp(12.0, MAX_COLOR_SWATCH_SIZE);
-    let total_width = swatch_size * 12.0 + gap * 12.0 + clear_width;
+    let total_width = swatch_size * color_count + gap * color_count + clear_width;
     let start_x = ((display.x - total_width) / 2.0).max(4.0);
     let swatch_top = (display.y - margin - swatch_size).max(0.0);
     let swatches = (0..COLORS.len())
@@ -280,7 +284,7 @@ fn coloring_layout(display: Vec2) -> ColoringLayout {
             Rect::from_min_size(pos2(left, swatch_top), Vec2::splat(swatch_size))
         })
         .collect::<Vec<_>>();
-    let clear_left = start_x + 12.0 * (swatch_size + gap);
+    let clear_left = start_x + color_count * (swatch_size + gap);
     let clear_button =
         Rect::from_min_size(pos2(clear_left, swatch_top), vec2(clear_width, swatch_size));
     let bottom_panel = Rect::from_min_max(
@@ -351,8 +355,8 @@ pub struct KeySlamApp {
 impl KeySlamApp {
     pub fn new(displays: Vec<DisplayConfig>, ctx: &Context) -> Self {
         let (settings_store, settings) = SettingsStore::open();
-        let localization = Localization::detect();
-        let audio = AudioSystem::new(localization.locale());
+        let localization = Localization::english();
+        let audio = AudioSystem::new();
         let (platform_sender, platform_events) = bounded(128);
         let (keyboard_guard, keyboard_warning) = match install_keyboard_guard(platform_sender) {
             Ok(guard) => (Some(guard), None),
@@ -448,7 +452,7 @@ impl KeySlamApp {
                         )],
                         FigureKind::Shape(shape) => self
                             .localization
-                            .color_shape_audio_keys(figure.color.name, shape.name())
+                            .color_shape_audio_keys(figure.color.speech_name, shape.name())
                             .into(),
                     };
                     self.audio.play_speech(&clips);
@@ -577,13 +581,13 @@ impl KeySlamApp {
             let bottom = rect.top() + row.bottom;
             let row_rect = Rect::from_min_max(pos2(rect.left(), top), pos2(rect.right(), bottom));
             let is_hovered = hovered_note == Some(row.note);
-            if is_hovered {
-                painter.rect_filled(
-                    row_rect,
-                    0.0,
-                    Color32::from_rgba_unmultiplied(255, 196, 50, 40),
-                );
-            }
+            let note_color = chroma_color_for_note(row.note);
+            let [red, green, blue] = note_color.rgb;
+            painter.rect_filled(
+                row_rect,
+                0.0,
+                Color32::from_rgba_unmultiplied(red, green, blue, if is_hovered { 72 } else { 24 }),
+            );
 
             painter.line_segment(
                 [pos2(keyboard_right, top), pos2(rect.right(), top)],
@@ -600,13 +604,7 @@ impl KeySlamApp {
                 pos2(rect.left(), top),
                 pos2(key_right, bottom.max(top + 1.0)),
             );
-            let fill = if is_hovered {
-                Color32::from_rgb(255, 196, 50)
-            } else if black_key {
-                Color32::from_gray(28)
-            } else {
-                Color32::from_gray(238)
-            };
+            let fill = Color32::from_rgb(red, green, blue);
             painter.rect_filled(key_rect, 0.0, fill);
             painter.rect_stroke(
                 key_rect,
@@ -614,11 +612,13 @@ impl KeySlamApp {
                 Stroke::new(1.0, Color32::from_gray(75)),
                 egui::StrokeKind::Inside,
             );
-            let text_color = if black_key && !is_hovered {
-                Color32::WHITE
-            } else {
-                Color32::BLACK
-            };
+            let text_color =
+                if u32::from(red) * 299 + u32::from(green) * 587 + u32::from(blue) * 114 >= 150_000
+                {
+                    Color32::BLACK
+                } else {
+                    Color32::WHITE
+                };
             painter.text(
                 key_rect.right_center() - vec2(7.0, 0.0),
                 Align2::RIGHT_CENTER,
@@ -778,8 +778,10 @@ impl KeySlamApp {
                 self.coloring.selected_color = index;
                 self.coloring.end_stroke(display_index);
                 let color = COLORS[index];
-                self.audio
-                    .play_speech(&[format!("colors/{}.opus", color.name.to_ascii_lowercase())]);
+                self.audio.play_speech(&[format!(
+                    "colors/standalone/{}.opus",
+                    color.speech_name.to_ascii_lowercase()
+                )]);
             }
             ColoringControl::Clear => {
                 self.game.clear();
@@ -948,19 +950,20 @@ impl KeySlamApp {
                     ..
                 } => {
                     if let Some(display) = self.game.displays.get_mut(display_index) {
+                        let note = piano_note(
+                            pos,
+                            display.size,
+                            self.settings.right_click_piano_scale,
+                            self.settings.right_click_piano_key,
+                        );
                         let note_label = (self.settings.cursor_effect == CursorEffect::PianoRoll)
-                            .then(|| {
-                                piano_note_label(
-                                    piano_note(
-                                        pos,
-                                        display.size,
-                                        self.settings.right_click_piano_scale,
-                                        self.settings.right_click_piano_key,
-                                    ),
-                                    self.settings.right_click_piano_key,
-                                )
-                            });
-                        display.pointer.piano_ripple(pos, note_label, now);
+                            .then(|| piano_note_label(note, self.settings.right_click_piano_key));
+                        display.pointer.piano_ripple(
+                            pos,
+                            note_label,
+                            chroma_color_for_note(note),
+                            now,
+                        );
                         if self.settings.right_click_piano_enabled {
                             self.audio.play_piano(piano_tone(
                                 pos,
