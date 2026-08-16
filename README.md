@@ -22,8 +22,8 @@ executable.
   performances for color names
 - Matching defaults, letter grouping, fading, item limits, faces, spawn
   animation, and tap animation
-- Speech, click audio, continuous stereo sinewave, and right-click piano
-- Arrow/original blue hand pointers plus rainbow, fading-afterimage, neon-worm,
+- Speech, continuous stereo sinewave, and configurable paint-color and right-click audio
+- Original blue hand pointer plus rainbow, fading-afterimage, neon-worm,
   sparkle, bubble, background-coloring, and piano-roll modes; the mouse wheel cycles
   effects and briefly pulses the hand larger or smaller
 - One borderless, always-on-top game viewport per monitor (Windows uses native
@@ -72,7 +72,7 @@ Controls:
 | `Alt+O` | Open settings |
 | `Alt+F4` | Exit all KeySlam windows |
 | Left-click / drag | Tap items, draw the pointer effect, and play pointer audio |
-| Right-click | Play a chromatic or key-based major/minor piano note and show a fading ripple |
+| Right-click | Play the configured sound and show a fading ripple |
 | Mouse wheel | Cycle pointer effects |
 
 Coloring mode adds the 12-color palette and Clear screen button along the
