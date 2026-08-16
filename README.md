@@ -166,6 +166,6 @@ which is also MIT licensed. BabySmash resources retain their original
 attribution; bundled animal artwork is from Microsoft Fluent Emoji. See
 [LICENSE](LICENSE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
-On first launch under the KeySlam name, existing settings and customized speech
-from the former BabySmash Rust configuration directory are migrated when the
-new KeySlam files do not already exist.
+Existing settings and customized sounds from the former doubled KeySlam
+configuration directory are migrated when the new KeySlam files do not already
+exist.

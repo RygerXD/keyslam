@@ -419,9 +419,6 @@ fn migrate_legacy_sound_library(root: &Path) {
         let _ = copy_directory(&dirs.config_dir().join("sounds"), root);
         let _ = copy_directory(&dirs.config_dir().join("speech"), root);
     }
-    if let Some(legacy_dirs) = ProjectDirs::from("com", "BabySmash", "BabySmash Rust") {
-        let _ = copy_directory(&legacy_dirs.config_dir().join("speech"), root);
-    }
 }
 
 fn copy_directory(source: &Path, destination: &Path) -> std::io::Result<()> {

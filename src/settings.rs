@@ -372,22 +372,14 @@ fn migrate_legacy_settings(path: &Path) {
     if path.exists() {
         return;
     }
-    for legacy_dirs in [
-        ProjectDirs::from("com", "KeySlam", "KeySlam"),
-        ProjectDirs::from("com", "BabySmash", "BabySmash Rust"),
-    ]
-    .into_iter()
-    .flatten()
-    {
+    if let Some(legacy_dirs) = ProjectDirs::from("com", "KeySlam", "KeySlam") {
         let legacy_path = legacy_dirs.config_dir().join("settings.json");
-        if !legacy_path.exists() {
-            continue;
+        if legacy_path.exists() {
+            if let Some(parent) = path.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            let _ = fs::copy(legacy_path, path);
         }
-        if let Some(parent) = path.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-        let _ = fs::copy(legacy_path, path);
-        return;
     }
 }
 
