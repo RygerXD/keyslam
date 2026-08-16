@@ -40,9 +40,9 @@ pub struct BabyColor {
 }
 
 // Chroma-Notes pitch colors occupy the first twelve entries in chromatic order
-// from C through B. The remaining four colors are additional painting/item
-// choices and intentionally stay at the end of the palette.
-pub const COLORS: [BabyColor; 16] = [
+// from C through B, with KeySlam's custom pink as B. White, gray, and black are
+// additional painting/item choices that intentionally stay at the end.
+pub const COLORS: [BabyColor; 15] = [
     BabyColor {
         rgb: [255, 0, 0],
         name: "Red",
@@ -97,11 +97,6 @@ pub const COLORS: [BabyColor; 16] = [
         rgb: [148, 0, 211],
         name: "Violet",
         speech_name: "Violet",
-    },
-    BabyColor {
-        rgb: [220, 0, 120],
-        name: "Violet-red",
-        speech_name: "Pink",
     },
     BabyColor {
         rgb: [255, 20, 147],
@@ -1273,7 +1268,7 @@ mod tests {
         let now = Instant::now();
         for key in [
             "A", "1", "NumPad0", "B", "2", "NumPad1", "C", "3", "NumPad2", "D", "4", "NumPad3",
-            "E", "5", "NumPad4", "F",
+            "E", "5", "NumPad4",
         ] {
             game.add_response(response_for(key), &settings, now);
         }
@@ -1297,7 +1292,6 @@ mod tests {
                 "Blue",
                 "Blue-violet",
                 "Violet",
-                "Violet-red",
                 "Pink",
                 "White",
                 "Gray",
@@ -1305,7 +1299,7 @@ mod tests {
             ]
         );
 
-        game.add_response(response_for("6"), &settings, now);
+        game.add_response(response_for("F"), &settings, now);
         assert_eq!(
             game.figures.back().map(|figure| figure.color.name),
             Some("Red")

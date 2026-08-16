@@ -14,7 +14,7 @@ use crate::{
     render::{self, TextureCache},
     responses::response_for,
     settings::{
-        CursorEffect, CursorStyle, MAX_FADE_AFTER_SECONDS, MAX_ITEMS_KEPT, MIN_FADE_AFTER_SECONDS,
+        CursorEffect, MAX_FADE_AFTER_SECONDS, MAX_ITEMS_KEPT, MIN_FADE_AFTER_SECONDS,
         MIN_ITEMS_KEPT, PianoKey, PianoScale, PointerSound, Settings, SettingsStore, SoundMode,
     },
 };
@@ -678,7 +678,7 @@ impl KeySlamApp {
             self.draw_piano_roll(ui.painter(), rect, pointer_position, brightness >= 55);
         }
         if let Some(display) = self.game.displays.get(display_index) {
-            render::draw_pointer_effects(ui.painter(), &display.pointer, now);
+            render::draw_pointer_effects(ui.painter(), &self.textures, &display.pointer, now);
         }
 
         if display_index == 0 {
@@ -722,13 +722,7 @@ impl KeySlamApp {
                 Order::Debug,
                 Id::new(("keyslam-custom-cursor", display_index)),
             ));
-            render::draw_cursor(
-                &cursor_painter,
-                &self.textures,
-                position,
-                self.settings.cursor_style,
-                scale,
-            );
+            render::draw_cursor(&cursor_painter, &self.textures, position, scale);
         }
     }
 
@@ -777,11 +771,13 @@ impl KeySlamApp {
             ColoringControl::Swatch(index) => {
                 self.coloring.selected_color = index;
                 self.coloring.end_stroke(display_index);
-                let color = COLORS[index];
-                self.audio.play_speech(&[format!(
-                    "colors/standalone/{}.opus",
-                    color.speech_name.to_ascii_lowercase()
-                )]);
+                if self.settings.paint_color_speech {
+                    let color = COLORS[index];
+                    self.audio.play_speech(&[format!(
+                        "colors/standalone/{}.opus",
+                        color.speech_name.to_ascii_lowercase()
+                    )]);
+                }
             }
             ColoringControl::Clear => {
                 self.game.clear();
@@ -923,7 +919,6 @@ impl KeySlamApp {
                             self.settings.interaction_animations,
                         );
                         match self.settings.pointer_sound {
-                            PointerSound::Click => self.audio.play_sound("smallbumblebee.wav"),
                             PointerSound::SineWave => {
                                 if let Some(display) = self.game.displays.get(display_index) {
                                     let (frequency, pan) = pointer_tone(pos, display.size);
@@ -1163,16 +1158,10 @@ fn audio_options(ui: &mut Ui, settings: &mut Settings) {
     section(ui, "Pointer sounds", |ui| {
         ComboBox::from_id_salt("pointer-sound")
             .selected_text(match settings.pointer_sound {
-                PointerSound::Click => "Playful click",
                 PointerSound::SineWave => "Sinewave instrument",
                 PointerSound::None => "No pointer sound",
             })
             .show_ui(ui, |ui| {
-                ui.selectable_value(
-                    &mut settings.pointer_sound,
-                    PointerSound::Click,
-                    "Playful click",
-                );
                 ui.selectable_value(
                     &mut settings.pointer_sound,
                     PointerSound::SineWave,
@@ -1191,10 +1180,32 @@ fn audio_options(ui: &mut Ui, settings: &mut Settings) {
             );
             ui.label("Move vertically for pitch and horizontally for stereo position.");
         });
-        ui.checkbox(
-            &mut settings.right_click_piano_enabled,
-            "Play piano keys on right-click",
-        );
+        ui.horizontal(|ui| {
+            ui.label("Paint color selection");
+            ComboBox::from_id_salt("paint-color-sound")
+                .selected_text(if settings.paint_color_speech {
+                    "Speak color"
+                } else {
+                    "No sound"
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut settings.paint_color_speech, true, "Speak color");
+                    ui.selectable_value(&mut settings.paint_color_speech, false, "No sound");
+                });
+        });
+        ui.horizontal(|ui| {
+            ui.label("Right-click sound");
+            ComboBox::from_id_salt("right-click-sound")
+                .selected_text(if settings.right_click_piano_enabled {
+                    "Piano"
+                } else {
+                    "No sound"
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut settings.right_click_piano_enabled, true, "Piano");
+                    ui.selectable_value(&mut settings.right_click_piano_enabled, false, "No sound");
+                });
+        });
         ui.add_enabled_ui(settings.right_click_piano_enabled, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Scale");
@@ -1273,15 +1284,6 @@ fn visual_options(ui: &mut Ui, settings: &mut Settings) {
 
 fn input_options(ui: &mut Ui, settings: &mut Settings) {
     section(ui, "Mouse and pointer", |ui| {
-        ComboBox::from_id_salt("cursor-style")
-            .selected_text(match settings.cursor_style {
-                CursorStyle::Arrow => "Arrow",
-                CursorStyle::Hand => "Hand",
-            })
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut settings.cursor_style, CursorStyle::Arrow, "Arrow");
-                ui.selectable_value(&mut settings.cursor_style, CursorStyle::Hand, "Hand");
-            });
         ComboBox::from_id_salt("cursor-effect")
             .selected_text(settings.cursor_effect.label())
             .show_ui(ui, |ui| {

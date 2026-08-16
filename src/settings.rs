@@ -20,11 +20,30 @@ pub enum SoundMode {
     None,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum PointerSound {
-    Click,
     SineWave,
     None,
+}
+
+#[derive(Deserialize)]
+enum StoredPointerSound {
+    SineWave,
+    None,
+    #[serde(other)]
+    Removed,
+}
+
+impl<'de> Deserialize<'de> for PointerSound {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(match StoredPointerSound::deserialize(deserializer)? {
+            StoredPointerSound::SineWave => Self::SineWave,
+            StoredPointerSound::None | StoredPointerSound::Removed => Self::None,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -111,12 +130,6 @@ impl PianoKey {
             Self::B => 11,
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CursorStyle {
-    Arrow,
-    Hand,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -217,6 +230,7 @@ pub struct Settings {
     pub group_letters: bool,
     pub pointer_sound: PointerSound,
     pub sine_wave_volume_percent: u8,
+    pub paint_color_speech: bool,
     pub right_click_piano_enabled: bool,
     pub right_click_piano_scale: PianoScale,
     pub right_click_piano_key: PianoKey,
@@ -224,7 +238,6 @@ pub struct Settings {
     pub interaction_animations: bool,
     pub faces_on_shapes: bool,
     pub background_brightness_percent: u8,
-    pub cursor_style: CursorStyle,
     pub cursor_effect: CursorEffect,
     pub force_uppercase: bool,
 }
@@ -240,6 +253,7 @@ impl Default for Settings {
             group_letters: true,
             pointer_sound: PointerSound::SineWave,
             sine_wave_volume_percent: 35,
+            paint_color_speech: true,
             right_click_piano_enabled: true,
             right_click_piano_scale: PianoScale::Chromatic,
             right_click_piano_key: PianoKey::C,
@@ -247,7 +261,6 @@ impl Default for Settings {
             interaction_animations: true,
             faces_on_shapes: true,
             background_brightness_percent: 7,
-            cursor_style: CursorStyle::Hand,
             cursor_effect: CursorEffect::Rainbow,
             force_uppercase: true,
         }
@@ -352,7 +365,6 @@ mod tests {
         ));
         let (_, settings) = SettingsStore::open_path(path);
         assert_eq!(settings, Settings::default());
-        assert_eq!(settings.cursor_style, CursorStyle::Hand);
     }
 
     #[test]
@@ -421,6 +433,13 @@ mod tests {
     fn removed_bump_map_setting_migrates_to_no_effect() -> serde_json::Result<()> {
         let effect = serde_json::from_str::<CursorEffect>("\"BumpMapTrail\"")?;
         assert_eq!(effect, CursorEffect::None);
+        Ok(())
+    }
+
+    #[test]
+    fn removed_playful_click_setting_migrates_to_no_pointer_sound() -> serde_json::Result<()> {
+        let sound = serde_json::from_str::<PointerSound>("\"Click\"")?;
+        assert_eq!(sound, PointerSound::None);
         Ok(())
     }
 

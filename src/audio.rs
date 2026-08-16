@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     fs,
-    io::Cursor,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     thread,
@@ -16,9 +15,7 @@ use crossbeam_channel::{Receiver, Sender, TrySendError, bounded};
 use directories::ProjectDirs;
 use include_dir::{Dir, include_dir};
 use rand::Rng;
-use rodio::Source;
 
-static SOUNDS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/sounds");
 static SPEECH: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/speech");
 const MAX_VOICES: usize = 32;
 const SPEECH_LOADER_THREADS: usize = 2;
@@ -181,7 +178,6 @@ impl Mixer {
 pub struct AudioSystem {
     sender: Sender<AudioCommand>,
     speech_sender: Sender<Vec<String>>,
-    clips: HashMap<&'static str, Arc<AudioClip>>,
     piano: Mutex<HashMap<i32, Arc<AudioClip>>>,
     _stream: Option<Stream>,
     status: Arc<Mutex<Option<String>>>,
@@ -191,18 +187,6 @@ impl AudioSystem {
     pub fn new() -> Self {
         let (sender, receiver) = bounded(64);
         let status = Arc::new(Mutex::new(None));
-        let mut clips = HashMap::new();
-        for name in ["smallbumblebee.wav"] {
-            match SOUNDS
-                .get_file(name)
-                .and_then(|file| decode_wav(file.contents()).ok())
-            {
-                Some(clip) => {
-                    clips.insert(name, Arc::new(clip));
-                }
-                None => set_status(&status, format!("Could not decode bundled sound {name}")),
-            }
-        }
         let speech_root = speech_root();
         if let Err(error) = install_customizable_speech(&speech_root) {
             set_status(
@@ -227,16 +211,9 @@ impl AudioSystem {
         Self {
             sender,
             speech_sender,
-            clips,
             piano: Mutex::new(HashMap::new()),
             _stream: stream,
             status,
-        }
-    }
-
-    pub fn play_sound(&self, name: &'static str) {
-        if let Some(clip) = self.clips.get(name) {
-            self.send(AudioCommand::Play(vec![Arc::clone(clip)], 0.75));
         }
     }
 
@@ -568,19 +545,6 @@ where
     )
 }
 
-fn decode_wav(bytes: &[u8]) -> Result<AudioClip, String> {
-    let decoder =
-        rodio::Decoder::try_from(Cursor::new(bytes.to_vec())).map_err(|error| error.to_string())?;
-    let channels = usize::from(decoder.channels().get());
-    let sample_rate = f64::from(decoder.sample_rate().get());
-    let samples = decoder.collect();
-    Ok(AudioClip {
-        samples,
-        channels,
-        sample_rate,
-    })
-}
-
 fn decode_opus(bytes: &[u8]) -> Result<AudioClip, String> {
     let (samples, head) = ruopus::decode_ogg_opus(bytes).map_err(|error| error.to_string())?;
     let channels = usize::from(head.channel_count);
@@ -655,16 +619,6 @@ fn piano_clip(note: i32) -> AudioClip {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn every_bundled_sound_decodes() {
-        for file in SOUNDS.files() {
-            let clip = decode_wav(file.contents()).unwrap_or_else(|error| {
-                panic!("{} did not decode: {error}", file.path().display())
-            });
-            assert!(clip.frames() > 0);
-        }
-    }
 
     #[test]
     fn piano_range_is_clamped() {

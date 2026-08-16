@@ -13,12 +13,140 @@ use include_dir::{Dir, include_dir};
 use crate::{
     game::{BabyColor, Figure, FigureKind, Particle, PointerState, TrailMark},
     responses::ShapeKind,
-    settings::{CursorEffect, CursorStyle},
+    settings::CursorEffect,
 };
 
 static EMOJI: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/emoji");
 const GLYPH_PREWARM_TEXT: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const GLYPH_FONT_SIZE: f32 = 264.0;
+const SHAPE_KINDS: [ShapeKind; 11] = [
+    ShapeKind::Star,
+    ShapeKind::Oval,
+    ShapeKind::Rectangle,
+    ShapeKind::Triangle,
+    ShapeKind::Square,
+    ShapeKind::Pentagon,
+    ShapeKind::Hexagon,
+    ShapeKind::Septagon,
+    ShapeKind::Octagon,
+    ShapeKind::Trapezoid,
+    ShapeKind::Circle,
+];
+
+fn shape_svg(kind: ShapeKind) -> &'static [u8] {
+    match kind {
+        ShapeKind::Star => include_bytes!("../assets/shapes/star.svg"),
+        ShapeKind::Oval => include_bytes!("../assets/shapes/oval.svg"),
+        ShapeKind::Rectangle => include_bytes!("../assets/shapes/rectangle.svg"),
+        ShapeKind::Triangle => include_bytes!("../assets/shapes/triangle.svg"),
+        ShapeKind::Square => include_bytes!("../assets/shapes/square.svg"),
+        ShapeKind::Pentagon => include_bytes!("../assets/shapes/pentagon.svg"),
+        ShapeKind::Hexagon => include_bytes!("../assets/shapes/hexagon.svg"),
+        ShapeKind::Septagon => include_bytes!("../assets/shapes/septagon.svg"),
+        ShapeKind::Octagon => include_bytes!("../assets/shapes/octagon.svg"),
+        ShapeKind::Trapezoid => include_bytes!("../assets/shapes/trapezoid.svg"),
+        ShapeKind::Circle => include_bytes!("../assets/shapes/circle.svg"),
+    }
+}
+
+fn svg_layer_color_image(tree: &resvg::usvg::Tree, id: &str) -> Option<(ColorImage, Rect)> {
+    let node = tree.node_by_id(id)?;
+    let bounds = node.abs_layer_bounding_box()?;
+    let pixel_bounds = bounds.to_int_rect();
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(pixel_bounds.width(), pixel_bounds.height())?;
+    resvg::render_node(
+        node,
+        resvg::tiny_skia::Transform::identity(),
+        &mut pixmap.as_mut(),
+    )?;
+    let size = tree.size();
+    Some((
+        ColorImage::from_rgba_premultiplied(
+            [
+                pixel_bounds.width() as usize,
+                pixel_bounds.height() as usize,
+            ],
+            pixmap.data(),
+        ),
+        Rect::from_min_max(
+            pos2(bounds.left() / size.width(), bounds.top() / size.height()),
+            pos2(
+                bounds.right() / size.width(),
+                bounds.bottom() / size.height(),
+            ),
+        ),
+    ))
+}
+
+fn svg_layer_texture(
+    ctx: &Context,
+    tree: &resvg::usvg::Tree,
+    texture_name: &str,
+    layer_id: &str,
+) -> Option<SvgLayerTexture> {
+    let (image, bounds) = svg_layer_color_image(tree, layer_id)?;
+    Some(SvgLayerTexture {
+        texture: ctx.load_texture(texture_name, image, TextureOptions::LINEAR),
+        bounds,
+    })
+}
+
+fn svg_layer_mask_texture(
+    ctx: &Context,
+    tree: &resvg::usvg::Tree,
+    texture_name: &str,
+    layer_id: &str,
+) -> Option<SvgLayerTexture> {
+    let (mut image, bounds) = svg_layer_color_image(tree, layer_id)?;
+    for pixel in &mut image.pixels {
+        let alpha = pixel.a();
+        *pixel = Color32::from_rgba_premultiplied(alpha, alpha, alpha, alpha);
+    }
+    Some(SvgLayerTexture {
+        texture: ctx.load_texture(texture_name, image, TextureOptions::LINEAR),
+        bounds,
+    })
+}
+
+fn normalized_node_bounds(tree: &resvg::usvg::Tree, id: &str) -> Option<Rect> {
+    let bounds = tree.node_by_id(id)?.abs_layer_bounding_box()?;
+    let size = tree.size();
+    Some(Rect::from_min_max(
+        pos2(bounds.left() / size.width(), bounds.top() / size.height()),
+        pos2(
+            bounds.right() / size.width(),
+            bounds.bottom() / size.height(),
+        ),
+    ))
+}
+
+fn shape_textures(ctx: &Context, kind: ShapeKind) -> Option<ShapeTextures> {
+    let tree =
+        resvg::usvg::Tree::from_data(shape_svg(kind), &resvg::usvg::Options::default()).ok()?;
+    let name = kind.name().to_lowercase();
+    Some(ShapeTextures {
+        shadow: svg_layer_texture(ctx, &tree, &format!("shape-{name}-shadow"), "shadow")?,
+        outline: svg_layer_texture(ctx, &tree, &format!("shape-{name}-outline"), "outline")?,
+        fill: svg_layer_texture(ctx, &tree, &format!("shape-{name}-fill"), "fill")?,
+        shading: svg_layer_texture(ctx, &tree, &format!("shape-{name}-shading"), "shading")?,
+        face_bounds: normalized_node_bounds(&tree, "face-placement")?,
+    })
+}
+
+fn face_textures(ctx: &Context) -> Option<FaceTextures> {
+    let face_svg = include_bytes!("../assets/shapes/face.svg");
+    let tree = resvg::usvg::Tree::from_data(face_svg, &resvg::usvg::Options::default()).ok()?;
+    let closed_svg = std::str::from_utf8(face_svg)
+        .ok()?
+        .replace("id=\"eyes-closed\" opacity=\".001\"", "id=\"eyes-closed\"");
+    let closed_tree =
+        resvg::usvg::Tree::from_str(&closed_svg, &resvg::usvg::Options::default()).ok()?;
+    Some(FaceTextures {
+        smile: svg_layer_mask_texture(ctx, &tree, "shape-face-smile", "smile")?,
+        eyes_open: svg_layer_texture(ctx, &tree, "shape-face-eyes-open", "eyes-open")?,
+        eyes_closed: svg_layer_texture(ctx, &closed_tree, "shape-face-eyes-closed", "eyes-closed")?,
+    })
+}
 
 pub fn prewarm_glyphs(ctx: &Context) {
     ctx.fonts_mut(|fonts| {
@@ -34,7 +162,28 @@ pub struct TextureCache {
     emoji: HashMap<&'static str, TextureHandle>,
     decoded_emoji: HashMap<String, eframe::egui::ColorImage>,
     decoded_receiver: Receiver<(String, eframe::egui::ColorImage)>,
+    shapes: HashMap<ShapeKind, ShapeTextures>,
+    face: Option<FaceTextures>,
     hand_gradient: TextureHandle,
+}
+
+struct FaceTextures {
+    smile: SvgLayerTexture,
+    eyes_open: SvgLayerTexture,
+    eyes_closed: SvgLayerTexture,
+}
+
+struct ShapeTextures {
+    shadow: SvgLayerTexture,
+    outline: SvgLayerTexture,
+    fill: SvgLayerTexture,
+    shading: SvgLayerTexture,
+    face_bounds: Rect,
+}
+
+struct SvgLayerTexture {
+    texture: TextureHandle,
+    bounds: Rect,
 }
 
 impl TextureCache {
@@ -66,10 +215,17 @@ impl TextureCache {
                     repaint_context.request_repaint();
                 }
             });
+        let shapes = SHAPE_KINDS
+            .into_iter()
+            .filter_map(|kind| shape_textures(ctx, kind).map(|textures| (kind, textures)))
+            .collect();
+        let face = face_textures(ctx);
         Self {
             emoji: HashMap::new(),
             decoded_emoji: HashMap::new(),
             decoded_receiver,
+            shapes,
+            face,
             hand_gradient: ctx.load_texture(
                 "hand-cursor-gradient",
                 hand_gradient_image(),
@@ -139,9 +295,9 @@ pub fn draw_figure(
             draw_emoji(painter, ctx, cache, rect, emoji, opacity, angle);
         }
         FigureKind::Shape(kind) => {
-            draw_shape(painter, rect, kind, figure.color, opacity, angle);
+            draw_shape(painter, cache, rect, kind, figure.color, opacity, angle);
             if faces {
-                draw_face(painter, rect, figure, now, opacity, angle);
+                draw_face(painter, cache, rect, figure, now, opacity, angle);
             }
         }
     }
@@ -218,193 +374,136 @@ fn draw_emoji(
 
 fn draw_shape(
     painter: &Painter,
+    cache: &TextureCache,
     rect: Rect,
     kind: ShapeKind,
     color: BabyColor,
     opacity: f32,
     angle: f32,
 ) {
-    let base_points = shape_points(kind, rect);
-    let is_star = kind == ShapeKind::Star;
-    let shadow_points = base_points
-        .iter()
-        .map(|point| *point + vec2(7.0, 9.0))
-        .collect();
-    paint_polygon(
+    let Some(shape) = cache.shapes.get(&kind) else {
+        return;
+    };
+    draw_svg_layer(
         painter,
-        rotated(shadow_points, rect.center(), angle),
-        with_opacity(Color32::BLACK, opacity * 0.42),
-        Stroke::NONE,
-        is_star,
+        &shape.shadow,
+        rect,
+        with_opacity(Color32::WHITE, opacity),
+        angle,
+        rect.center(),
     );
-    let dark = adjust(rgb(color), -55);
-    let light = adjust(rgb(color), 60);
-    for layer in 0..12 {
-        let progress = layer as f32 / 11.0;
-        let layer_center = rect.center() + vec2(8.0 * progress, -8.0 * progress);
-        let scale = 1.0 - progress * 0.055;
-        let points = base_points
-            .iter()
-            .map(|point| layer_center + (*point - rect.center()) * scale)
-            .collect();
-        paint_polygon(
-            painter,
-            rotated(points, rect.center(), angle),
-            with_opacity(lerp_color(dark, light, progress), opacity),
-            Stroke::new(1.0, with_opacity(Color32::BLACK, opacity * 0.2)),
-            is_star,
-        );
-    }
-    painter.add(Shape::closed_line(
-        rotated(base_points, rect.center(), angle),
-        Stroke::new(10.0, with_opacity(border_for(color), opacity)),
-    ));
+    draw_svg_layer(
+        painter,
+        &shape.outline,
+        rect,
+        with_opacity(border_for(color), opacity),
+        angle,
+        rect.center(),
+    );
+    draw_svg_layer(
+        painter,
+        &shape.fill,
+        rect,
+        with_opacity(rgb(color), opacity),
+        angle,
+        rect.center(),
+    );
+    draw_svg_layer(
+        painter,
+        &shape.shading,
+        rect,
+        with_opacity(Color32::WHITE, opacity),
+        angle,
+        rect.center(),
+    );
 }
 
-fn paint_polygon(
+fn draw_tinted_texture_around(
     painter: &Painter,
-    points: Vec<Pos2>,
-    fill: Color32,
-    stroke: Stroke,
-    concave: bool,
+    texture: &TextureHandle,
+    rect: Rect,
+    tint: Color32,
+    angle: f32,
+    rotation_center: Pos2,
 ) {
-    if !concave {
-        painter.add(Shape::convex_polygon(points, fill, stroke));
-        return;
-    }
-
-    let center = points
-        .iter()
-        .fold(Vec2::ZERO, |sum, point| sum + point.to_vec2())
-        / points.len() as f32;
-    let mut mesh = Mesh::default();
-    mesh.colored_vertex(center.to_pos2(), fill);
-    for point in &points {
-        mesh.colored_vertex(*point, fill);
-    }
-    for index in 0..points.len() {
-        mesh.add_triangle(
-            0,
-            index as u32 + 1,
-            (index + 1) as u32 % points.len() as u32 + 1,
-        );
+    let mut mesh = Mesh::with_texture(texture.id());
+    mesh.add_rect_with_uv(rect, Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)), tint);
+    if angle != 0.0 {
+        for vertex in &mut mesh.vertices {
+            vertex.pos = rotate(vertex.pos, rotation_center, angle);
+        }
     }
     painter.add(Shape::mesh(mesh));
-    if stroke.width > 0.0 {
-        painter.add(Shape::closed_line(points, stroke));
-    }
 }
 
-fn shape_points(kind: ShapeKind, rect: Rect) -> Vec<Pos2> {
-    let center = rect.center();
-    let radius = rect.size() * 0.46;
-    match kind {
-        ShapeKind::Circle | ShapeKind::Oval => regular_polygon(center, radius, 48, -90.0),
-        ShapeKind::Square | ShapeKind::Rectangle => vec![
-            pos2(rect.left() + 10.0, rect.top() + 10.0),
-            pos2(rect.right() - 10.0, rect.top() + 10.0),
-            pos2(rect.right() - 10.0, rect.bottom() - 10.0),
-            pos2(rect.left() + 10.0, rect.bottom() - 10.0),
-        ],
-        ShapeKind::Triangle => regular_polygon(center, radius, 3, -90.0),
-        ShapeKind::Pentagon => regular_polygon(center, radius, 5, -90.0),
-        ShapeKind::Hexagon => {
-            const SIN_60_DEGREES: f32 = 0.866_025_4;
-            let vertex_radius = radius.x.min(radius.y / SIN_60_DEGREES);
-            regular_polygon(center, Vec2::splat(vertex_radius), 6, 0.0)
-        }
-        ShapeKind::Septagon => regular_polygon(center, radius, 7, -90.0),
-        ShapeKind::Octagon => regular_polygon(center, radius, 8, -112.5),
-        ShapeKind::Trapezoid => vec![
-            pos2(center.x - radius.x * 0.55, center.y - radius.y),
-            pos2(center.x + radius.x * 0.55, center.y - radius.y),
-            pos2(center.x + radius.x, center.y + radius.y),
-            pos2(center.x - radius.x, center.y + radius.y),
-        ],
-        ShapeKind::Star => {
-            let mut points = Vec::with_capacity(10);
-            for index in 0..10 {
-                let angle = (-90.0 + index as f32 * 36.0).to_radians();
-                let factor = if index % 2 == 0 { 1.0 } else { 0.43 };
-                points.push(center + vec2(angle.cos() * radius.x, angle.sin() * radius.y) * factor);
-            }
-            points
-        }
-    }
+fn draw_svg_layer(
+    painter: &Painter,
+    layer: &SvgLayerTexture,
+    face_rect: Rect,
+    tint: Color32,
+    angle: f32,
+    rotation_center: Pos2,
+) {
+    let layer_rect = map_normalized_rect(face_rect, layer.bounds);
+    draw_tinted_texture_around(
+        painter,
+        &layer.texture,
+        layer_rect,
+        tint,
+        angle,
+        rotation_center,
+    );
 }
 
-fn regular_polygon(center: Pos2, radius: Vec2, sides: usize, rotation_degrees: f32) -> Vec<Pos2> {
-    (0..sides)
-        .map(|index| {
-            let angle = (rotation_degrees + index as f32 * 360.0 / sides as f32).to_radians();
-            center + vec2(angle.cos() * radius.x, angle.sin() * radius.y)
-        })
-        .collect()
+fn map_normalized_rect(parent: Rect, child: Rect) -> Rect {
+    Rect::from_min_max(
+        parent.min + vec2(child.left() * parent.width(), child.top() * parent.height()),
+        parent.min
+            + vec2(
+                child.right() * parent.width(),
+                child.bottom() * parent.height(),
+            ),
+    )
 }
 
 fn draw_face(
     painter: &Painter,
+    cache: &TextureCache,
     rect: Rect,
     figure: &Figure,
     now: Instant,
     opacity: f32,
     angle: f32,
 ) {
-    let ink = contrast_for(figure.color);
-    let is_star = matches!(&figure.kind, FigureKind::Shape(ShapeKind::Star));
-    let center_offset = if is_star { -0.015 } else { 0.03 };
-    let center = rect.center() + vec2(0.0, rect.height() * center_offset);
     let blink_interval = 2.1 + (figure.id % 50) as f32 / 10.0;
     let elapsed = now.duration_since(figure.created).as_secs_f32() + (figure.id % 17) as f32 * 0.19;
     let blinking = elapsed % blink_interval < 0.2;
-    let face_size = rect.width().min(rect.height());
-    let eye_offset = face_size * if is_star { 0.105 } else { 0.12 };
-    let eye_radius = face_size * if is_star { 0.047 } else { 0.055 };
-    for x in [-eye_offset, eye_offset] {
-        let eye_height = if is_star { -0.48 } else { -0.55 };
-        let eye = rotate(
-            center + vec2(x, eye_offset * eye_height),
-            rect.center(),
+    if let (Some(face), FigureKind::Shape(kind)) = (&cache.face, &figure.kind) {
+        let Some(shape) = cache.shapes.get(kind) else {
+            return;
+        };
+        let face_rect = map_normalized_rect(rect, shape.face_bounds);
+        draw_svg_layer(
+            painter,
+            &face.smile,
+            face_rect,
+            with_opacity(border_for(figure.color), opacity),
             angle,
+            rect.center(),
         );
-        if blinking {
-            let half = vec2(eye_radius, 0.0);
-            painter.line_segment(
-                [eye - half, eye + half],
-                Stroke::new(4.0, with_opacity(ink, opacity)),
-            );
+        let eyes = if blinking {
+            &face.eyes_closed
         } else {
-            painter.circle_filled(eye, eye_radius, with_opacity(Color32::WHITE, opacity));
-            painter.circle_filled(
-                eye + vec2(eye_radius * 0.12, eye_radius * 0.08),
-                eye_radius * 0.48,
-                with_opacity(Color32::BLACK, opacity),
-            );
-        }
-    }
-    let mouth_width = eye_offset * if is_star { 1.12 } else { 1.35 };
-    let mouth_y = center.y + eye_offset * if is_star { 0.55 } else { 0.65 };
-    let smile_depth = eye_offset * if is_star { 0.38 } else { 0.55 };
-    let mut smile = Vec::with_capacity(13);
-    for index in 0..=12 {
-        let t = index as f32 / 12.0;
-        let x = center.x - mouth_width + mouth_width * 2.0 * t;
-        let y = mouth_y + (1.0 - (t * 2.0 - 1.0).powi(2)) * smile_depth;
-        smile.push(rotate(pos2(x, y), rect.center(), angle));
-    }
-    painter.add(Shape::line(
-        smile,
-        Stroke::new(5.0, with_opacity(ink, opacity)),
-    ));
-}
-
-fn contrast_for(color: BabyColor) -> Color32 {
-    let [red, green, blue] = color.rgb;
-    let luminance = 0.2126 * f32::from(red) + 0.7152 * f32::from(green) + 0.0722 * f32::from(blue);
-    if luminance < 70.0 {
-        Color32::WHITE
-    } else {
-        Color32::BLACK
+            &face.eyes_open
+        };
+        draw_svg_layer(
+            painter,
+            eyes,
+            face_rect,
+            with_opacity(Color32::WHITE, opacity),
+            angle,
+            rect.center(),
+        );
     }
 }
 
@@ -416,12 +515,17 @@ fn border_for(color: BabyColor) -> Color32 {
     }
 }
 
-pub fn draw_pointer_effects(painter: &Painter, state: &PointerState, now: Instant) {
+pub fn draw_pointer_effects(
+    painter: &Painter,
+    cache: &TextureCache,
+    state: &PointerState,
+    now: Instant,
+) {
     draw_rainbow_trail(painter, state);
     draw_neon_worm(painter, state);
     draw_trail_marks(painter, &state.trail_marks, now);
     for particle in &state.particles {
-        draw_particle(painter, particle, now);
+        draw_particle(painter, cache, particle, now);
     }
     for ripple in &state.piano_ripples {
         let progress = ripple.progress(now);
@@ -561,7 +665,7 @@ fn smoothstep(edge_0: f32, edge_1: f32, value: f32) -> f32 {
     amount * amount * (3.0 - 2.0 * amount)
 }
 
-fn draw_particle(painter: &Painter, particle: &Particle, now: Instant) {
+fn draw_particle(painter: &Painter, cache: &TextureCache, particle: &Particle, now: Instant) {
     let progress =
         (now.duration_since(particle.created).as_secs_f32() / particle.duration).clamp(0.0, 1.0);
     let eased = 1.0 - (1.0 - progress).powi(2);
@@ -584,46 +688,24 @@ fn draw_particle(painter: &Painter, particle: &Particle, now: Instant) {
             3.0 * scale,
             with_opacity(Color32::WHITE, color.a() as f32 / 255.0),
         );
-    } else {
-        let radius = Vec2::splat(16.0 * scale);
-        let mut points = shape_points(
-            ShapeKind::Star,
-            Rect::from_center_size(position, radius * 2.0),
-        );
+    } else if let Some(star) = cache.shapes.get(&ShapeKind::Star) {
         let angle = (particle.rotation_from
             + (particle.rotation_to - particle.rotation_from) * progress)
             .to_radians();
-        points = rotated(points, position, angle);
-        painter.add(Shape::convex_polygon(points, color, Stroke::NONE));
+        let particle_rect = Rect::from_center_size(position, Vec2::splat(32.0 * scale));
+        draw_svg_layer(
+            painter,
+            &star.fill,
+            particle_rect,
+            color,
+            angle,
+            particle_rect.center(),
+        );
     }
 }
 
-pub fn draw_cursor(
-    painter: &Painter,
-    cache: &TextureCache,
-    position: Pos2,
-    style: CursorStyle,
-    scale: f32,
-) {
-    match style {
-        CursorStyle::Arrow => {
-            let points = vec![
-                position,
-                position + vec2(4.0, 27.0),
-                position + vec2(10.0, 19.0),
-                position + vec2(16.0, 31.0),
-                position + vec2(21.0, 28.0),
-                position + vec2(15.0, 17.0),
-                position + vec2(26.0, 15.0),
-            ];
-            painter.add(Shape::convex_polygon(
-                points,
-                Color32::WHITE,
-                Stroke::new(2.0, Color32::BLACK),
-            ));
-        }
-        CursorStyle::Hand => draw_original_hand_cursor(painter, cache, position, scale),
-    }
+pub fn draw_cursor(painter: &Painter, cache: &TextureCache, position: Pos2, scale: f32) {
+    draw_original_hand_cursor(painter, cache, position, scale);
 }
 
 const HAND_BASE_SCALE: f32 = 0.5;
@@ -894,11 +976,6 @@ fn rgb(color: BabyColor) -> Color32 {
     Color32::from_rgb(color.rgb[0], color.rgb[1], color.rgb[2])
 }
 
-fn adjust(color: Color32, amount: i16) -> Color32 {
-    let channel = |value: u8| (i16::from(value) + amount).clamp(0, 255) as u8;
-    Color32::from_rgb(channel(color.r()), channel(color.g()), channel(color.b()))
-}
-
 fn lerp_color(from: Color32, to: Color32, amount: f32) -> Color32 {
     let channel = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * amount).round() as u8;
     Color32::from_rgb(
@@ -925,13 +1002,6 @@ fn rotate(point: Pos2, center: Pos2, angle: f32) -> Pos2 {
             offset.x * cos - offset.y * sin,
             offset.x * sin + offset.y * cos,
         )
-}
-
-fn rotated(points: Vec<Pos2>, center: Pos2, angle: f32) -> Vec<Pos2> {
-    points
-        .into_iter()
-        .map(|point| rotate(point, center, angle))
-        .collect()
 }
 
 #[cfg(test)]
