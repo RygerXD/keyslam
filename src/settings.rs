@@ -229,6 +229,10 @@ pub struct Settings {
     pub letter_grouping_timeout_seconds: f32,
     pub group_letters: bool,
     pub pointer_sound: PointerSound,
+    pub master_volume_percent: u8,
+    pub sound_clip_volume_percent: u8,
+    pub paint_color_volume_percent: u8,
+    pub piano_note_volume_percent: u8,
     pub sine_wave_volume_percent: u8,
     pub paint_color_speech: bool,
     pub right_click_piano_enabled: bool,
@@ -252,6 +256,10 @@ impl Default for Settings {
             letter_grouping_timeout_seconds: 1.0,
             group_letters: true,
             pointer_sound: PointerSound::SineWave,
+            master_volume_percent: 100,
+            sound_clip_volume_percent: 100,
+            paint_color_volume_percent: 100,
+            piano_note_volume_percent: 100,
             sine_wave_volume_percent: 35,
             paint_color_speech: true,
             right_click_piano_enabled: true,
@@ -275,9 +283,33 @@ impl Settings {
         self.clear_after = self.clear_after.clamp(MIN_ITEMS_KEPT, MAX_ITEMS_KEPT);
         self.letter_grouping_timeout_seconds =
             self.letter_grouping_timeout_seconds.clamp(0.1, 10.0);
-        self.sine_wave_volume_percent = self.sine_wave_volume_percent.clamp(5, 70);
+        self.master_volume_percent = self.master_volume_percent.min(100);
+        self.sound_clip_volume_percent = self.sound_clip_volume_percent.min(100);
+        self.paint_color_volume_percent = self.paint_color_volume_percent.min(100);
+        self.piano_note_volume_percent = self.piano_note_volume_percent.min(100);
+        self.sine_wave_volume_percent = self.sine_wave_volume_percent.min(100);
         self.background_brightness_percent = self.background_brightness_percent.min(100);
     }
+
+    pub fn sound_clip_gain(&self) -> f32 {
+        volume_gain(self.master_volume_percent, self.sound_clip_volume_percent)
+    }
+
+    pub fn piano_note_gain(&self) -> f32 {
+        volume_gain(self.master_volume_percent, self.piano_note_volume_percent)
+    }
+
+    pub fn paint_color_gain(&self) -> f32 {
+        volume_gain(self.master_volume_percent, self.paint_color_volume_percent)
+    }
+
+    pub fn sine_wave_gain(&self) -> f32 {
+        volume_gain(self.master_volume_percent, self.sine_wave_volume_percent)
+    }
+}
+
+fn volume_gain(master_percent: u8, category_percent: u8) -> f32 {
+    f32::from(master_percent) * f32::from(category_percent) / 10_000.0
 }
 
 #[derive(Debug)]
@@ -288,7 +320,7 @@ pub struct SettingsStore {
 
 impl SettingsStore {
     pub fn open() -> (Self, Settings) {
-        let path = ProjectDirs::from("com", "KeySlam", "KeySlam").map_or_else(
+        let path = ProjectDirs::from("com", "", "KeySlam").map_or_else(
             || PathBuf::from("settings.json"),
             |dirs| dirs.config_dir().join("settings.json"),
         );
@@ -340,17 +372,23 @@ fn migrate_legacy_settings(path: &Path) {
     if path.exists() {
         return;
     }
-    let Some(legacy_dirs) = ProjectDirs::from("com", "BabySmash", "BabySmash Rust") else {
-        return;
-    };
-    let legacy_path = legacy_dirs.config_dir().join("settings.json");
-    if !legacy_path.exists() {
+    for legacy_dirs in [
+        ProjectDirs::from("com", "KeySlam", "KeySlam"),
+        ProjectDirs::from("com", "BabySmash", "BabySmash Rust"),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        let legacy_path = legacy_dirs.config_dir().join("settings.json");
+        if !legacy_path.exists() {
+            continue;
+        }
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = fs::copy(legacy_path, path);
         return;
     }
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-    let _ = fs::copy(legacy_path, path);
 }
 
 #[cfg(test)]
@@ -373,6 +411,10 @@ mod tests {
             fade_after_seconds: -4.0,
             clear_after: usize::MAX,
             letter_grouping_timeout_seconds: f32::INFINITY,
+            master_volume_percent: 200,
+            sound_clip_volume_percent: 150,
+            paint_color_volume_percent: 175,
+            piano_note_volume_percent: 125,
             sine_wave_volume_percent: 100,
             background_brightness_percent: 250,
             ..Settings::default()
@@ -381,8 +423,28 @@ mod tests {
         assert_eq!(settings.fade_after_seconds, MIN_FADE_AFTER_SECONDS);
         assert_eq!(settings.clear_after, MAX_ITEMS_KEPT);
         assert_eq!(settings.letter_grouping_timeout_seconds, 10.0);
-        assert_eq!(settings.sine_wave_volume_percent, 70);
+        assert_eq!(settings.master_volume_percent, 100);
+        assert_eq!(settings.sound_clip_volume_percent, 100);
+        assert_eq!(settings.paint_color_volume_percent, 100);
+        assert_eq!(settings.piano_note_volume_percent, 100);
+        assert_eq!(settings.sine_wave_volume_percent, 100);
         assert_eq!(settings.background_brightness_percent, 100);
+    }
+
+    #[test]
+    fn master_volume_scales_each_audio_category() {
+        let settings = Settings {
+            master_volume_percent: 50,
+            sound_clip_volume_percent: 80,
+            paint_color_volume_percent: 70,
+            piano_note_volume_percent: 60,
+            sine_wave_volume_percent: 40,
+            ..Settings::default()
+        };
+        assert_eq!(settings.sound_clip_gain(), 0.4);
+        assert_eq!(settings.paint_color_gain(), 0.35);
+        assert_eq!(settings.piano_note_gain(), 0.3);
+        assert_eq!(settings.sine_wave_gain(), 0.2);
     }
 
     #[test]

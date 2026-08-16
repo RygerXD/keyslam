@@ -1,5 +1,5 @@
 param(
-    [string]$OutputRoot = (Join-Path $PSScriptRoot '..\assets\speech'),
+    [string]$OutputRoot = (Join-Path $PSScriptRoot '..\assets\sounds'),
     [switch]$SkipCommon
 )
 
@@ -102,7 +102,7 @@ finally {
 }
 
 $resolvedOutput = [System.IO.Path]::GetFullPath($OutputRoot)
-$expectedOutput = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\assets\speech'))
+$expectedOutput = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\assets\sounds'))
 if ($resolvedOutput -eq $expectedOutput) {
     Get-ChildItem -LiteralPath $resolvedOutput -Recurse -Filter '*.wav' |
         Remove-Item -Force

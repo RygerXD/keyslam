@@ -50,7 +50,7 @@ pub const COLORS: [BabyColor; 15] = [
     },
     BabyColor {
         rgb: [255, 69, 0],
-        name: "Red-orange",
+        name: "Orange-red",
         speech_name: "Orange",
     },
     BabyColor {
@@ -60,7 +60,7 @@ pub const COLORS: [BabyColor; 15] = [
     },
     BabyColor {
         rgb: [255, 191, 0],
-        name: "Yellow-orange",
+        name: "Amber",
         speech_name: "Yellow",
     },
     BabyColor {
@@ -70,7 +70,7 @@ pub const COLORS: [BabyColor; 15] = [
     },
     BabyColor {
         rgb: [154, 205, 50],
-        name: "Yellow-green",
+        name: "Lime green",
         speech_name: "Green",
     },
     BabyColor {
@@ -80,7 +80,7 @@ pub const COLORS: [BabyColor; 15] = [
     },
     BabyColor {
         rgb: [0, 170, 170],
-        name: "Blue-green",
+        name: "Teal",
         speech_name: "Blue",
     },
     BabyColor {
@@ -90,7 +90,7 @@ pub const COLORS: [BabyColor; 15] = [
     },
     BabyColor {
         rgb: [75, 0, 180],
-        name: "Blue-violet",
+        name: "Indigo",
         speech_name: "Violet",
     },
     BabyColor {
@@ -1282,15 +1282,15 @@ mod tests {
             names,
             [
                 "Red",
-                "Red-orange",
+                "Orange-red",
                 "Orange",
-                "Yellow-orange",
+                "Amber",
                 "Yellow",
-                "Yellow-green",
+                "Lime green",
                 "Green",
-                "Blue-green",
+                "Teal",
                 "Blue",
-                "Blue-violet",
+                "Indigo",
                 "Violet",
                 "Pink",
                 "White",
@@ -1340,7 +1340,7 @@ mod tests {
         );
         assert_eq!(
             game.figures.back().map(|figure| figure.color.name),
-            Some("Red-orange")
+            Some("Orange-red")
         );
     }
 
@@ -1360,7 +1360,7 @@ mod tests {
             .iter()
             .map(|figure| figure.color.name)
             .collect::<Vec<_>>();
-        assert_eq!(colors, ["Red", "Red-orange"]);
+        assert_eq!(colors, ["Red", "Orange-red"]);
     }
 
     #[test]
