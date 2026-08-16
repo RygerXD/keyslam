@@ -18,6 +18,15 @@ licensed under the MIT License. Copyright Microsoft Corporation.
 The remaining BabySmash resources and original application are licensed under
 the MIT License. Copyright Scott Hanselman and contributors. See `LICENSE`.
 
+## Wikimedia Commons animal sounds
+
+The numbered animal-sound takes in `assets/sounds/animals` are converted and,
+where noted, shortened derivatives of recordings from Wikimedia Commons. They
+include public-domain and CC0 recordings as well as recordings redistributed
+under CC BY-SA 3.0 or CC BY-SA 4.0. Complete per-file attribution, source links,
+license links, and modification details are in
+[`assets/sounds/ANIMAL-SOUNDS.md`](assets/sounds/ANIMAL-SOUNDS.md).
+
 ## Shadertoy trail references
 
 The following pointer effects are Rust/egui adaptations of visual techniques

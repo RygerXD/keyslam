@@ -95,18 +95,18 @@ The result is `target/release/keyslam.exe` on Windows.
 
 ## Custom voice recordings
 
-KeySlam copies its English speech clips to an editable folder the first time it
+KeySlam copies its English sound clips to an editable folder the first time it
 runs. On Windows, paste this path into File Explorer:
 
 ```text
-%APPDATA%\KeySlam\KeySlam\config\speech
+%APPDATA%\KeySlam\config\sounds
 ```
 
 Replace any `.opus` file with your own Ogg Opus recording, keeping the same
 folder and filename, then restart KeySlam. Record only the word represented by
 the file: `colors\standalone\red.opus` is the complete utterance “red,” while
 `colors\modifier\red.opus` has the continuing delivery used before
-`shapes\circle.opus`. Do not record a combined “red circle” clip. The `speech`
+`shapes\circle.opus`. Do not record a combined “red circle” clip. The `sounds`
 folder directly contains `animals`, `letters`, `numbers`, `colors`, and
 `shapes`. Existing custom files are never overwritten.
 

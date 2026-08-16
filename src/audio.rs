@@ -16,7 +16,7 @@ use directories::ProjectDirs;
 use include_dir::{Dir, include_dir};
 use rand::Rng;
 
-static SPEECH: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/speech");
+static SOUNDS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/sounds");
 const MAX_VOICES: usize = 32;
 const SPEECH_LOADER_THREADS: usize = 2;
 
@@ -177,7 +177,7 @@ impl Mixer {
 
 pub struct AudioSystem {
     sender: Sender<AudioCommand>,
-    speech_sender: Sender<Vec<String>>,
+    speech_sender: Sender<(Vec<String>, f32)>,
     piano: Mutex<HashMap<i32, Arc<AudioClip>>>,
     _stream: Option<Stream>,
     status: Arc<Mutex<Option<String>>>,
@@ -187,11 +187,11 @@ impl AudioSystem {
     pub fn new() -> Self {
         let (sender, receiver) = bounded(64);
         let status = Arc::new(Mutex::new(None));
-        let speech_root = speech_root();
-        if let Err(error) = install_customizable_speech(&speech_root) {
+        let sounds_root = sounds_root();
+        if let Err(error) = install_customizable_sounds(&sounds_root) {
             set_status(
                 &status,
-                format!("Could not prepare the customizable speech folder: {error}"),
+                format!("Could not prepare the customizable sounds folder: {error}"),
             );
         }
         let stream = match open_stream(receiver, Arc::clone(&status)) {
@@ -205,7 +205,7 @@ impl AudioSystem {
         start_speech_workers(
             speech_receiver,
             sender.clone(),
-            speech_root,
+            sounds_root,
             Arc::clone(&status),
         );
         Self {
@@ -217,8 +217,8 @@ impl AudioSystem {
         }
     }
 
-    pub fn play_speech(&self, keys: &[String]) {
-        match self.speech_sender.try_send(keys.to_vec()) {
+    pub fn play_speech(&self, keys: &[String], gain: f32) {
+        match self.speech_sender.try_send((keys.to_vec(), gain)) {
             Ok(()) | Err(TrySendError::Disconnected(_)) => {}
             Err(TrySendError::Full(_)) => {
                 set_status(
@@ -229,7 +229,7 @@ impl AudioSystem {
         }
     }
 
-    pub fn play_piano(&self, frequency: f32) {
+    pub fn play_piano(&self, frequency: f32, gain: f32) {
         let note = midi_note(frequency);
         let clip = self.piano.lock().ok().map(|mut cache| {
             Arc::clone(
@@ -239,7 +239,7 @@ impl AudioSystem {
             )
         });
         if let Some(clip) = clip {
-            self.send(AudioCommand::Play(vec![clip], 1.0));
+            self.send(AudioCommand::Play(vec![clip], gain));
         }
     }
 
@@ -273,28 +273,28 @@ impl AudioSystem {
 }
 
 fn start_speech_workers(
-    receiver: Receiver<Vec<String>>,
+    receiver: Receiver<(Vec<String>, f32)>,
     audio_sender: Sender<AudioCommand>,
-    speech_root: PathBuf,
+    sounds_root: PathBuf,
     status: Arc<Mutex<Option<String>>>,
 ) {
     let cache = Arc::new(Mutex::new(HashMap::<String, Arc<AudioClip>>::new()));
     for worker_index in 0..SPEECH_LOADER_THREADS {
         let receiver = receiver.clone();
         let audio_sender = audio_sender.clone();
-        let speech_root = speech_root.clone();
+        let sounds_root = sounds_root.clone();
         let status = Arc::clone(&status);
         let cache = Arc::clone(&cache);
         let _ = thread::Builder::new()
             .name(format!("speech-loader-{worker_index}"))
             .spawn(move || {
-                while let Ok(keys) = receiver.recv() {
+                while let Ok((keys, gain)) = receiver.recv() {
                     let clips = keys
                         .iter()
-                        .filter_map(|key| speech_clip(key, &speech_root, &cache, &status))
+                        .filter_map(|key| speech_clip(key, &sounds_root, &cache, &status))
                         .collect::<Vec<_>>();
                     if clips.len() == keys.len() {
-                        try_send_audio(&audio_sender, &status, AudioCommand::Play(clips, 1.0));
+                        try_send_audio(&audio_sender, &status, AudioCommand::Play(clips, gain));
                     }
                 }
             });
@@ -303,11 +303,11 @@ fn start_speech_workers(
 
 fn speech_clip(
     key: &str,
-    speech_root: &Path,
+    sounds_root: &Path,
     cache: &Mutex<HashMap<String, Arc<AudioClip>>>,
     status: &Arc<Mutex<Option<String>>>,
 ) -> Option<Arc<AudioClip>> {
-    let takes = speech_takes(Path::new(key), speech_root);
+    let takes = speech_takes(Path::new(key), sounds_root);
     let Some(relative) = takes
         .get(rand::rng().random_range(0..takes.len().max(1)))
         .cloned()
@@ -324,9 +324,9 @@ fn speech_clip(
         return Some(clip);
     }
 
-    let external = speech_root.join(&relative);
+    let external = sounds_root.join(&relative);
     let bytes = fs::read(&external).ok().or_else(|| {
-        SPEECH
+        SOUNDS
             .get_file(&relative)
             .map(|file| file.contents().to_vec())
     });
@@ -351,7 +351,7 @@ fn speech_clip(
     loaded
 }
 
-fn speech_takes(relative: &Path, speech_root: &Path) -> Vec<PathBuf> {
+fn speech_takes(relative: &Path, sounds_root: &Path) -> Vec<PathBuf> {
     let Some(parent) = relative.parent() else {
         return Vec::new();
     };
@@ -359,14 +359,14 @@ fn speech_takes(relative: &Path, speech_root: &Path) -> Vec<PathBuf> {
         return Vec::new();
     };
     let mut names = std::collections::BTreeSet::new();
-    if let Ok(entries) = fs::read_dir(speech_root.join(parent)) {
+    if let Ok(entries) = fs::read_dir(sounds_root.join(parent)) {
         for entry in entries.flatten() {
             if is_speech_take(&entry.file_name(), base_stem) {
                 names.insert(entry.file_name());
             }
         }
     }
-    if let Some(directory) = SPEECH.get_dir(parent) {
+    if let Some(directory) = SOUNDS.get_dir(parent) {
         for file in directory.files() {
             if let Some(name) = file.path().file_name()
                 && is_speech_take(name, base_stem)
@@ -404,25 +404,24 @@ fn try_send_audio(
     }
 }
 
-fn speech_root() -> PathBuf {
-    let root = ProjectDirs::from("com", "KeySlam", "KeySlam").map_or_else(
-        || PathBuf::from("speech"),
-        |dirs| dirs.config_dir().join("speech"),
+fn sounds_root() -> PathBuf {
+    let root = ProjectDirs::from("com", "", "KeySlam").map_or_else(
+        || PathBuf::from("sounds"),
+        |dirs| dirs.config_dir().join("sounds"),
     );
-    migrate_legacy_speech(&root);
+    migrate_legacy_sound_library(&root);
     migrate_flat_speech_layout(&root);
     root
 }
 
-fn migrate_legacy_speech(root: &Path) {
-    if root.exists() {
-        return;
+fn migrate_legacy_sound_library(root: &Path) {
+    if let Some(dirs) = ProjectDirs::from("com", "KeySlam", "KeySlam") {
+        let _ = copy_directory(&dirs.config_dir().join("sounds"), root);
+        let _ = copy_directory(&dirs.config_dir().join("speech"), root);
     }
-    let Some(legacy_dirs) = ProjectDirs::from("com", "BabySmash", "BabySmash Rust") else {
-        return;
-    };
-    let legacy_root = legacy_dirs.config_dir().join("speech");
-    let _ = copy_directory(&legacy_root, root);
+    if let Some(legacy_dirs) = ProjectDirs::from("com", "BabySmash", "BabySmash Rust") {
+        let _ = copy_directory(&legacy_dirs.config_dir().join("speech"), root);
+    }
 }
 
 fn copy_directory(source: &Path, destination: &Path) -> std::io::Result<()> {
@@ -454,11 +453,11 @@ fn migrate_flat_speech_layout(root: &Path) {
     }
 }
 
-fn install_customizable_speech(root: &Path) -> Result<(), String> {
-    copy_speech_dir(&SPEECH, root)
+fn install_customizable_sounds(root: &Path) -> Result<(), String> {
+    copy_sound_dir(&SOUNDS, root)
 }
 
-fn copy_speech_dir(directory: &Dir<'_>, root: &Path) -> Result<(), String> {
+fn copy_sound_dir(directory: &Dir<'_>, root: &Path) -> Result<(), String> {
     for file in directory.files() {
         let path = file.path();
         let destination = root.join(path);
@@ -471,7 +470,7 @@ fn copy_speech_dir(directory: &Dir<'_>, root: &Path) -> Result<(), String> {
         fs::write(destination, file.contents()).map_err(|error| error.to_string())?;
     }
     for child in directory.dirs() {
-        copy_speech_dir(child, root)?;
+        copy_sound_dir(child, root)?;
     }
     Ok(())
 }

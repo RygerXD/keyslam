@@ -455,7 +455,8 @@ impl KeySlamApp {
                             .color_shape_audio_keys(figure.color.speech_name, shape.name())
                             .into(),
                     };
-                    self.audio.play_speech(&clips);
+                    self.audio
+                        .play_speech(&clips, self.settings.sound_clip_gain());
                 }
             }
         }
@@ -773,10 +774,13 @@ impl KeySlamApp {
                 self.coloring.end_stroke(display_index);
                 if self.settings.paint_color_speech {
                     let color = COLORS[index];
-                    self.audio.play_speech(&[format!(
-                        "colors/standalone/{}.opus",
-                        color.speech_name.to_ascii_lowercase()
-                    )]);
+                    self.audio.play_speech(
+                        &[format!(
+                            "colors/standalone/{}.opus",
+                            color.name.to_ascii_lowercase().replace(' ', "-")
+                        )],
+                        self.settings.paint_color_gain(),
+                    );
                 }
             }
             ColoringControl::Clear => {
@@ -893,7 +897,7 @@ impl KeySlamApp {
                             self.audio.start_or_update_sine(
                                 frequency,
                                 pan,
-                                f32::from(self.settings.sine_wave_volume_percent) / 100.0,
+                                self.settings.sine_wave_gain(),
                             );
                         }
                     }
@@ -925,7 +929,7 @@ impl KeySlamApp {
                                     self.audio.start_or_update_sine(
                                         frequency,
                                         pan,
-                                        f32::from(self.settings.sine_wave_volume_percent) / 100.0,
+                                        self.settings.sine_wave_gain(),
                                     );
                                 }
                             }
@@ -960,12 +964,15 @@ impl KeySlamApp {
                             now,
                         );
                         if self.settings.right_click_piano_enabled {
-                            self.audio.play_piano(piano_tone(
-                                pos,
-                                display.size,
-                                self.settings.right_click_piano_scale,
-                                self.settings.right_click_piano_key,
-                            ));
+                            self.audio.play_piano(
+                                piano_tone(
+                                    pos,
+                                    display.size,
+                                    self.settings.right_click_piano_scale,
+                                    self.settings.right_click_piano_key,
+                                ),
+                                self.settings.piano_note_gain(),
+                            );
                         }
                     }
                 }
@@ -1138,51 +1145,88 @@ fn section(ui: &mut Ui, title: &str, content: impl FnOnce(&mut Ui)) {
     ui.add_space(10.0);
 }
 
+fn full_width_slider(ui: &mut Ui, slider: egui::Slider<'_>) {
+    ui.add_sized([ui.available_width(), ui.spacing().interact_size.y], slider);
+}
+
+fn volume_slider_before_dropdown(ui: &mut Ui, value: &mut u8, label: &str) {
+    const DROPDOWN_WIDTH: f32 = 180.0;
+    let slider_width =
+        (ui.available_width() - DROPDOWN_WIDTH - ui.spacing().item_spacing.x).max(100.0);
+    ui.add_sized(
+        [slider_width, ui.spacing().interact_size.y],
+        egui::Slider::new(value, 0..=100).text(label).suffix("%"),
+    );
+}
+
 fn audio_options(ui: &mut Ui, settings: &mut Settings) {
-    section(ui, "Key responses", |ui| {
-        ui.label("Choose what happens when an item appears.");
-        ComboBox::from_id_salt("sound-mode")
-            .selected_text(match settings.sound_mode {
-                SoundMode::Speech => "Speak the item",
-                SoundMode::None => "No key sound",
-            })
-            .show_ui(ui, |ui| {
-                ui.selectable_value(
-                    &mut settings.sound_mode,
-                    SoundMode::Speech,
-                    "Speak the item",
-                );
-                ui.selectable_value(&mut settings.sound_mode, SoundMode::None, "No key sound");
-            });
-    });
-    section(ui, "Pointer sounds", |ui| {
-        ComboBox::from_id_salt("pointer-sound")
-            .selected_text(match settings.pointer_sound {
-                PointerSound::SineWave => "Sinewave instrument",
-                PointerSound::None => "No pointer sound",
-            })
-            .show_ui(ui, |ui| {
-                ui.selectable_value(
-                    &mut settings.pointer_sound,
-                    PointerSound::SineWave,
-                    "Sinewave instrument",
-                );
-                ui.selectable_value(
-                    &mut settings.pointer_sound,
-                    PointerSound::None,
-                    "No pointer sound",
-                );
-            });
-        ui.add_enabled_ui(settings.pointer_sound == PointerSound::SineWave, |ui| {
-            ui.add(
-                egui::Slider::new(&mut settings.sine_wave_volume_percent, 5..=70)
-                    .text("Sinewave volume (%)"),
+    section(ui, "Sounds", |ui| {
+        full_width_slider(
+            ui,
+            egui::Slider::new(&mut settings.master_volume_percent, 0..=100)
+                .text("Master Volume")
+                .suffix("%"),
+        );
+
+        ui.horizontal(|ui| {
+            volume_slider_before_dropdown(
+                ui,
+                &mut settings.sound_clip_volume_percent,
+                "Sound Clip Volume",
             );
+            ComboBox::from_id_salt("sound-mode")
+                .width(180.0)
+                .selected_text(match settings.sound_mode {
+                    SoundMode::Speech => "Speak the item",
+                    SoundMode::None => "No key sound",
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(
+                        &mut settings.sound_mode,
+                        SoundMode::Speech,
+                        "Speak the item",
+                    );
+                    ui.selectable_value(&mut settings.sound_mode, SoundMode::None, "No key sound");
+                });
+        });
+
+        ui.horizontal(|ui| {
+            volume_slider_before_dropdown(
+                ui,
+                &mut settings.sine_wave_volume_percent,
+                "Sine Wave Volume",
+            );
+            ComboBox::from_id_salt("pointer-sound")
+                .width(180.0)
+                .selected_text(match settings.pointer_sound {
+                    PointerSound::SineWave => "Sinewave instrument",
+                    PointerSound::None => "No pointer sound",
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(
+                        &mut settings.pointer_sound,
+                        PointerSound::SineWave,
+                        "Sinewave instrument",
+                    );
+                    ui.selectable_value(
+                        &mut settings.pointer_sound,
+                        PointerSound::None,
+                        "No pointer sound",
+                    );
+                });
+        });
+        ui.add_enabled_ui(settings.pointer_sound == PointerSound::SineWave, |ui| {
             ui.label("Move vertically for pitch and horizontally for stereo position.");
         });
+
         ui.horizontal(|ui| {
-            ui.label("Paint color selection");
+            volume_slider_before_dropdown(
+                ui,
+                &mut settings.paint_color_volume_percent,
+                "Paint Color Choice Volume",
+            );
             ComboBox::from_id_salt("paint-color-sound")
+                .width(180.0)
                 .selected_text(if settings.paint_color_speech {
                     "Speak color"
                 } else {
@@ -1193,9 +1237,15 @@ fn audio_options(ui: &mut Ui, settings: &mut Settings) {
                     ui.selectable_value(&mut settings.paint_color_speech, false, "No sound");
                 });
         });
+
         ui.horizontal(|ui| {
-            ui.label("Right-click sound");
+            volume_slider_before_dropdown(
+                ui,
+                &mut settings.piano_note_volume_percent,
+                "Piano Note Volume",
+            );
             ComboBox::from_id_salt("right-click-sound")
+                .width(180.0)
                 .selected_text(if settings.right_click_piano_enabled {
                     "Piano"
                 } else {
@@ -1206,6 +1256,7 @@ fn audio_options(ui: &mut Ui, settings: &mut Settings) {
                     ui.selectable_value(&mut settings.right_click_piano_enabled, false, "No sound");
                 });
         });
+
         ui.add_enabled_ui(settings.right_click_piano_enabled, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Scale");
@@ -1259,7 +1310,8 @@ fn visual_options(ui: &mut Ui, settings: &mut Settings) {
     section(ui, "Cleanup", |ui| {
         ui.checkbox(&mut settings.fade_away, "Fade items away");
         ui.add_enabled_ui(settings.fade_away, |ui| {
-            ui.add(
+            full_width_slider(
+                ui,
                 egui::Slider::new(
                     &mut settings.fade_after_seconds,
                     MIN_FADE_AFTER_SECONDS..=MAX_FADE_AFTER_SECONDS,
@@ -1269,13 +1321,15 @@ fn visual_options(ui: &mut Ui, settings: &mut Settings) {
             );
         });
         ui.label("0 seconds keeps items visible until the item-count limit removes them.");
-        ui.add(
+        full_width_slider(
+            ui,
             egui::Slider::new(&mut settings.clear_after, MIN_ITEMS_KEPT..=MAX_ITEMS_KEPT)
                 .text("Items kept on screen"),
         );
     });
     section(ui, "Display", |ui| {
-        ui.add(
+        full_width_slider(
+            ui,
             egui::Slider::new(&mut settings.background_brightness_percent, 0..=100)
                 .text("Background brightness (%)"),
         );
@@ -1308,7 +1362,8 @@ fn letter_options(ui: &mut Ui, settings: &mut Settings) {
             "Line up consecutive letters to form words",
         );
         ui.add_enabled_ui(settings.group_letters, |ui| {
-            ui.add(
+            full_width_slider(
+                ui,
                 egui::Slider::new(&mut settings.letter_grouping_timeout_seconds, 0.1..=10.0)
                     .text("Start a new word after (seconds)"),
             );
