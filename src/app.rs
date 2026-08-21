@@ -443,11 +443,11 @@ impl KeySlamApp {
                 if let Some(figure) = self.game.figures.back() {
                     let clips = match figure.kind {
                         FigureKind::Glyph(glyph) if glyph.is_ascii_alphabetic() => {
-                            vec![format!("letters/{}.opus", glyph.to_ascii_lowercase())]
+                            vec![format!("letters/{}", glyph.to_ascii_lowercase())]
                         }
-                        FigureKind::Glyph(glyph) => vec![format!("numbers/{glyph}.opus")],
+                        FigureKind::Glyph(glyph) => vec![format!("numbers/{glyph}")],
                         FigureKind::Emoji(_) => vec![format!(
-                            "animals/{}.opus",
+                            "animals/{}",
                             figure.spoken_text.to_ascii_lowercase()
                         )],
                         FigureKind::Shape(shape) => self
@@ -776,7 +776,7 @@ impl KeySlamApp {
                     let color = COLORS[index];
                     self.audio.play_speech(
                         &[format!(
-                            "colors/standalone/{}.opus",
+                            "colors/standalone/{}",
                             color.name.to_ascii_lowercase().replace(' ', "-")
                         )],
                         self.settings.paint_color_gain(),

@@ -9,3 +9,8 @@ script = ""
 name = "Run (Fullscreen)"
 icon = "run"
 command = "cargo run"
+
+[[actions]]
+name = "Run (Windowed)"
+icon = "run"
+command = "cargo run -- --windowed"

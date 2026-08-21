@@ -14,11 +14,8 @@ use cpal::{
 use crossbeam_channel::{Receiver, Sender, TrySendError, bounded};
 use directories::ProjectDirs;
 use include_dir::{Dir, include_dir};
-use rand::Rng;
-
 static SOUNDS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/sounds");
 const MAX_VOICES: usize = 32;
-const SPEECH_LOADER_THREADS: usize = 2;
 
 #[derive(Debug)]
 struct AudioClip {
@@ -279,40 +276,33 @@ fn start_speech_workers(
     status: Arc<Mutex<Option<String>>>,
 ) {
     let cache = Arc::new(Mutex::new(HashMap::<String, Arc<AudioClip>>::new()));
-    for worker_index in 0..SPEECH_LOADER_THREADS {
-        let receiver = receiver.clone();
-        let audio_sender = audio_sender.clone();
-        let sounds_root = sounds_root.clone();
-        let status = Arc::clone(&status);
-        let cache = Arc::clone(&cache);
-        let _ = thread::Builder::new()
-            .name(format!("speech-loader-{worker_index}"))
-            .spawn(move || {
-                while let Ok((keys, gain)) = receiver.recv() {
-                    let clips = keys
-                        .iter()
-                        .filter_map(|key| speech_clip(key, &sounds_root, &cache, &status))
-                        .collect::<Vec<_>>();
-                    if clips.len() == keys.len() {
-                        try_send_audio(&audio_sender, &status, AudioCommand::Play(clips, gain));
-                    }
+    let mut cycles = HashMap::<String, usize>::new();
+    let _ = thread::Builder::new()
+        .name("speech-loader".to_owned())
+        .spawn(move || {
+            while let Ok((keys, gain)) = receiver.recv() {
+                let clips = keys
+                    .iter()
+                    .filter_map(|key| speech_clip(key, &sounds_root, &cache, &mut cycles, &status))
+                    .collect::<Vec<_>>();
+                if clips.len() == keys.len() {
+                    try_send_audio(&audio_sender, &status, AudioCommand::Play(clips, gain));
                 }
-            });
-    }
+            }
+        });
 }
 
 fn speech_clip(
     key: &str,
     sounds_root: &Path,
     cache: &Mutex<HashMap<String, Arc<AudioClip>>>,
+    cycles: &mut HashMap<String, usize>,
     status: &Arc<Mutex<Option<String>>>,
 ) -> Option<Arc<AudioClip>> {
-    let takes = speech_takes(Path::new(key), sounds_root);
-    let Some(relative) = takes
-        .get(rand::rng().random_range(0..takes.len().max(1)))
-        .cloned()
-    else {
-        set_status(status, format!("Speech clip is missing: {key}"));
+    let clips = speech_clips(Path::new(key), sounds_root);
+    let relative = next_speech_clip(key, &clips, cycles);
+    let Some(relative) = relative else {
+        set_status(status, format!("Sound folder is empty or missing: {key}"));
         return None;
     };
     let cache_key = relative.to_string_lossy().into_owned();
@@ -351,43 +341,45 @@ fn speech_clip(
     loaded
 }
 
-fn speech_takes(relative: &Path, sounds_root: &Path) -> Vec<PathBuf> {
-    let Some(parent) = relative.parent() else {
-        return Vec::new();
-    };
-    let Some(base_stem) = relative.file_stem().and_then(|stem| stem.to_str()) else {
-        return Vec::new();
-    };
+fn next_speech_clip(
+    key: &str,
+    clips: &[PathBuf],
+    cycles: &mut HashMap<String, usize>,
+) -> Option<PathBuf> {
+    let index = cycles.entry(key.to_owned()).or_default();
+    let relative = clips.get(*index % clips.len().max(1)).cloned();
+    *index = index.wrapping_add(1);
+    relative
+}
+
+fn speech_clips(relative: &Path, sounds_root: &Path) -> Vec<PathBuf> {
     let mut names = std::collections::BTreeSet::new();
-    if let Ok(entries) = fs::read_dir(sounds_root.join(parent)) {
+    if let Ok(entries) = fs::read_dir(sounds_root.join(relative)) {
         for entry in entries.flatten() {
-            if is_speech_take(&entry.file_name(), base_stem) {
+            if is_opus_file(&entry.file_name()) {
                 names.insert(entry.file_name());
             }
         }
     }
-    if let Some(directory) = SOUNDS.get_dir(parent) {
+    if let Some(directory) = SOUNDS.get_dir(relative) {
         for file in directory.files() {
             if let Some(name) = file.path().file_name()
-                && is_speech_take(name, base_stem)
+                && is_opus_file(name)
             {
                 names.insert(name.to_owned());
             }
         }
     }
-    names.into_iter().map(|name| parent.join(name)).collect()
+    let mut names = names.into_iter().collect::<Vec<_>>();
+    names.sort_by_key(|name| name.to_string_lossy().to_ascii_lowercase());
+    names.into_iter().map(|name| relative.join(name)).collect()
 }
 
-fn is_speech_take(name: &std::ffi::OsStr, base_stem: &str) -> bool {
+fn is_opus_file(name: &std::ffi::OsStr) -> bool {
     let path = Path::new(name);
-    if path.extension().and_then(|extension| extension.to_str()) != Some("opus") {
-        return false;
-    }
-    let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
-        return false;
-    };
-    stem.strip_prefix(base_stem)
-        .is_some_and(|suffix| suffix.chars().all(|character| character.is_ascii_digit()))
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("opus"))
 }
 
 fn try_send_audio(
@@ -411,6 +403,7 @@ fn sounds_root() -> PathBuf {
     );
     migrate_legacy_sound_library(&root);
     migrate_flat_speech_layout(&root);
+    migrate_sound_item_folders(&root);
     root
 }
 
@@ -447,6 +440,57 @@ fn migrate_flat_speech_layout(root: &Path) {
         ("en-EN/shapes", "shapes"),
     ] {
         let _ = copy_directory(&root.join(old), &root.join(new));
+    }
+}
+
+fn migrate_sound_item_folders(root: &Path) {
+    for relative in [
+        "animals",
+        "letters",
+        "numbers",
+        "colors/standalone",
+        "colors/modifier",
+        "shapes",
+    ] {
+        let directory = root.join(relative);
+        let Ok(entries) = fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() || !is_opus_file(&entry.file_name()) {
+                continue;
+            }
+            let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+                continue;
+            };
+            let item = match relative {
+                "letters" => stem
+                    .get(..1)
+                    .filter(|item| item.bytes().all(|byte| byte.is_ascii_alphabetic())),
+                "numbers" => stem
+                    .get(..1)
+                    .filter(|item| item.bytes().all(|byte| byte.is_ascii_digit())),
+                _ => Some(stem.trim_end_matches(|character: char| character.is_ascii_digit())),
+            };
+            let Some(item) = item else {
+                continue;
+            };
+            if item.is_empty() {
+                continue;
+            }
+            let item_directory = directory.join(item);
+            if fs::create_dir_all(&item_directory).is_err() {
+                continue;
+            }
+            let destination = item_directory.join(entry.file_name());
+            let destination_ready = destination.exists()
+                || fs::rename(&path, &destination).is_ok()
+                || fs::copy(&path, destination).is_ok();
+            if destination_ready {
+                let _ = fs::remove_file(path);
+            }
+        }
     }
 }
 
@@ -615,6 +659,66 @@ fn piano_clip(note: i32) -> AudioClip {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn arbitrary_sound_filenames_are_sorted_and_cycled() -> Result<(), Box<dyn std::error::Error>> {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |duration| duration.as_nanos());
+        let root = std::env::temp_dir().join(format!(
+            "keyslam-sound-folder-test-{}-{unique}",
+            std::process::id()
+        ));
+        let relative = Path::new("animals/test-tiger");
+        let folder = root.join(relative);
+        fs::create_dir_all(&folder)?;
+        fs::write(folder.join("RyanTigerGrowl.opus"), [])?;
+        fs::write(folder.join("AnotherGrowl.opus"), [])?;
+        fs::write(folder.join("notes.txt"), [])?;
+
+        let animals = root.join("animals");
+        fs::write(animals.join("tiger1.opus"), b"legacy replacement")?;
+        fs::create_dir_all(animals.join("tiger"))?;
+        fs::write(animals.join("tiger/tiger1.opus"), b"custom clip")?;
+        fs::write(animals.join("tiger2.opus"), b"second legacy clip")?;
+        fs::create_dir_all(root.join("numbers"))?;
+        fs::write(root.join("numbers/1.opus"), b"one")?;
+        migrate_sound_item_folders(&root);
+        assert_eq!(fs::read(animals.join("tiger/tiger1.opus"))?, b"custom clip");
+        assert_eq!(
+            fs::read(animals.join("tiger/tiger2.opus"))?,
+            b"second legacy clip"
+        );
+        assert_eq!(fs::read(root.join("numbers/1/1.opus"))?, b"one");
+        assert!(!animals.join("tiger1.opus").exists());
+        assert!(!animals.join("tiger2.opus").exists());
+        assert!(!root.join("numbers/1.opus").exists());
+
+        let clips = speech_clips(relative, &root);
+        assert_eq!(
+            clips,
+            [
+                relative.join("AnotherGrowl.opus"),
+                relative.join("RyanTigerGrowl.opus")
+            ]
+        );
+        let mut cycles = HashMap::new();
+        assert_eq!(
+            next_speech_clip("animals/test-tiger", &clips, &mut cycles),
+            clips.first().cloned()
+        );
+        assert_eq!(
+            next_speech_clip("animals/test-tiger", &clips, &mut cycles),
+            clips.get(1).cloned()
+        );
+        assert_eq!(
+            next_speech_clip("animals/test-tiger", &clips, &mut cycles),
+            clips.first().cloned()
+        );
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
 
     #[test]
     fn piano_range_is_clamped() {

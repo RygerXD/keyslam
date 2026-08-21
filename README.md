@@ -102,21 +102,22 @@ runs. On Windows, paste this path into File Explorer:
 %APPDATA%\KeySlam\config\sounds
 ```
 
-Replace any `.opus` file with your own Ogg Opus recording, keeping the same
-folder and filename, then restart KeySlam. Record only the word represented by
-the file: `colors\standalone\red.opus` is the complete utterance “red,” while
-`colors\modifier\red.opus` has the continuing delivery used before
-`shapes\circle.opus`. Do not record a combined “red circle” clip. The `sounds`
-folder directly contains `animals`, `letters`, `numbers`, `colors`, and
-`shapes`. Existing custom files are never overwritten.
+Each item has its own folder. Put any Ogg Opus recordings for that item inside
+it, using any filenames you like, then restart KeySlam. For example,
+`animals\tiger\RyanTigerGrowl.opus` is a valid tiger clip. Record only the word
+represented by a speech folder: clips in `colors\standalone\red` are complete
+utterances of “red,” while clips in `colors\modifier\red` have the continuing
+delivery used before a clip from `shapes\circle`. Do not record a combined “red
+circle” clip. The `sounds` folder directly contains `animals`, `letters`,
+`numbers`, `colors`, and `shapes`. Existing custom files are never overwritten.
 
 Existing custom recordings from the former `common` and `en-EN` layouts are
-copied into the flat folders without overwriting files already there.
+copied into the item folders without overwriting files already there. Clips
+from the previous flat filename layout are migrated the same way.
 
-To add alternate takes, append a number to the word's filename: `red1.opus`,
-`red2.opus`, and so on. KeySlam discovers numbered takes in the same folder and
-randomly chooses among the base file and all numbered versions each time the
-word is spoken.
+KeySlam sorts the `.opus` filenames alphabetically in each item folder and
+cycles through them in that order, returning to the first clip after the last.
+The cycle starts over when KeySlam restarts. Non-Opus files are ignored.
 
 ## Stability and DRY design
 

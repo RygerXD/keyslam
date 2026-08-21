@@ -30,8 +30,8 @@ mod keyboard {
             Input::KeyboardAndMouse::{
                 GetAsyncKeyState, VK_BACK, VK_CLEAR, VK_CONTROL, VK_DOWN, VK_END, VK_ESCAPE, VK_F4,
                 VK_HELP, VK_HOME, VK_INSERT, VK_LCONTROL, VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN,
-                VK_MENU, VK_NEXT, VK_PAUSE, VK_PRIOR, VK_RCONTROL, VK_RIGHT, VK_RMENU, VK_RSHIFT,
-                VK_RWIN, VK_SHIFT, VK_SNAPSHOT, VK_SPACE, VK_TAB, VK_UP,
+                VK_MENU, VK_NEXT, VK_NUMLOCK, VK_PAUSE, VK_PRIOR, VK_RCONTROL, VK_RIGHT, VK_RMENU,
+                VK_RSHIFT, VK_RWIN, VK_SHIFT, VK_SNAPSHOT, VK_SPACE, VK_TAB, VK_UP,
             },
             WindowsAndMessaging::{
                 CallNextHookEx, GetForegroundWindow, GetMessageW, GetWindowThreadProcessId,
@@ -52,6 +52,7 @@ mod keyboard {
     static ALT_DOWN: AtomicBool = AtomicBool::new(false);
     static SHIFT_DOWN: AtomicBool = AtomicBool::new(false);
     static STAR_DOWN: AtomicBool = AtomicBool::new(false);
+    static WINDOWS_KEYS_DOWN: AtomicU32 = AtomicU32::new(0);
     static NUMPAD_DOWN: [AtomicU64; 4] = [
         AtomicU64::new(0),
         AtomicU64::new(0),
@@ -281,13 +282,25 @@ mod keyboard {
 
     unsafe extern "system" fn hook_callback(code: i32, message: WPARAM, data: LPARAM) -> LRESULT {
         if code >= 0 {
-            if !parent_is_foreground() {
-                return unsafe { CallNextHookEx(ptr::null_mut(), code, message, data) };
-            }
             let keyboard = unsafe { &*(data as *const KBDLLHOOKSTRUCT) };
             let virtual_key = keyboard.vkCode;
             let is_down = message == WM_KEYDOWN as usize || message == WM_SYSKEYDOWN as usize;
             let is_up = message == WM_KEYUP as usize || message == WM_SYSKEYUP as usize;
+
+            if is_up
+                && let Some(bit) = windows_key_bit(virtual_key)
+                && WINDOWS_KEYS_DOWN.fetch_and(!bit, Ordering::SeqCst) & bit != 0
+            {
+                if let Some(key_name) = blocked_key_name(virtual_key)
+                    && let Some(events) = EVENTS.get()
+                {
+                    let _ = events.try_send(PlatformEvent::Key(key_name.to_owned()));
+                }
+                return 1;
+            }
+            if !parent_is_foreground() {
+                return unsafe { CallNextHookEx(ptr::null_mut(), code, message, data) };
+            }
             let is_alt_key = matches!(
                 virtual_key,
                 value if value == VK_MENU as u32
@@ -344,13 +357,20 @@ mod keyboard {
             // logo key reaches Explorer, so consume both transitions before
             // any gameplay event forwarding.
             if virtual_key == VK_LWIN as u32 || virtual_key == VK_RWIN as u32 {
-                if is_up
-                    && let Some(key_name) = blocked_key_name(virtual_key)
-                    && let Some(events) = EVENTS.get()
-                {
-                    let _ = events.try_send(PlatformEvent::Key(key_name.to_owned()));
+                if is_down && let Some(bit) = windows_key_bit(virtual_key) {
+                    WINDOWS_KEYS_DOWN.fetch_or(bit, Ordering::SeqCst);
                 }
                 return 1;
+            }
+
+            // Num Lock is not represented by egui's Key enum, so forward it
+            // through the native hook on release like the other special keys,
+            // while preserving its normal lock toggle.
+            if virtual_key == VK_NUMLOCK as u32 {
+                if is_up && let Some(events) = EVENTS.get() {
+                    let _ = events.try_send(PlatformEvent::Key("NumLock".to_owned()));
+                }
+                return unsafe { CallNextHookEx(ptr::null_mut(), code, message, data) };
             }
 
             if virtual_key == 0x38 && (shift || STAR_DOWN.load(Ordering::SeqCst)) {
@@ -399,6 +419,14 @@ mod keyboard {
             GetWindowThreadProcessId(foreground, &mut process_id);
         }
         process_id == PARENT_PROCESS_ID.load(Ordering::SeqCst)
+    }
+
+    fn windows_key_bit(virtual_key: u32) -> Option<u32> {
+        match virtual_key {
+            value if value == VK_LWIN as u32 => Some(1),
+            value if value == VK_RWIN as u32 => Some(2),
+            _ => None,
+        }
     }
 
     fn mark_numpad_down(virtual_key: u32) -> bool {

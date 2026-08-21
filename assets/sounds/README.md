@@ -1,26 +1,25 @@
 # Sound clips
 
-KeySlam uses one English Ogg Opus file per spoken word or recognizable animal
-sound. This directory directly contains `animals`, `letters`, `numbers`,
-`colors`, and `shapes`. Colors have
-two readings: `colors/standalone` for a color spoken by itself and
-`colors/modifier` for the attributive reading composed with a shape. Phrases
-such as "red circle" therefore retain natural continuation intonation without
-needing a recording of every complete phrase.
+Every spoken item has a folder containing one or more English Ogg Opus files.
+This directory directly contains `animals`, `letters`, `numbers`, `colors`, and
+`shapes`. Colors have two readings: `colors/standalone/<color>` for a color
+spoken by itself and `colors/modifier/<color>` for the attributive reading
+composed with a shape. Phrases such as "red circle" therefore retain natural
+continuation intonation without needing a recording of every complete phrase.
 
 At runtime the English clips are copied to the user's KeySlam configuration
-directory without overwriting existing files. Replace any file there with
-another Ogg Opus recording of the same word and performance, then restart
-KeySlam. Keep the same directory and filename. Mono or stereo Opus files are
-supported.
+directory without overwriting existing files. Add, replace, rename, or remove
+files in an item's folder, then restart KeySlam. Filenames are unrestricted;
+for example, `animals/tiger/RyanTigerGrowl.opus` is a valid tiger clip. Mono or
+stereo Opus files are supported.
 
-Additional takes use a numeric suffix: `red1.opus`, `red2.opus`, and so on.
-KeySlam randomly selects from the base clip and every numbered take in that
-same directory each time it speaks the word.
+KeySlam sorts the `.opus` filenames alphabetically in each item folder and
+cycles through them in that order, returning to the first after the last. The
+cycle resets when the app restarts. Non-Opus files are ignored.
 
-The numbered takes in `animals` may be the animal's recognizable sound rather
-than another reading of its name. For example, `dog.opus` says "dog" and
-`dog1.opus` barks, so both are part of the same randomized learning pool. See
+The clips in an animal folder may be recognizable animal sounds rather than
+readings of its name. For example, `animals/dog/dog.opus` says "dog" and
+`animals/dog/dog1.opus` barks, so both are part of the same ordered cycle. See
 [`ANIMAL-SOUNDS.md`](ANIMAL-SOUNDS.md) for the sources and licenses of bundled
 animal-sound takes.
 

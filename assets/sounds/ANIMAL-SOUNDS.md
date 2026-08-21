@@ -1,7 +1,7 @@
 # Animal sound sources
 
-KeySlam's base animal clips say the animal names. The numbered clips listed
-below add a recognizable animal sound to the same randomized pool. Source
+KeySlam's base animal clips say the animal names. The additional clips listed
+below add a recognizable animal sound to the same animal folder. Source
 recordings were converted to mono Ogg Opus and level-adjusted. Longer sources
 were shortened to keep responses child-friendly; no source recording is
 included in full unless its source entry says "full recording."
