@@ -7,8 +7,8 @@ impl Localization {
     }
 
     pub fn color_shape_audio_keys(&self, color: &str, shape: &str) -> [String; 2] {
-        let color_key = format!("colors/modifier/{}.opus", color.to_ascii_lowercase());
-        let shape_key = format!("shapes/{}.opus", shape.to_ascii_lowercase());
+        let color_key = format!("colors/modifier/{}", color.to_ascii_lowercase());
+        let shape_key = format!("shapes/{}", shape.to_ascii_lowercase());
         [color_key, shape_key]
     }
 }
@@ -22,7 +22,7 @@ mod tests {
         let english = Localization::english();
         assert_eq!(
             english.color_shape_audio_keys("Red", "Circle"),
-            ["colors/modifier/red.opus", "shapes/circle.opus"]
+            ["colors/modifier/red", "shapes/circle"]
         );
     }
 }
