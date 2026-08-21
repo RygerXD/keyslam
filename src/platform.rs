@@ -1,6 +1,7 @@
 use crossbeam_channel::Sender;
 
 #[derive(Debug)]
+#[cfg_attr(not(windows), allow(dead_code))]
 pub enum PlatformEvent {
     Key(String),
 }
