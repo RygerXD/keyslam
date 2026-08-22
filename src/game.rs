@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     sync::OnceLock,
     time::Instant,
 };
@@ -127,7 +127,10 @@ pub fn chroma_color_for_note(note: i32) -> BabyColor {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FigureKind {
     Glyph(char),
-    Emoji(&'static str),
+    Animal {
+        image: Option<&'static str>,
+        fallback_emoji: &'static str,
+    },
     Shape(ShapeKind),
 }
 
@@ -290,6 +293,7 @@ pub struct Game {
     pub displays: Vec<DisplayState>,
     next_id: u64,
     next_color_index: usize,
+    image_cycles: HashMap<String, usize>,
     active_word: Option<ActiveWord>,
 }
 
@@ -306,6 +310,7 @@ impl Game {
             displays: display_sizes.into_iter().map(DisplayState::new).collect(),
             next_id: 1,
             next_color_index: 0,
+            image_cycles: HashMap::new(),
             active_word: None,
         }
     }
@@ -349,11 +354,18 @@ impl Game {
                     glyph.is_ascii_alphabetic(),
                 )
             }
-            ResponseKind::Emoji(emoji) => (
-                FigureKind::Emoji(emoji),
-                response.spoken_text.to_owned(),
-                false,
-            ),
+            ResponseKind::Emoji(emoji) => {
+                let image =
+                    crate::images::next_animal_image(response.spoken_text, &mut self.image_cycles);
+                (
+                    FigureKind::Animal {
+                        image,
+                        fallback_emoji: emoji,
+                    },
+                    response.spoken_text.to_owned(),
+                    false,
+                )
+            }
             ResponseKind::Shape(shape) => (
                 FigureKind::Shape(shape),
                 response.spoken_text.to_owned(),
@@ -690,7 +702,7 @@ fn overlap_area(left: Rect, right: Rect) -> f32 {
 pub fn size_for(kind: &FigureKind) -> Vec2 {
     match kind {
         FigureKind::Glyph(_) => GLYPH_SIZE,
-        FigureKind::Emoji(_) => Vec2::splat(340.0),
+        FigureKind::Animal { .. } => Vec2::splat(340.0),
         FigureKind::Shape(shape) => match shape {
             ShapeKind::Oval => vec2(190.0, 250.0),
             ShapeKind::Rectangle => vec2(300.0, 207.0),

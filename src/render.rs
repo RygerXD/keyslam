@@ -1,5 +1,11 @@
 use std::{collections::HashMap, sync::OnceLock, thread, time::Instant};
 
+use crate::{
+    game::{BabyColor, Figure, FigureKind, Particle, PointerState, TrailMark},
+    images,
+    responses::ShapeKind,
+    settings::CursorEffect,
+};
 use crossbeam_channel::{Receiver, bounded};
 use eframe::egui::{
     Align2, Color32, ColorImage, Context, FontId, Mesh, Painter, Pos2, Rect, Shape, Stroke,
@@ -8,15 +14,7 @@ use eframe::egui::{
     epaint::{CubicBezierShape, TextShape, Vertex},
     pos2, vec2,
 };
-use include_dir::{Dir, include_dir};
 
-use crate::{
-    game::{BabyColor, Figure, FigureKind, Particle, PointerState, TrailMark},
-    responses::ShapeKind,
-    settings::CursorEffect,
-};
-
-static EMOJI: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/emoji");
 const GLYPH_PREWARM_TEXT: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const GLYPH_FONT_SIZE: f32 = 264.0;
 const SHAPE_KINDS: [ShapeKind; 11] = [
@@ -159,8 +157,8 @@ pub fn prewarm_glyphs(ctx: &Context) {
 }
 
 pub struct TextureCache {
-    emoji: HashMap<&'static str, TextureHandle>,
-    decoded_emoji: HashMap<String, eframe::egui::ColorImage>,
+    images: HashMap<&'static str, TextureHandle>,
+    decoded_images: HashMap<String, eframe::egui::ColorImage>,
     decoded_receiver: Receiver<(String, eframe::egui::ColorImage)>,
     shapes: HashMap<ShapeKind, ShapeTextures>,
     face: Option<FaceTextures>,
@@ -188,18 +186,14 @@ struct SvgLayerTexture {
 
 impl TextureCache {
     pub fn new(ctx: &Context) -> Self {
-        let (sender, decoded_receiver) = bounded(EMOJI.files().count());
+        let image_files = images::all_image_files();
+        let (sender, decoded_receiver) = bounded(image_files.len());
         let repaint_context = ctx.clone();
         let _ = thread::Builder::new()
-            .name("emoji-preloader".to_owned())
+            .name("image-preloader".to_owned())
             .spawn(move || {
-                for file in EMOJI.files() {
-                    let Some(file_name) = file
-                        .path()
-                        .file_name()
-                        .and_then(|name| name.to_str())
-                        .map(str::to_owned)
-                    else {
+                for file in image_files {
+                    let Some(image_path) = file.path().to_str().map(str::to_owned) else {
                         continue;
                     };
                     let Ok(image) = image::load_from_memory(file.contents()) else {
@@ -209,7 +203,7 @@ impl TextureCache {
                     let size = [image.width() as usize, image.height() as usize];
                     let color_image =
                         eframe::egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
-                    if sender.send((file_name, color_image)).is_err() {
+                    if sender.send((image_path, color_image)).is_err() {
                         break;
                     }
                     repaint_context.request_repaint();
@@ -221,8 +215,8 @@ impl TextureCache {
             .collect();
         let face = face_textures(ctx);
         Self {
-            emoji: HashMap::new(),
-            decoded_emoji: HashMap::new(),
+            images: HashMap::new(),
+            decoded_images: HashMap::new(),
             decoded_receiver,
             shapes,
             face,
@@ -234,28 +228,20 @@ impl TextureCache {
         }
     }
 
-    fn emoji(&mut self, ctx: &Context, value: &'static str) -> Option<&TextureHandle> {
-        while let Ok((file_name, image)) = self.decoded_receiver.try_recv() {
-            self.decoded_emoji.insert(file_name, image);
+    fn image(&mut self, ctx: &Context, path: &'static str) -> Option<&TextureHandle> {
+        while let Ok((image_path, image)) = self.decoded_receiver.try_recv() {
+            self.decoded_images.insert(image_path, image);
         }
-        if !self.emoji.contains_key(value) {
-            let file_name = format!(
-                "{}.png",
-                value
-                    .chars()
-                    .map(|character| format!("{:x}", character as u32))
-                    .collect::<Vec<_>>()
-                    .join("-")
-            );
-            let color_image = self.decoded_emoji.remove(&file_name)?;
+        if !self.images.contains_key(path) {
+            let color_image = self.decoded_images.remove(path)?;
             let texture = ctx.load_texture(
-                format!("emoji-{file_name}"),
+                format!("animal-{path}"),
                 color_image,
                 TextureOptions::LINEAR,
             );
-            self.emoji.insert(value, texture);
+            self.images.insert(path, texture);
         }
-        self.emoji.get(value)
+        self.images.get(path)
     }
 }
 
@@ -291,8 +277,19 @@ pub fn draw_figure(
     let angle = (spawn_rotation + interaction_rotation).to_radians();
     match figure.kind {
         FigureKind::Glyph(glyph) => draw_glyph(painter, rect, glyph, figure.color, opacity, angle),
-        FigureKind::Emoji(emoji) => {
-            draw_emoji(painter, ctx, cache, rect, emoji, opacity, angle);
+        FigureKind::Animal {
+            image,
+            fallback_emoji,
+        } => {
+            draw_animal(
+                painter,
+                ctx,
+                cache,
+                rect,
+                (image, fallback_emoji),
+                opacity,
+                angle,
+            );
         }
         FigureKind::Shape(kind) => {
             draw_shape(painter, cache, rect, kind, figure.color, opacity, angle);
@@ -339,18 +336,19 @@ fn draw_glyph(
     painter.add(text_shape.with_angle_and_anchor(angle, Align2::CENTER_CENTER));
 }
 
-fn draw_emoji(
+fn draw_animal(
     painter: &Painter,
     ctx: &Context,
     cache: &mut TextureCache,
     rect: Rect,
-    emoji: &'static str,
+    animal: (Option<&'static str>, &'static str),
     opacity: f32,
     angle: f32,
 ) {
+    let (image, fallback_emoji) = animal;
     let image_rect =
         Rect::from_center_size(rect.center(), Vec2::splat(rect.size().min_elem() * 0.9));
-    if let Some(texture) = cache.emoji(ctx, emoji) {
+    if let Some(texture) = image.and_then(|path| cache.image(ctx, path)) {
         let mut mesh = Mesh::with_texture(texture.id());
         mesh.add_rect_with_uv(
             image_rect,
@@ -365,7 +363,7 @@ fn draw_emoji(
         painter.text(
             rect.center(),
             Align2::CENTER_CENTER,
-            emoji,
+            fallback_emoji,
             FontId::proportional(rect.height() * 0.72),
             with_opacity(Color32::WHITE, opacity),
         );
