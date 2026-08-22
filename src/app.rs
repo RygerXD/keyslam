@@ -446,7 +446,7 @@ impl KeySlamApp {
                             vec![format!("letters/{}", glyph.to_ascii_lowercase())]
                         }
                         FigureKind::Glyph(glyph) => vec![format!("numbers/{glyph}")],
-                        FigureKind::Emoji(_) => vec![format!(
+                        FigureKind::Animal { .. } => vec![format!(
                             "animals/{}",
                             figure.spoken_text.to_ascii_lowercase()
                         )],

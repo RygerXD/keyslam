@@ -164,7 +164,8 @@ every bundled sound.
 KeySlam is MIT licensed. It owes its original concept and several parity
 contracts and resources to Scott Hanselman and the contributors to BabySmash,
 which is also MIT licensed. BabySmash resources retain their original
-attribution; bundled animal artwork is from Microsoft Fluent Emoji. See
+attribution; bundled animal artwork is from Google Noto Emoji and Microsoft
+Fluent Emoji. See
 [LICENSE](LICENSE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 Existing settings and customized sounds from the former doubled KeySlam

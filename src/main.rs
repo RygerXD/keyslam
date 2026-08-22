@@ -3,6 +3,7 @@
 mod app;
 mod audio;
 mod game;
+mod images;
 mod localization;
 mod platform;
 mod render;

@@ -29,10 +29,11 @@ mod keyboard {
         },
         UI::{
             Input::KeyboardAndMouse::{
-                GetAsyncKeyState, VK_BACK, VK_CLEAR, VK_CONTROL, VK_DOWN, VK_END, VK_ESCAPE, VK_F4,
-                VK_HELP, VK_HOME, VK_INSERT, VK_LCONTROL, VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN,
-                VK_MENU, VK_NEXT, VK_NUMLOCK, VK_PAUSE, VK_PRIOR, VK_RCONTROL, VK_RIGHT, VK_RMENU,
-                VK_RSHIFT, VK_RWIN, VK_SHIFT, VK_SNAPSHOT, VK_SPACE, VK_TAB, VK_UP,
+                GetAsyncKeyState, VK_BACK, VK_CAPITAL, VK_CLEAR, VK_CONTROL, VK_DOWN, VK_END,
+                VK_ESCAPE, VK_F4, VK_HELP, VK_HOME, VK_INSERT, VK_LCONTROL, VK_LEFT, VK_LMENU,
+                VK_LSHIFT, VK_LWIN, VK_MENU, VK_NEXT, VK_NUMLOCK, VK_PAUSE, VK_PRIOR, VK_RCONTROL,
+                VK_RIGHT, VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SCROLL, VK_SHIFT, VK_SNAPSHOT, VK_SPACE,
+                VK_TAB, VK_UP,
             },
             WindowsAndMessaging::{
                 CallNextHookEx, GetForegroundWindow, GetMessageW, GetWindowThreadProcessId,
@@ -364,12 +365,12 @@ mod keyboard {
                 return 1;
             }
 
-            // Num Lock is not represented by egui's Key enum, so forward it
-            // through the native hook on release like the other special keys,
-            // while preserving its normal lock toggle.
-            if virtual_key == VK_NUMLOCK as u32 {
+            // The lock keys are not represented by egui's Key enum, so forward
+            // them through the native hook on release like the other special
+            // keys, while preserving their normal lock toggles.
+            if let Some(key_name) = lock_key_name(virtual_key) {
                 if is_up && let Some(events) = EVENTS.get() {
-                    let _ = events.try_send(PlatformEvent::Key("NumLock".to_owned()));
+                    let _ = events.try_send(PlatformEvent::Key(key_name.to_owned()));
                 }
                 return unsafe { CallNextHookEx(ptr::null_mut(), code, message, data) };
             }
@@ -426,6 +427,15 @@ mod keyboard {
         match virtual_key {
             value if value == VK_LWIN as u32 => Some(1),
             value if value == VK_RWIN as u32 => Some(2),
+            _ => None,
+        }
+    }
+
+    pub(super) fn lock_key_name(virtual_key: u32) -> Option<&'static str> {
+        match virtual_key {
+            value if value == VK_CAPITAL as u32 => Some("CapsLock"),
+            value if value == VK_SCROLL as u32 => Some("Scroll"),
+            value if value == VK_NUMLOCK as u32 => Some("NumLock"),
             _ => None,
         }
     }
@@ -687,8 +697,10 @@ pub fn restore_taskbar() {}
 
 #[cfg(all(test, windows))]
 mod tests {
-    use super::keyboard::{LLKHF_ALTDOWN, alt_is_down, should_block};
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{VK_ESCAPE, VK_MENU, VK_TAB};
+    use super::keyboard::{LLKHF_ALTDOWN, alt_is_down, lock_key_name, should_block};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+        VK_CAPITAL, VK_ESCAPE, VK_MENU, VK_NUMLOCK, VK_SCROLL, VK_TAB,
+    };
     use windows_sys::Win32::UI::WindowsAndMessaging::{WM_KEYDOWN, WM_SYSKEYDOWN};
 
     #[test]
@@ -704,5 +716,12 @@ mod tests {
         assert!(alt_is_down(WM_SYSKEYDOWN as usize, 0, false));
         assert!(alt_is_down(WM_KEYDOWN as usize, LLKHF_ALTDOWN, false));
         assert!(!alt_is_down(WM_KEYDOWN as usize, 0, false));
+    }
+
+    #[test]
+    fn forwards_each_lock_key_under_its_response_name() {
+        assert_eq!(lock_key_name(VK_CAPITAL as u32), Some("CapsLock"));
+        assert_eq!(lock_key_name(VK_SCROLL as u32), Some("Scroll"));
+        assert_eq!(lock_key_name(VK_NUMLOCK as u32), Some("NumLock"));
     }
 }
