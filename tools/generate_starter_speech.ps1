@@ -78,7 +78,7 @@ finally {
 
 if (-not $ExtraKeySetsOnly) {
     $colors = @('Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Indigo', 'Violet', 'Pink', 'Brown', 'White', 'Gray', 'Black')
-    $shapes = @('Star', 'Oval', 'Rectangle', 'Triangle', 'Square', 'Pentagon', 'Hexagon', 'Septagon', 'Octagon', 'Trapezoid', 'Circle')
+    $shapes = @('Star', 'Cross', 'Heart', 'Oval', 'Rectangle', 'Triangle', 'Square', 'Pentagon', 'Hexagon', 'Septagon', 'Octagon', 'Trapezoid', 'Circle')
     $locale = 'en-EN'
     $strings = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\assets\strings\en-EN.json')) | ConvertFrom-Json
     $synth = New-LocaleSynthesizer $locale
