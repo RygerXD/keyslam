@@ -14,6 +14,33 @@ pub const MIN_ITEMS_KEPT: usize = 5;
 pub const MAX_ITEMS_KEPT: usize = 50;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExtraKeySet {
+    Animals,
+    Foods,
+    Instruments,
+}
+
+impl ExtraKeySet {
+    pub const ALL: [Self; 3] = [Self::Animals, Self::Foods, Self::Instruments];
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Animals => "Animals",
+            Self::Foods => "Foods",
+            Self::Instruments => "Instruments",
+        }
+    }
+
+    pub const fn directory(self) -> &'static str {
+        match self {
+            Self::Animals => "animals",
+            Self::Foods => "foods",
+            Self::Instruments => "instruments",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SoundMode {
     Speech,
     #[serde(other)]
@@ -223,6 +250,7 @@ impl CursorEffect {
 #[serde(default)]
 pub struct Settings {
     pub sound_mode: SoundMode,
+    pub extra_key_set: ExtraKeySet,
     pub fade_away: bool,
     pub fade_after_seconds: f32,
     pub clear_after: usize,
@@ -250,6 +278,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             sound_mode: SoundMode::Speech,
+            extra_key_set: ExtraKeySet::Animals,
             fade_away: true,
             fade_after_seconds: 4.0,
             clear_after: 30,

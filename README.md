@@ -1,7 +1,7 @@
 # KeySlam
 
 KeySlam is a keyboard and pointer playground for young children. Press keys to
-fill every display with colorful letters, animals, and smiling shapes while the
+fill every display with colorful letters, pictures, and smiling shapes while the
 app speaks their names; use the pointer to paint, make animated trails, and play
 musical notes.
 
@@ -17,7 +17,8 @@ executable.
 
 ## Features
 
-- Letters, top-row numbers, the full special-key animal map, and numpad shapes
+- Letters, top-row numbers, numpad shapes, and selectable Animals, Foods, or
+  Instruments picture sets for every other key
 - Pre-recorded English Opus speech, including distinct standalone and modifier
   performances for color names
 - Matching defaults, letter grouping, fading, item limits, faces, spawn
@@ -68,7 +69,7 @@ Controls:
 
 | Input | Action |
 |---|---|
-| Any key | Show and announce its letter, animal, or shape |
+| Any key | Show and announce its letter, selected picture, or shape |
 | `Alt+O` | Open settings |
 | `Alt+F4` | Exit all KeySlam windows |
 | Left-click / drag | Tap items, draw the pointer effect, and play pointer audio |
@@ -77,7 +78,7 @@ Controls:
 
 Coloring mode adds the 12-color palette and Clear screen button along the
 bottom edge, plus a vertical brush-size slider on the left. Paint remains behind
-letters, animals, and shapes. Clicks and drags use the same round brush, with a
+letters, pictures, and shapes. Clicks and drags use the same round brush, with a
 live circular size preview under the custom cursor.
 
 Piano-roll mode adds labeled keys down the left edge and extends each note's
@@ -108,8 +109,9 @@ it, using any filenames you like, then restart KeySlam. For example,
 represented by a speech folder: clips in `colors\standalone\red` are complete
 utterances of “red,” while clips in `colors\modifier\red` have the continuing
 delivery used before a clip from `shapes\circle`. Do not record a combined “red
-circle” clip. The `sounds` folder directly contains `animals`, `letters`,
-`numbers`, `colors`, and `shapes`. Existing custom files are never overwritten.
+circle” clip. The `sounds` folder directly contains `animals`, `foods`,
+`instruments`, `letters`, `numbers`, `colors`, and `shapes`. Existing custom
+files are never overwritten.
 
 Existing custom recordings from the former `common` and `en-EN` layouts are
 copied into the item folders without overwriting files already there. Clips
@@ -141,7 +143,7 @@ Source layout:
 | `src/app.rs` | Windows/viewports, input routing, settings UI |
 | `src/game.rs` | Canonical game state, grouping, placement, animation state |
 | `src/render.rs` | Shapes, faces, emoji, text, pointers, particles |
-| `src/responses.rs` | Deterministic key-to-glyph/animal/shape contract |
+| `src/responses.rs` | Deterministic key-to-glyph/picture/shape contract |
 | `src/audio.rs` | Embedded sound decoding, mixer, sinewave, piano |
 | `src/settings.rs` | Typed defaults, validation, atomic persistence |
 | `src/platform.rs` | Windows kiosk keyboard guard |

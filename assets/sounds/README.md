@@ -1,8 +1,9 @@
 # Sound clips
 
 Every spoken item has a folder containing one or more English Ogg Opus files.
-This directory directly contains `animals`, `letters`, `numbers`, `colors`, and
-`shapes`. Colors have two readings: `colors/standalone/<color>` for a color
+This directory directly contains `animals`, `foods`, `instruments`, `letters`,
+`numbers`, `colors`, and `shapes`. Colors have two readings:
+`colors/standalone/<color>` for a color
 spoken by itself and `colors/modifier/<color>` for the attributive reading
 composed with a shape. Phrases such as "red circle" therefore retain natural
 continuation intonation without needing a recording of every complete phrase.

@@ -1,6 +1,10 @@
+use crate::settings::ExtraKeySet;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ShapeKind {
     Star,
+    Cross,
+    Heart,
     Oval,
     Rectangle,
     Triangle,
@@ -17,6 +21,8 @@ impl ShapeKind {
     pub const fn name(self) -> &'static str {
         match self {
             Self::Star => "Star",
+            Self::Cross => "Cross",
+            Self::Heart => "Heart",
             Self::Oval => "Oval",
             Self::Rectangle => "Rectangle",
             Self::Triangle => "Triangle",
@@ -42,13 +48,15 @@ pub enum ResponseKind {
 pub struct KeyResponse {
     pub kind: ResponseKind,
     pub spoken_text: &'static str,
+    pub extra_key_set: Option<ExtraKeySet>,
 }
 
 impl KeyResponse {
-    const fn animal(emoji: &'static str, name: &'static str) -> Self {
+    const fn extra(emoji: &'static str, name: &'static str, set: ExtraKeySet) -> Self {
         Self {
             kind: ResponseKind::Emoji(emoji),
             spoken_text: name,
+            extra_key_set: Some(set),
         }
     }
 
@@ -56,6 +64,7 @@ impl KeyResponse {
         Self {
             kind: ResponseKind::Shape(shape),
             spoken_text: shape.name(),
+            extra_key_set: None,
         }
     }
 }
@@ -200,10 +209,108 @@ const OTHER_ANIMALS: [(&str, &str); 67] = [
     ("🦡", "Badger"),
 ];
 
+const FOODS: [(&str, &str); 69] = [
+    ("🍎", "Red apple"),
+    ("🍏", "Green apple"),
+    ("🍐", "Pear"),
+    ("🍊", "Tangerine"),
+    ("🍋", "Lemon"),
+    ("🍌", "Banana"),
+    ("🍉", "Watermelon"),
+    ("🍇", "Grapes"),
+    ("🍓", "Strawberry"),
+    ("🫐", "Blueberries"),
+    ("🍈", "Melon"),
+    ("🍒", "Cherries"),
+    ("🍑", "Peach"),
+    ("🥭", "Mango"),
+    ("🍍", "Pineapple"),
+    ("🥥", "Coconut"),
+    ("🥝", "Kiwi fruit"),
+    ("🍅", "Tomato"),
+    ("🍆", "Eggplant"),
+    ("🥑", "Avocado"),
+    ("🥦", "Broccoli"),
+    ("🥬", "Leafy green"),
+    ("🥒", "Cucumber"),
+    ("🌶️", "Hot pepper"),
+    ("🫑", "Bell pepper"),
+    ("🌽", "Corn"),
+    ("🥕", "Carrot"),
+    ("🫒", "Olive"),
+    ("🧄", "Garlic"),
+    ("🧅", "Onion"),
+    ("🥔", "Potato"),
+    ("🍠", "Sweet potato"),
+    ("🫘", "Beans"),
+    ("🌰", "Chestnut"),
+    ("🥜", "Peanuts"),
+    ("🍞", "Bread"),
+    ("🥐", "Croissant"),
+    ("🥖", "Baguette"),
+    ("🫓", "Flatbread"),
+    ("🥨", "Pretzel"),
+    ("🥯", "Bagel"),
+    ("🥞", "Pancakes"),
+    ("🧇", "Waffle"),
+    ("🧀", "Cheese"),
+    ("🍖", "Meat on bone"),
+    ("🍗", "Poultry leg"),
+    ("🥩", "Steak"),
+    ("🥓", "Bacon"),
+    ("🍔", "Hamburger"),
+    ("🍟", "French fries"),
+    ("🍕", "Pizza"),
+    ("🌭", "Hot dog"),
+    ("🥪", "Sandwich"),
+    ("🌮", "Taco"),
+    ("🌯", "Burrito"),
+    ("🧆", "Falafel"),
+    ("🥚", "Egg"),
+    ("🍳", "Fried egg"),
+    ("🥘", "Paella"),
+    ("🍲", "Stew"),
+    ("🥣", "Cereal"),
+    ("🥗", "Salad"),
+    ("🍿", "Popcorn"),
+    ("🧈", "Butter"),
+    ("🍦", "Ice cream"),
+    ("🍩", "Doughnut"),
+    ("🍪", "Cookie"),
+    ("🎂", "Birthday cake"),
+    ("🍫", "Chocolate"),
+];
+
+const INSTRUMENTS: [(&str, &str); 16] = [
+    ("🪗", "Accordion"),
+    ("🪕", "Banjo"),
+    ("🥁", "Drum"),
+    ("🪘", "Long drum"),
+    ("🪇", "Maracas"),
+    ("🪈", "Flute"),
+    ("🎸", "Guitar"),
+    ("🎹", "Keyboard"),
+    ("🎷", "Saxophone"),
+    ("🎺", "Trumpet"),
+    ("🎻", "Violin"),
+    ("🎤", "Microphone"),
+    ("🎧", "Headphones"),
+    ("📯", "Horn"),
+    ("🔔", "Bell"),
+    ("🎼", "Musical score"),
+];
+
+#[cfg(test)]
 pub fn response_for(key_name: &str) -> KeyResponse {
+    response_for_set(key_name, ExtraKeySet::Animals)
+}
+
+pub fn response_for_set(key_name: &str, extra_key_set: ExtraKeySet) -> KeyResponse {
     match key_name {
-        "NumPad1" => return KeyResponse::shape(ShapeKind::Oval),
-        "NumPad2" => return KeyResponse::shape(ShapeKind::Rectangle),
+        "Decimal" | "NumpadDecimal" => return KeyResponse::shape(ShapeKind::Circle),
+        "NumPad0" => return KeyResponse::shape(ShapeKind::Oval),
+        "NumPad1" => return KeyResponse::shape(ShapeKind::Rectangle),
+        "NumPad2" => return KeyResponse::shape(ShapeKind::Heart),
         "NumPad3" => return KeyResponse::shape(ShapeKind::Triangle),
         "NumPad4" => return KeyResponse::shape(ShapeKind::Square),
         "NumPad5" => return KeyResponse::shape(ShapeKind::Pentagon),
@@ -211,12 +318,12 @@ pub fn response_for(key_name: &str) -> KeyResponse {
         "NumPad7" => return KeyResponse::shape(ShapeKind::Septagon),
         "NumPad8" => return KeyResponse::shape(ShapeKind::Octagon),
         "NumPad9" => return KeyResponse::shape(ShapeKind::Trapezoid),
-        "NumPad0" => return KeyResponse::shape(ShapeKind::Circle),
         "Multiply" | "NumpadMultiply" | "Asterisk" | "*" => {
             return KeyResponse::shape(ShapeKind::Star);
         }
-        "Escape" => return KeyResponse::animal("🐻", "Bear"),
-        "Space" => return KeyResponse::animal("🐯", "Tiger"),
+        "Add" | "NumpadAdd" => return KeyResponse::shape(ShapeKind::Cross),
+        "Escape" => return extra_response(extra_key_set, 0),
+        "Space" => return extra_response(extra_key_set, 1),
         _ => {}
     }
 
@@ -225,8 +332,7 @@ pub fn response_for(key_name: &str) -> KeyResponse {
         .iter()
         .position(|candidate| *candidate == normalized)
     {
-        let (emoji, name) = OTHER_ANIMALS[index];
-        return KeyResponse::animal(emoji, name);
+        return extra_response(extra_key_set, index + 2);
     }
 
     let bytes = normalized.as_bytes();
@@ -235,18 +341,32 @@ pub fn response_for(key_name: &str) -> KeyResponse {
         return KeyResponse {
             kind: ResponseKind::Glyph(glyph),
             spoken_text: "",
+            extra_key_set: None,
         };
     }
     if bytes.len() == 2 && bytes[0] == b'D' && bytes[1].is_ascii_digit() {
         return KeyResponse {
             kind: ResponseKind::Glyph(bytes[1] as char),
             spoken_text: "",
+            extra_key_set: None,
         };
     }
 
-    let index = stable_hash(normalized) as usize % OTHER_ANIMALS.len();
-    let (emoji, name) = OTHER_ANIMALS[index];
-    KeyResponse::animal(emoji, name)
+    extra_response(extra_key_set, stable_hash(normalized) as usize)
+}
+
+fn extra_response(set: ExtraKeySet, index: usize) -> KeyResponse {
+    let items: &[(&str, &str)] = match set {
+        ExtraKeySet::Animals => &[("🐻", "Bear"), ("🐯", "Tiger")],
+        ExtraKeySet::Foods => &FOODS,
+        ExtraKeySet::Instruments => &INSTRUMENTS,
+    };
+    if set == ExtraKeySet::Animals && index >= 2 {
+        let (emoji, name) = OTHER_ANIMALS[(index - 2) % OTHER_ANIMALS.len()];
+        return KeyResponse::extra(emoji, name, set);
+    }
+    let (emoji, name) = items[index % items.len()];
+    KeyResponse::extra(emoji, name, set)
 }
 
 fn normalize_key_name(key_name: &str) -> &str {
@@ -309,9 +429,10 @@ mod tests {
     #[test]
     fn numpad_digits_are_shapes() {
         for (key, shape) in [
-            ("NumPad0", ShapeKind::Circle),
-            ("NumPad1", ShapeKind::Oval),
-            ("NumPad2", ShapeKind::Rectangle),
+            ("Decimal", ShapeKind::Circle),
+            ("NumPad0", ShapeKind::Oval),
+            ("NumPad1", ShapeKind::Rectangle),
+            ("NumPad2", ShapeKind::Heart),
             ("NumPad3", ShapeKind::Triangle),
             ("NumPad4", ShapeKind::Square),
             ("NumPad5", ShapeKind::Pentagon),
@@ -321,6 +442,7 @@ mod tests {
             ("NumPad9", ShapeKind::Trapezoid),
             ("Multiply", ShapeKind::Star),
             ("*", ShapeKind::Star),
+            ("Add", ShapeKind::Cross),
         ] {
             assert_eq!(response_for(key).kind, ResponseKind::Shape(shape));
         }
@@ -336,5 +458,21 @@ mod tests {
         names.dedup();
         // Multiply is intentionally a star, matching the upstream precedence rule.
         assert_eq!(names.len(), OTHER_KEYS.len());
+    }
+
+    #[test]
+    fn food_set_covers_every_extra_key_and_instruments_repeat_the_catalog() {
+        let mut food_names = ["Escape", "Space"]
+            .into_iter()
+            .chain(OTHER_KEYS)
+            .map(|key| response_for_set(key, ExtraKeySet::Foods).spoken_text)
+            .collect::<Vec<_>>();
+        food_names.sort_unstable();
+        food_names.dedup();
+        assert_eq!(food_names.len(), 69);
+
+        let instrument = response_for_set("Escape", ExtraKeySet::Instruments);
+        assert_eq!(instrument.spoken_text, "Accordion");
+        assert_eq!(instrument.extra_key_set, Some(ExtraKeySet::Instruments));
     }
 }
