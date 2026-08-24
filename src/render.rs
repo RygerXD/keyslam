@@ -17,8 +17,10 @@ use eframe::egui::{
 
 const GLYPH_PREWARM_TEXT: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const GLYPH_FONT_SIZE: f32 = 264.0;
-const SHAPE_KINDS: [ShapeKind; 11] = [
+const SHAPE_KINDS: [ShapeKind; 13] = [
     ShapeKind::Star,
+    ShapeKind::Cross,
+    ShapeKind::Heart,
     ShapeKind::Oval,
     ShapeKind::Rectangle,
     ShapeKind::Triangle,
@@ -34,6 +36,8 @@ const SHAPE_KINDS: [ShapeKind; 11] = [
 fn shape_svg(kind: ShapeKind) -> &'static [u8] {
     match kind {
         ShapeKind::Star => include_bytes!("../assets/shapes/star.svg"),
+        ShapeKind::Cross => include_bytes!("../assets/shapes/cross.svg"),
+        ShapeKind::Heart => include_bytes!("../assets/shapes/heart.svg"),
         ShapeKind::Oval => include_bytes!("../assets/shapes/oval.svg"),
         ShapeKind::Rectangle => include_bytes!("../assets/shapes/rectangle.svg"),
         ShapeKind::Triangle => include_bytes!("../assets/shapes/triangle.svg"),
@@ -277,9 +281,10 @@ pub fn draw_figure(
     let angle = (spawn_rotation + interaction_rotation).to_radians();
     match figure.kind {
         FigureKind::Glyph(glyph) => draw_glyph(painter, rect, glyph, figure.color, opacity, angle),
-        FigureKind::Animal {
+        FigureKind::ExtraItem {
             image,
             fallback_emoji,
+            ..
         } => {
             draw_animal(
                 painter,

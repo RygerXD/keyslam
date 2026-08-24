@@ -21,12 +21,13 @@ fn collect_files(dir: &'static Dir<'static>, files: &mut Vec<&'static File<'stat
     }
 }
 
-pub fn next_animal_image(
-    animal: &str,
+pub fn next_item_image(
+    set: &str,
+    item: &str,
     cycles: &mut HashMap<String, usize>,
 ) -> Option<&'static str> {
-    let key = animal.to_ascii_lowercase();
-    let directory = IMAGES.get_dir(Path::new("animals").join(&key))?;
+    let key = item.to_ascii_lowercase();
+    let directory = IMAGES.get_dir(Path::new(set).join(&key))?;
     let mut images = directory
         .files()
         .filter(|file| {
@@ -41,7 +42,7 @@ pub fn next_animal_image(
         return None;
     }
 
-    let cycle = cycles.entry(key).or_default();
+    let cycle = cycles.entry(format!("{set}/{key}")).or_default();
     let image = images[*cycle % images.len()];
     *cycle = (*cycle + 1) % images.len();
     Some(image)

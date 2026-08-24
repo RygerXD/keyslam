@@ -9,7 +9,7 @@ use rand::Rng;
 
 use crate::{
     responses::{KeyResponse, ResponseKind, ShapeKind},
-    settings::{CursorEffect, PianoKey, PianoScale, Settings},
+    settings::{CursorEffect, ExtraKeySet, PianoKey, PianoScale, Settings},
 };
 
 const LETTER_ADVANCE: f32 = 208.0;
@@ -127,9 +127,10 @@ pub fn chroma_color_for_note(note: i32) -> BabyColor {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FigureKind {
     Glyph(char),
-    Animal {
+    ExtraItem {
         image: Option<&'static str>,
         fallback_emoji: &'static str,
+        set: ExtraKeySet,
     },
     Shape(ShapeKind),
 }
@@ -355,12 +356,17 @@ impl Game {
                 )
             }
             ResponseKind::Emoji(emoji) => {
-                let image =
-                    crate::images::next_animal_image(response.spoken_text, &mut self.image_cycles);
+                let set = response.extra_key_set.unwrap_or(settings.extra_key_set);
+                let image = crate::images::next_item_image(
+                    set.directory(),
+                    response.spoken_text,
+                    &mut self.image_cycles,
+                );
                 (
-                    FigureKind::Animal {
+                    FigureKind::ExtraItem {
                         image,
                         fallback_emoji: emoji,
+                        set,
                     },
                     response.spoken_text.to_owned(),
                     false,
@@ -702,8 +708,10 @@ fn overlap_area(left: Rect, right: Rect) -> f32 {
 pub fn size_for(kind: &FigureKind) -> Vec2 {
     match kind {
         FigureKind::Glyph(_) => GLYPH_SIZE,
-        FigureKind::Animal { .. } => Vec2::splat(340.0),
+        FigureKind::ExtraItem { .. } => Vec2::splat(340.0),
         FigureKind::Shape(shape) => match shape {
+            ShapeKind::Cross => Vec2::splat(250.0),
+            ShapeKind::Heart => vec2(260.0, 240.0),
             ShapeKind::Oval => vec2(190.0, 250.0),
             ShapeKind::Rectangle => vec2(300.0, 207.0),
             ShapeKind::Triangle => vec2(248.0, 180.0),
@@ -1525,6 +1533,8 @@ mod tests {
     #[test]
     fn shapes_keep_their_original_dimensions() {
         for (shape, expected) in [
+            (ShapeKind::Cross, Vec2::splat(250.0)),
+            (ShapeKind::Heart, vec2(260.0, 240.0)),
             (ShapeKind::Oval, vec2(190.0, 250.0)),
             (ShapeKind::Rectangle, vec2(300.0, 207.0)),
             (ShapeKind::Triangle, vec2(248.0, 180.0)),

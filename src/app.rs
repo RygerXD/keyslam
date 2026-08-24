@@ -12,9 +12,9 @@ use crate::{
         modifier_key_is_down, pressed_numpad_key, restore_taskbar, take_exit_requested,
     },
     render::{self, TextureCache},
-    responses::response_for,
+    responses::response_for_set,
     settings::{
-        CursorEffect, MAX_FADE_AFTER_SECONDS, MAX_ITEMS_KEPT, MIN_FADE_AFTER_SECONDS,
+        CursorEffect, ExtraKeySet, MAX_FADE_AFTER_SECONDS, MAX_ITEMS_KEPT, MIN_FADE_AFTER_SECONDS,
         MIN_ITEMS_KEPT, PianoKey, PianoScale, PointerSound, Settings, SettingsStore, SoundMode,
     },
 };
@@ -435,8 +435,11 @@ impl KeySlamApp {
 
     fn process_key(&mut self, key_name: &str) {
         let now = Instant::now();
-        self.game
-            .add_response(response_for(key_name), &self.settings, now);
+        self.game.add_response(
+            response_for_set(key_name, self.settings.extra_key_set),
+            &self.settings,
+            now,
+        );
         match self.settings.sound_mode {
             SoundMode::None => {}
             SoundMode::Speech => {
@@ -446,8 +449,9 @@ impl KeySlamApp {
                             vec![format!("letters/{}", glyph.to_ascii_lowercase())]
                         }
                         FigureKind::Glyph(glyph) => vec![format!("numbers/{glyph}")],
-                        FigureKind::Animal { .. } => vec![format!(
-                            "animals/{}",
+                        FigureKind::ExtraItem { set, .. } => vec![format!(
+                            "{}/{}",
+                            set.directory(),
                             figure.spoken_text.to_ascii_lowercase()
                         )],
                         FigureKind::Shape(shape) => self
@@ -1296,6 +1300,19 @@ fn audio_options(ui: &mut Ui, settings: &mut Settings) {
 }
 
 fn visual_options(ui: &mut Ui, settings: &mut Settings) {
+    section(ui, "Extra keys", |ui| {
+        ui.horizontal(|ui| {
+            ui.label("Image set");
+            ComboBox::from_id_salt("extra-key-set")
+                .selected_text(settings.extra_key_set.label())
+                .show_ui(ui, |ui| {
+                    for set in ExtraKeySet::ALL {
+                        ui.selectable_value(&mut settings.extra_key_set, set, set.label());
+                    }
+                });
+        });
+        ui.label("Used for keys that are not letters, top-row numbers, or numpad shapes.");
+    });
     section(ui, "Shapes and animation", |ui| {
         ui.checkbox(&mut settings.faces_on_shapes, "Show faces on shapes");
         ui.checkbox(

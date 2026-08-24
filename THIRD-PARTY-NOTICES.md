@@ -9,13 +9,15 @@ under the notices that accompanied BabySmash.
 
 ## Microsoft Fluent Emoji
 
-The Fluent animal artwork in `assets/images/animals` comes from
+The Fluent artwork in `assets/images/animals`, `assets/images/foods`, and
+`assets/images/instruments` comes from
 [Microsoft Fluent Emoji](https://github.com/microsoft/fluentui-emoji) and is
 licensed under the MIT License. Copyright Microsoft Corporation.
 
 ## Google Noto Emoji
 
-The Android-style animal artwork in `assets/images/animals` comes from
+The Android-style artwork in `assets/images/animals`, `assets/images/foods`,
+and `assets/images/instruments` comes from
 [Google Noto Emoji](https://github.com/googlefonts/noto-emoji). The image
 resources are licensed under the Apache License 2.0. Copyright Google LLC.
 
