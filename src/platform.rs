@@ -479,6 +479,7 @@ mod keyboard {
                 0x47 => Some("NumPad7"),
                 0x48 => Some("NumPad8"),
                 0x49 => Some("NumPad9"),
+                0x53 => Some("Decimal"),
                 _ => operator_name(virtual_key),
             };
         }
