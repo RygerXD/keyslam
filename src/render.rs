@@ -1,12 +1,15 @@
-use std::{collections::HashMap, sync::OnceLock, thread, time::Instant};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::OnceLock,
+    time::Instant,
+};
 
 use crate::{
     game::{BabyColor, Figure, FigureKind, Particle, PointerState, TrailMark},
-    images,
     responses::ShapeKind,
     settings::CursorEffect,
 };
-use crossbeam_channel::{Receiver, bounded};
 use eframe::egui::{
     Align2, Color32, ColorImage, Context, FontId, Mesh, Painter, Pos2, Rect, Shape, Stroke,
     TextureHandle, TextureOptions, Vec2,
@@ -161,9 +164,7 @@ pub fn prewarm_glyphs(ctx: &Context) {
 }
 
 pub struct TextureCache {
-    images: HashMap<&'static str, TextureHandle>,
-    decoded_images: HashMap<String, eframe::egui::ColorImage>,
-    decoded_receiver: Receiver<(String, eframe::egui::ColorImage)>,
+    images: HashMap<PathBuf, TextureHandle>,
     shapes: HashMap<ShapeKind, ShapeTextures>,
     face: Option<FaceTextures>,
     hand_gradient: TextureHandle,
@@ -190,29 +191,6 @@ struct SvgLayerTexture {
 
 impl TextureCache {
     pub fn new(ctx: &Context) -> Self {
-        let image_files = images::all_image_files();
-        let (sender, decoded_receiver) = bounded(image_files.len());
-        let repaint_context = ctx.clone();
-        let _ = thread::Builder::new()
-            .name("image-preloader".to_owned())
-            .spawn(move || {
-                for file in image_files {
-                    let Some(image_path) = file.path().to_str().map(str::to_owned) else {
-                        continue;
-                    };
-                    let Ok(image) = image::load_from_memory(file.contents()) else {
-                        continue;
-                    };
-                    let image = image.into_rgba8();
-                    let size = [image.width() as usize, image.height() as usize];
-                    let color_image =
-                        eframe::egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
-                    if sender.send((image_path, color_image)).is_err() {
-                        break;
-                    }
-                    repaint_context.request_repaint();
-                }
-            });
         let shapes = SHAPE_KINDS
             .into_iter()
             .filter_map(|kind| shape_textures(ctx, kind).map(|textures| (kind, textures)))
@@ -220,8 +198,6 @@ impl TextureCache {
         let face = face_textures(ctx);
         Self {
             images: HashMap::new(),
-            decoded_images: HashMap::new(),
-            decoded_receiver,
             shapes,
             face,
             hand_gradient: ctx.load_texture(
@@ -232,18 +208,19 @@ impl TextureCache {
         }
     }
 
-    fn image(&mut self, ctx: &Context, path: &'static str) -> Option<&TextureHandle> {
-        while let Ok((image_path, image)) = self.decoded_receiver.try_recv() {
-            self.decoded_images.insert(image_path, image);
-        }
+    fn image(&mut self, ctx: &Context, path: &Path) -> Option<&TextureHandle> {
         if !self.images.contains_key(path) {
-            let color_image = self.decoded_images.remove(path)?;
+            let bytes = std::fs::read(path).ok()?;
+            let image = image::load_from_memory(&bytes).ok()?.into_rgba8();
+            let size = [image.width() as usize, image.height() as usize];
+            let color_image =
+                eframe::egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
             let texture = ctx.load_texture(
-                format!("animal-{path}"),
+                format!("pack-item-{}", path.display()),
                 color_image,
                 TextureOptions::LINEAR,
             );
-            self.images.insert(path, texture);
+            self.images.insert(path.to_path_buf(), texture);
         }
         self.images.get(path)
     }
@@ -279,8 +256,8 @@ pub fn draw_figure(
         return;
     }
     let angle = (spawn_rotation + interaction_rotation).to_radians();
-    match figure.kind {
-        FigureKind::Glyph(glyph) => draw_glyph(painter, rect, glyph, figure.color, opacity, angle),
+    match &figure.kind {
+        FigureKind::Glyph(glyph) => draw_glyph(painter, rect, *glyph, figure.color, opacity, angle),
         FigureKind::ExtraItem {
             image,
             fallback_emoji,
@@ -291,13 +268,13 @@ pub fn draw_figure(
                 ctx,
                 cache,
                 rect,
-                (image, fallback_emoji),
+                (image.as_deref(), fallback_emoji),
                 opacity,
                 angle,
             );
         }
         FigureKind::Shape(kind) => {
-            draw_shape(painter, cache, rect, kind, figure.color, opacity, angle);
+            draw_shape(painter, cache, rect, *kind, figure.color, opacity, angle);
             if faces {
                 draw_face(painter, cache, rect, figure, now, opacity, angle);
             }
@@ -346,7 +323,7 @@ fn draw_animal(
     ctx: &Context,
     cache: &mut TextureCache,
     rect: Rect,
-    animal: (Option<&'static str>, &'static str),
+    animal: (Option<&Path>, &str),
     opacity: f32,
     angle: f32,
 ) {

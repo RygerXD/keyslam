@@ -5,6 +5,8 @@ mod audio;
 mod game;
 mod images;
 mod localization;
+mod packs;
+mod paths;
 mod platform;
 mod render;
 mod responses;
@@ -26,6 +28,10 @@ fn main() -> eframe::Result {
         return Ok(());
     }
     let windowed = args.iter().any(|argument| argument == "--windowed");
+
+    if let Err(error) = packs::install_builtin_packs() {
+        eprintln!("Could not prepare the item packs folder: {error}");
+    }
 
     let instance = match single_instance::SingleInstance::new("KeySlamSingleInstance") {
         Ok(instance) => instance,

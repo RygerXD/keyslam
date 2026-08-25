@@ -12,8 +12,9 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use crossbeam_channel::{Receiver, Sender, TrySendError, bounded};
-use directories::ProjectDirs;
 use include_dir::{Dir, include_dir};
+
+use crate::paths::executable_directory;
 static SOUNDS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/sounds");
 const MAX_VOICES: usize = 32;
 
@@ -184,13 +185,24 @@ impl AudioSystem {
     pub fn new() -> Self {
         let (sender, receiver) = bounded(64);
         let status = Arc::new(Mutex::new(None));
-        let sounds_root = sounds_root();
-        if let Err(error) = install_customizable_sounds(&sounds_root) {
-            set_status(
-                &status,
-                format!("Could not prepare the customizable sounds folder: {error}"),
-            );
-        }
+        let sounds_root = match sounds_root() {
+            Ok(root) => {
+                if let Err(error) = install_customizable_sounds(&root) {
+                    set_status(
+                        &status,
+                        format!("Could not prepare the customizable sounds folder: {error}"),
+                    );
+                }
+                Some(root)
+            }
+            Err(error) => {
+                set_status(
+                    &status,
+                    format!("Could not locate the customizable sounds folder: {error}"),
+                );
+                None
+            }
+        };
         let stream = match open_stream(receiver, Arc::clone(&status)) {
             Ok(stream) => Some(stream),
             Err(error) => {
@@ -272,7 +284,7 @@ impl AudioSystem {
 fn start_speech_workers(
     receiver: Receiver<(Vec<String>, f32)>,
     audio_sender: Sender<AudioCommand>,
-    sounds_root: PathBuf,
+    sounds_root: Option<PathBuf>,
     status: Arc<Mutex<Option<String>>>,
 ) {
     let cache = Arc::new(Mutex::new(HashMap::<String, Arc<AudioClip>>::new()));
@@ -283,7 +295,9 @@ fn start_speech_workers(
             while let Ok((keys, gain)) = receiver.recv() {
                 let clips = keys
                     .iter()
-                    .filter_map(|key| speech_clip(key, &sounds_root, &cache, &mut cycles, &status))
+                    .filter_map(|key| {
+                        speech_clip(key, sounds_root.as_deref(), &cache, &mut cycles, &status)
+                    })
                     .collect::<Vec<_>>();
                 if clips.len() == keys.len() {
                     try_send_audio(&audio_sender, &status, AudioCommand::Play(clips, gain));
@@ -294,12 +308,19 @@ fn start_speech_workers(
 
 fn speech_clip(
     key: &str,
-    sounds_root: &Path,
+    sounds_root: Option<&Path>,
     cache: &Mutex<HashMap<String, Arc<AudioClip>>>,
     cycles: &mut HashMap<String, usize>,
     status: &Arc<Mutex<Option<String>>>,
 ) -> Option<Arc<AudioClip>> {
-    let clips = speech_clips(Path::new(key), sounds_root);
+    let pack_root = key
+        .strip_prefix("packs/")
+        .and_then(|_| crate::packs::root().ok());
+    let (relative, external_root, include_embedded) = match key.strip_prefix("packs/") {
+        Some(relative) => (Path::new(relative), pack_root.as_deref(), false),
+        None => (Path::new(key), sounds_root, true),
+    };
+    let clips = speech_clips(relative, external_root, include_embedded);
     let relative = next_speech_clip(key, &clips, cycles);
     let Some(relative) = relative else {
         set_status(status, format!("Sound folder is empty or missing: {key}"));
@@ -314,12 +335,19 @@ fn speech_clip(
         return Some(clip);
     }
 
-    let external = sounds_root.join(&relative);
-    let bytes = fs::read(&external).ok().or_else(|| {
-        SOUNDS
-            .get_file(&relative)
-            .map(|file| file.contents().to_vec())
-    });
+    let external = external_root.map(|root| root.join(&relative));
+    let bytes = external
+        .as_deref()
+        .and_then(|path| fs::read(path).ok())
+        .or_else(|| {
+            include_embedded
+                .then(|| {
+                    SOUNDS
+                        .get_file(&relative)
+                        .map(|file| file.contents().to_vec())
+                })
+                .flatten()
+        });
     let loaded = bytes.and_then(|bytes| match decode_opus(&bytes) {
         Ok(clip) => Some(Arc::new(trim_speech_silence(clip))),
         Err(error) => {
@@ -327,7 +355,7 @@ fn speech_clip(
                 status,
                 format!(
                     "Could not decode speech clip {}: {error}",
-                    external.display()
+                    external.as_deref().unwrap_or(&relative).display()
                 ),
             );
             None
@@ -352,16 +380,22 @@ fn next_speech_clip(
     relative
 }
 
-fn speech_clips(relative: &Path, sounds_root: &Path) -> Vec<PathBuf> {
+fn speech_clips(
+    relative: &Path,
+    sounds_root: Option<&Path>,
+    include_embedded: bool,
+) -> Vec<PathBuf> {
     let mut names = std::collections::BTreeSet::new();
-    if let Ok(entries) = fs::read_dir(sounds_root.join(relative)) {
+    if let Some(root) = sounds_root
+        && let Ok(entries) = fs::read_dir(root.join(relative))
+    {
         for entry in entries.flatten() {
             if is_opus_file(&entry.file_name()) {
                 names.insert(entry.file_name());
             }
         }
     }
-    if let Some(directory) = SOUNDS.get_dir(relative) {
+    if include_embedded && let Some(directory) = SOUNDS.get_dir(relative) {
         for file in directory.files() {
             if let Some(name) = file.path().file_name()
                 && is_opus_file(name)
@@ -396,102 +430,8 @@ fn try_send_audio(
     }
 }
 
-fn sounds_root() -> PathBuf {
-    let root = ProjectDirs::from("com", "", "KeySlam").map_or_else(
-        || PathBuf::from("sounds"),
-        |dirs| dirs.config_dir().join("sounds"),
-    );
-    migrate_legacy_sound_library(&root);
-    migrate_flat_speech_layout(&root);
-    migrate_sound_item_folders(&root);
-    root
-}
-
-fn migrate_legacy_sound_library(root: &Path) {
-    if let Some(dirs) = ProjectDirs::from("com", "KeySlam", "KeySlam") {
-        let _ = copy_directory(&dirs.config_dir().join("sounds"), root);
-        let _ = copy_directory(&dirs.config_dir().join("speech"), root);
-    }
-}
-
-fn copy_directory(source: &Path, destination: &Path) -> std::io::Result<()> {
-    if !source.is_dir() {
-        return Ok(());
-    }
-    fs::create_dir_all(destination)?;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let destination = destination.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
-            copy_directory(&entry.path(), &destination)?;
-        } else if !destination.exists() {
-            fs::copy(entry.path(), destination)?;
-        }
-    }
-    Ok(())
-}
-
-fn migrate_flat_speech_layout(root: &Path) {
-    for (old, new) in [
-        ("common/animals", "animals"),
-        ("common/letters", "letters"),
-        ("common/numbers", "numbers"),
-        ("en-EN/colors", "colors"),
-        ("en-EN/shapes", "shapes"),
-    ] {
-        let _ = copy_directory(&root.join(old), &root.join(new));
-    }
-}
-
-fn migrate_sound_item_folders(root: &Path) {
-    for relative in [
-        "animals",
-        "letters",
-        "numbers",
-        "colors/standalone",
-        "colors/modifier",
-        "shapes",
-    ] {
-        let directory = root.join(relative);
-        let Ok(entries) = fs::read_dir(&directory) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if !path.is_file() || !is_opus_file(&entry.file_name()) {
-                continue;
-            }
-            let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
-                continue;
-            };
-            let item = match relative {
-                "letters" => stem
-                    .get(..1)
-                    .filter(|item| item.bytes().all(|byte| byte.is_ascii_alphabetic())),
-                "numbers" => stem
-                    .get(..1)
-                    .filter(|item| item.bytes().all(|byte| byte.is_ascii_digit())),
-                _ => Some(stem.trim_end_matches(|character: char| character.is_ascii_digit())),
-            };
-            let Some(item) = item else {
-                continue;
-            };
-            if item.is_empty() {
-                continue;
-            }
-            let item_directory = directory.join(item);
-            if fs::create_dir_all(&item_directory).is_err() {
-                continue;
-            }
-            let destination = item_directory.join(entry.file_name());
-            let destination_ready = destination.exists()
-                || fs::rename(&path, &destination).is_ok()
-                || fs::copy(&path, destination).is_ok();
-            if destination_ready {
-                let _ = fs::remove_file(path);
-            }
-        }
-    }
+fn sounds_root() -> std::io::Result<PathBuf> {
+    executable_directory().map(|directory| directory.join("sounds"))
 }
 
 fn install_customizable_sounds(root: &Path) -> Result<(), String> {
@@ -676,25 +616,7 @@ mod tests {
         fs::write(folder.join("AnotherGrowl.opus"), [])?;
         fs::write(folder.join("notes.txt"), [])?;
 
-        let animals = root.join("animals");
-        fs::write(animals.join("tiger1.opus"), b"legacy replacement")?;
-        fs::create_dir_all(animals.join("tiger"))?;
-        fs::write(animals.join("tiger/tiger1.opus"), b"custom clip")?;
-        fs::write(animals.join("tiger2.opus"), b"second legacy clip")?;
-        fs::create_dir_all(root.join("numbers"))?;
-        fs::write(root.join("numbers/1.opus"), b"one")?;
-        migrate_sound_item_folders(&root);
-        assert_eq!(fs::read(animals.join("tiger/tiger1.opus"))?, b"custom clip");
-        assert_eq!(
-            fs::read(animals.join("tiger/tiger2.opus"))?,
-            b"second legacy clip"
-        );
-        assert_eq!(fs::read(root.join("numbers/1/1.opus"))?, b"one");
-        assert!(!animals.join("tiger1.opus").exists());
-        assert!(!animals.join("tiger2.opus").exists());
-        assert!(!root.join("numbers/1.opus").exists());
-
-        let clips = speech_clips(relative, &root);
+        let clips = speech_clips(relative, Some(&root), true);
         assert_eq!(
             clips,
             [

@@ -94,32 +94,52 @@ cargo build --release
 
 The result is `target/release/keyslam.exe` on Windows.
 
-## Custom voice recordings
+## Item packs and custom voice recordings
 
-KeySlam copies its English sound clips to an editable folder the first time it
-runs. On Windows, paste this path into File Explorer:
+Keep `keyslam.exe` in a folder named `keyslam` on the Desktop. The first time
+it runs, KeySlam copies its built-in packs and English sound clips to editable
+folders beside the executable:
 
 ```text
-%APPDATA%\KeySlam\config\sounds
+Desktop\keyslam\packs
+Desktop\keyslam\sounds
 ```
 
-Each item has its own folder. Put any Ogg Opus recordings for that item inside
-it, using any filenames you like, then restart KeySlam. For example,
-`animals\tiger\RyanTigerGrowl.opus` is a valid tiger clip. Record only the word
-represented by a speech folder: clips in `colors\standalone\red` are complete
-utterances of “red,” while clips in `colors\modifier\red` have the continuing
-delivery used before a clip from `shapes\circle`. Do not record a combined “red
-circle” clip. The `sounds` folder directly contains `animals`, `foods`,
-`instruments`, `letters`, `numbers`, `colors`, and `shapes`. Existing custom
-files are never overwritten.
+Settings are saved beside the executable at
+`Desktop\keyslam\settings\settings.json`. KeySlam does not create settings or
+asset folders in AppData or elsewhere on the computer.
 
-Existing custom recordings from the former `common` and `en-EN` layouts are
-copied into the item folders without overwriting files already there. Clips
-from the previous flat filename layout are migrated the same way.
+Each pack is a folder under `packs`, and each item is a folder inside its pack.
+PNG images and Ogg Opus recordings for one item live together. For example,
+`packs\animals\tiger\` holds every tiger image and sound. Add a new pack folder
+and it appears in the Settings dropdown without a code change or restart.
 
-KeySlam sorts the `.opus` filenames alphabetically in each item folder and
-cycles through them in that order, returning to the first clip after the last.
-The cycle starts over when KeySlam restarts. Non-Opus files are ignored.
+By default, item folders are assigned to extra keys in alphabetical order. Add
+a `pack.json` file to control the order:
+
+```json
+{
+  "items": ["tiger", "bear", "red panda"]
+}
+```
+
+The first items map to Escape, Space, then the remaining extra keys in KeySlam's
+stable key order. The list wraps when a pack has fewer items than keys. A list
+entry can instead be an object such as
+`{"folder":"red panda","name":"Red panda","emoji":"🐼"}` to override the
+spoken/display name and the fallback shown when no valid PNG exists.
+
+Put any number of PNG or Opus files in an item folder; KeySlam sorts each type
+alphabetically and cycles through it. New filenames are picked up while the app
+is running. Record only the word represented by a speech folder: clips in
+`sounds\colors\standalone\red` are complete
+utterances of “red,” while clips in `sounds\colors\modifier\red` have the continuing
+delivery used before a clip from `sounds\shapes\circle`. Do not record a combined “red
+circle” clip. The separate `sounds` folder contains letters, numbers, colors,
+and shapes. Existing custom files are never overwritten.
+
+The image and sound cycles start over when KeySlam restarts. Other file types
+are ignored.
 
 ## Stability and DRY design
 
@@ -169,7 +189,3 @@ which is also MIT licensed. BabySmash resources retain their original
 attribution; bundled animal artwork is from Google Noto Emoji and Microsoft
 Fluent Emoji. See
 [LICENSE](LICENSE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
-
-Existing settings and customized sounds from the former doubled KeySlam
-configuration directory are migrated when the new KeySlam files do not already
-exist.

@@ -5,8 +5,9 @@ use std::{
 };
 
 use atomic_write_file::AtomicWriteFile;
-use directories::ProjectDirs;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
+
+use crate::paths::executable_directory;
 
 pub const MIN_FADE_AFTER_SECONDS: f32 = 0.0;
 pub const MAX_FADE_AFTER_SECONDS: f32 = 120.0;
@@ -14,63 +15,15 @@ pub const MIN_ITEMS_KEPT: usize = 5;
 pub const MAX_ITEMS_KEPT: usize = 50;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ExtraKeySet {
-    Animals,
-    Foods,
-    Instruments,
-}
-
-impl ExtraKeySet {
-    pub const ALL: [Self; 3] = [Self::Animals, Self::Foods, Self::Instruments];
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Animals => "Animals",
-            Self::Foods => "Foods",
-            Self::Instruments => "Instruments",
-        }
-    }
-
-    pub const fn directory(self) -> &'static str {
-        match self {
-            Self::Animals => "animals",
-            Self::Foods => "foods",
-            Self::Instruments => "instruments",
-        }
-    }
+pub enum SoundMode {
+    Speech,
+    None,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SoundMode {
-    Speech,
-    #[serde(other)]
-    None,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum PointerSound {
     SineWave,
     None,
-}
-
-#[derive(Deserialize)]
-enum StoredPointerSound {
-    SineWave,
-    None,
-    #[serde(other)]
-    Removed,
-}
-
-impl<'de> Deserialize<'de> for PointerSound {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Ok(match StoredPointerSound::deserialize(deserializer)? {
-            StoredPointerSound::SineWave => Self::SineWave,
-            StoredPointerSound::None | StoredPointerSound::Removed => Self::None,
-        })
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -159,7 +112,7 @@ impl PianoKey {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CursorEffect {
     None,
     Rainbow,
@@ -169,38 +122,6 @@ pub enum CursorEffect {
     Bubbles,
     Coloring,
     PianoRoll,
-}
-
-#[derive(Deserialize)]
-enum StoredCursorEffect {
-    None,
-    Rainbow,
-    FadingTrail,
-    NeonWorm,
-    Sparkles,
-    Bubbles,
-    Coloring,
-    PianoRoll,
-    #[serde(other)]
-    Removed,
-}
-
-impl<'de> Deserialize<'de> for CursorEffect {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Ok(match StoredCursorEffect::deserialize(deserializer)? {
-            StoredCursorEffect::None | StoredCursorEffect::Removed => Self::None,
-            StoredCursorEffect::Rainbow => Self::Rainbow,
-            StoredCursorEffect::FadingTrail => Self::FadingTrail,
-            StoredCursorEffect::NeonWorm => Self::NeonWorm,
-            StoredCursorEffect::Sparkles => Self::Sparkles,
-            StoredCursorEffect::Bubbles => Self::Bubbles,
-            StoredCursorEffect::Coloring => Self::Coloring,
-            StoredCursorEffect::PianoRoll => Self::PianoRoll,
-        })
-    }
 }
 
 impl CursorEffect {
@@ -247,10 +168,9 @@ impl CursorEffect {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
 pub struct Settings {
     pub sound_mode: SoundMode,
-    pub extra_key_set: ExtraKeySet,
+    pub extra_key_set: String,
     pub fade_away: bool,
     pub fade_after_seconds: f32,
     pub clear_after: usize,
@@ -278,7 +198,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             sound_mode: SoundMode::Speech,
-            extra_key_set: ExtraKeySet::Animals,
+            extra_key_set: "animals".to_owned(),
             fade_away: true,
             fade_after_seconds: 4.0,
             clear_after: 30,
@@ -306,6 +226,12 @@ impl Default for Settings {
 
 impl Settings {
     pub fn normalize(&mut self) {
+        self.extra_key_set = match self.extra_key_set.as_str() {
+            "Animals" => "animals".to_owned(),
+            "Foods" => "foods".to_owned(),
+            "Instruments" => "instruments".to_owned(),
+            _ => self.extra_key_set.clone(),
+        };
         self.fade_after_seconds = self
             .fade_after_seconds
             .clamp(MIN_FADE_AFTER_SECONDS, MAX_FADE_AFTER_SECONDS);
@@ -343,48 +269,69 @@ fn volume_gain(master_percent: u8, category_percent: u8) -> f32 {
 
 #[derive(Debug)]
 pub struct SettingsStore {
-    path: PathBuf,
+    path: Option<PathBuf>,
     pub warning: Option<String>,
 }
 
 impl SettingsStore {
     pub fn open() -> (Self, Settings) {
-        let path = ProjectDirs::from("com", "", "KeySlam").map_or_else(
-            || PathBuf::from("settings.json"),
-            |dirs| dirs.config_dir().join("settings.json"),
-        );
-        migrate_legacy_settings(&path);
-        Self::open_path(path)
+        match executable_directory() {
+            Ok(directory) => {
+                let path = directory.join("settings").join("settings.json");
+                let is_new = !path.exists();
+                let (mut store, settings) = Self::open_path(path);
+                if is_new && let Err(error) = store.save(&settings) {
+                    store.warning = Some(format!("Could not create the settings file: {error}"));
+                }
+                (store, settings)
+            }
+            Err(error) => (
+                Self {
+                    path: None,
+                    warning: Some(format!(
+                        "Could not locate the KeySlam folder; settings will not be saved: {error}"
+                    )),
+                },
+                Settings::default(),
+            ),
+        }
     }
 
     fn open_path(path: PathBuf) -> (Self, Settings) {
         let mut store = Self {
-            path,
+            path: Some(path),
             warning: None,
         };
-        let mut settings = match fs::read(&store.path) {
-            Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|error| {
+        let mut settings = match store.path.as_deref().map(fs::read) {
+            Some(Ok(bytes)) => serde_json::from_slice(&bytes).unwrap_or_else(|error| {
                 store.warning = Some(format!(
                     "Settings were invalid and defaults were loaded: {error}"
                 ));
                 Settings::default()
             }),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Settings::default(),
-            Err(error) => {
+            Some(Err(error)) if error.kind() == io::ErrorKind::NotFound => Settings::default(),
+            Some(Err(error)) => {
                 store.warning = Some(format!("Settings could not be read: {error}"));
                 Settings::default()
             }
+            None => Settings::default(),
         };
         settings.normalize();
         (store, settings)
     }
 
     pub fn save(&mut self, settings: &Settings) -> io::Result<()> {
-        if let Some(parent) = self.path.parent() {
+        let path = self.path.as_deref().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "the KeySlam executable folder is unavailable",
+            )
+        })?;
+        if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
         let bytes = serde_json::to_vec_pretty(settings).map_err(io::Error::other)?;
-        let mut file = AtomicWriteFile::open(&self.path)?;
+        let mut file = AtomicWriteFile::open(path)?;
         file.write_all(&bytes)?;
         file.write_all(b"\n")?;
         file.commit()?;
@@ -392,23 +339,8 @@ impl SettingsStore {
         Ok(())
     }
 
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-}
-
-fn migrate_legacy_settings(path: &Path) {
-    if path.exists() {
-        return;
-    }
-    if let Some(legacy_dirs) = ProjectDirs::from("com", "KeySlam", "KeySlam") {
-        let legacy_path = legacy_dirs.config_dir().join("settings.json");
-        if legacy_path.exists() {
-            if let Some(parent) = path.parent() {
-                let _ = fs::create_dir_all(parent);
-            }
-            let _ = fs::copy(legacy_path, path);
-        }
+    pub fn path(&self) -> Option<&Path> {
+        self.path.as_deref()
     }
 }
 
@@ -510,20 +442,6 @@ mod tests {
             assert_eq!(effect.label(), label);
             assert_eq!(effect.shadertoy_url(), Some(url));
         }
-    }
-
-    #[test]
-    fn removed_bump_map_setting_migrates_to_no_effect() -> serde_json::Result<()> {
-        let effect = serde_json::from_str::<CursorEffect>("\"BumpMapTrail\"")?;
-        assert_eq!(effect, CursorEffect::None);
-        Ok(())
-    }
-
-    #[test]
-    fn removed_playful_click_setting_migrates_to_no_pointer_sound() -> serde_json::Result<()> {
-        let sound = serde_json::from_str::<PointerSound>("\"Click\"")?;
-        assert_eq!(sound, PointerSound::None);
-        Ok(())
     }
 
     #[test]
