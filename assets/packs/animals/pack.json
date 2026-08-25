@@ -1,0 +1,14 @@
+{
+  "items": [
+    "bear", "tiger", "bee", "gorilla", "lion", "elephant", "monkey",
+    "dog", "cat", "rabbit", "horse", "cow", "pig", "sheep", "goat",
+    "chicken", "duck", "frog", "turtle", "fish", "whale", "dolphin",
+    "shark", "octopus", "crab", "butterfly", "ladybug", "snail", "ant",
+    "spider", "owl", "penguin", "parrot", "eagle", "giraffe", "zebra",
+    "panda", "koala", "kangaroo", "camel", "hippopotamus", "rhinoceros",
+    "fox", "deer", "crocodile", "snake", "lizard", "seal", "bat", "mouse",
+    "donkey", "moose", "raccoon", "squirrel", "hedgehog", "otter", "turkey",
+    "chick", "flamingo", "peacock", "goose", "caterpillar", "orangutan",
+    "bison", "llama", "beaver", "sloth", "skunk", "badger"
+  ]
+}

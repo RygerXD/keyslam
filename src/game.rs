@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
+    path::PathBuf,
     sync::OnceLock,
     time::Instant,
 };
@@ -9,7 +10,7 @@ use rand::Rng;
 
 use crate::{
     responses::{KeyResponse, ResponseKind, ShapeKind},
-    settings::{CursorEffect, ExtraKeySet, PianoKey, PianoScale, Settings},
+    settings::{CursorEffect, PianoKey, PianoScale, Settings},
 };
 
 const LETTER_ADVANCE: f32 = 208.0;
@@ -128,9 +129,10 @@ pub fn chroma_color_for_note(note: i32) -> BabyColor {
 pub enum FigureKind {
     Glyph(char),
     ExtraItem {
-        image: Option<&'static str>,
-        fallback_emoji: &'static str,
-        set: ExtraKeySet,
+        image: Option<PathBuf>,
+        fallback_emoji: String,
+        set: String,
+        item_folder: String,
     },
     Shape(ShapeKind),
 }
@@ -140,7 +142,6 @@ pub struct Figure {
     pub id: u64,
     pub kind: FigureKind,
     pub color: BabyColor,
-    pub spoken_text: String,
     pub created: Instant,
     pub fade_after: Option<f32>,
     pub animate_spawn: bool,
@@ -356,27 +357,26 @@ impl Game {
                 )
             }
             ResponseKind::Emoji(emoji) => {
-                let set = response.extra_key_set.unwrap_or(settings.extra_key_set);
-                let image = crate::images::next_item_image(
-                    set.directory(),
-                    response.spoken_text,
-                    &mut self.image_cycles,
-                );
+                let set = response
+                    .extra_key_set
+                    .unwrap_or_else(|| settings.extra_key_set.clone());
+                let item_folder = response
+                    .item_folder
+                    .unwrap_or_else(|| response.spoken_text.to_ascii_lowercase());
+                let image =
+                    crate::images::next_item_image(&set, &item_folder, &mut self.image_cycles);
                 (
                     FigureKind::ExtraItem {
                         image,
                         fallback_emoji: emoji,
                         set,
+                        item_folder,
                     },
-                    response.spoken_text.to_owned(),
+                    response.spoken_text,
                     false,
                 )
             }
-            ResponseKind::Shape(shape) => (
-                FigureKind::Shape(shape),
-                response.spoken_text.to_owned(),
-                false,
-            ),
+            ResponseKind::Shape(shape) => (FigureKind::Shape(shape), response.spoken_text, false),
         };
         let (color, continues_word) = self.color_for_response(&kind, grouped_letter, settings, now);
 
@@ -432,7 +432,6 @@ impl Game {
             id,
             kind,
             color,
-            spoken_text: default_speech.clone(),
             created: now,
             fade_after: (settings.fade_away && settings.fade_after_seconds > 0.0)
                 .then_some(settings.fade_after_seconds),

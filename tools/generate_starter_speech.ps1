@@ -1,5 +1,6 @@
 param(
     [string]$OutputRoot = (Join-Path $PSScriptRoot '..\assets\sounds'),
+    [string]$PacksRoot = (Join-Path $PSScriptRoot '..\assets\packs'),
     [switch]$SkipCommon,
     [switch]$ExtraKeySetsOnly
 )
@@ -34,6 +35,17 @@ function Write-Clip($Synth, [string]$RelativePath, [string]$Text) {
     }
 }
 
+function Write-PackClip($Synth, [string]$RelativePath, [string]$Text) {
+    $previousRoot = $script:OutputRoot
+    try {
+        $script:OutputRoot = $PacksRoot
+        Write-Clip $Synth $RelativePath $Text
+    }
+    finally {
+        $script:OutputRoot = $previousRoot
+    }
+}
+
 $commonSynth = $null
 if (-not $SkipCommon -and -not $ExtraKeySetsOnly) {
     $commonSynth = New-LocaleSynthesizer 'en-EN'
@@ -45,18 +57,10 @@ if (-not $SkipCommon -and -not $ExtraKeySetsOnly) {
             Write-Clip $commonSynth "numbers\$digit.wav" $digit
         }
 
-        $source = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\responses.rs'))
-        $body = [regex]::Match(
-            $source,
-            'const OTHER_ANIMALS:.*?= \[(?<body>.*?)\];',
-            [System.Text.RegularExpressions.RegexOptions]::Singleline
-        ).Groups['body'].Value
-        $animals = @('Bear', 'Tiger') + @(
-            [regex]::Matches($body, '\(".*?", "(?<name>[^"]+)"\)') |
-                ForEach-Object { $_.Groups['name'].Value }
-        )
-        foreach ($animal in $animals) {
-            Write-Clip $commonSynth "animals\$($animal.ToLowerInvariant()).wav" $animal
+        $animalManifest = Get-Content -Raw (Join-Path $PacksRoot 'animals\pack.json') | ConvertFrom-Json
+        foreach ($folder in $animalManifest.items) {
+            $animal = (Get-Culture).TextInfo.ToTitleCase($folder.Replace('-', ' ').Replace('_', ' '))
+            Write-PackClip $commonSynth "animals\$folder\$folder.wav" $animal
         }
     }
     finally {
@@ -69,7 +73,7 @@ try {
     $extraItems = Import-Csv (Join-Path $PSScriptRoot '..\assets\images\extra-key-emoji.csv')
     foreach ($item in $extraItems) {
         $key = $item.name.ToLowerInvariant()
-        Write-Clip $extraSynth "$($item.set)\$key\$key.wav" $item.name
+        Write-PackClip $extraSynth "$($item.set)\$key\$key.wav" $item.name
     }
 }
 finally {
@@ -111,6 +115,10 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "The Opus encoder failed with exit code $LASTEXITCODE"
     }
+    cargo run --quiet --example encode_speech -- $PacksRoot
+    if ($LASTEXITCODE -ne 0) {
+        throw "The pack Opus encoder failed with exit code $LASTEXITCODE"
+    }
 }
 finally {
     Pop-Location
@@ -120,5 +128,11 @@ $resolvedOutput = [System.IO.Path]::GetFullPath($OutputRoot)
 $expectedOutput = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\assets\sounds'))
 if ($resolvedOutput -eq $expectedOutput) {
     Get-ChildItem -LiteralPath $resolvedOutput -Recurse -Filter '*.wav' |
+        Remove-Item -Force
+}
+$resolvedPacks = [System.IO.Path]::GetFullPath($PacksRoot)
+$expectedPacks = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\assets\packs'))
+if ($resolvedPacks -eq $expectedPacks) {
+    Get-ChildItem -LiteralPath $resolvedPacks -Recurse -Filter '*.wav' |
         Remove-Item -Force
 }

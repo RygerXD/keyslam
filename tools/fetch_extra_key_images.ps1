@@ -1,5 +1,5 @@
 param(
-    [string]$OutputRoot = (Join-Path $PSScriptRoot '..\assets\images')
+    [string]$OutputRoot = (Join-Path $PSScriptRoot '..\assets\packs')
 )
 
 $ErrorActionPreference = 'Stop'

@@ -14,7 +14,7 @@ use crate::{
     render::{self, TextureCache},
     responses::response_for_set,
     settings::{
-        CursorEffect, ExtraKeySet, MAX_FADE_AFTER_SECONDS, MAX_ITEMS_KEPT, MIN_FADE_AFTER_SECONDS,
+        CursorEffect, MAX_FADE_AFTER_SECONDS, MAX_ITEMS_KEPT, MIN_FADE_AFTER_SECONDS,
         MIN_ITEMS_KEPT, PianoKey, PianoScale, PointerSound, Settings, SettingsStore, SoundMode,
     },
 };
@@ -436,7 +436,7 @@ impl KeySlamApp {
     fn process_key(&mut self, key_name: &str) {
         let now = Instant::now();
         self.game.add_response(
-            response_for_set(key_name, self.settings.extra_key_set),
+            response_for_set(key_name, &self.settings.extra_key_set),
             &self.settings,
             now,
         );
@@ -444,16 +444,14 @@ impl KeySlamApp {
             SoundMode::None => {}
             SoundMode::Speech => {
                 if let Some(figure) = self.game.figures.back() {
-                    let clips = match figure.kind {
+                    let clips = match &figure.kind {
                         FigureKind::Glyph(glyph) if glyph.is_ascii_alphabetic() => {
                             vec![format!("letters/{}", glyph.to_ascii_lowercase())]
                         }
                         FigureKind::Glyph(glyph) => vec![format!("numbers/{glyph}")],
-                        FigureKind::ExtraItem { set, .. } => vec![format!(
-                            "{}/{}",
-                            set.directory(),
-                            figure.spoken_text.to_ascii_lowercase()
-                        )],
+                        FigureKind::ExtraItem {
+                            set, item_folder, ..
+                        } => vec![format!("packs/{set}/{item_folder}")],
                         FigureKind::Shape(shape) => self
                             .localization
                             .color_shape_audio_keys(figure.color.speech_name, shape.name())
@@ -1068,14 +1066,13 @@ impl KeySlamApp {
                         }
                     });
                 });
-                ui.label(
-                    RichText::new(format!(
-                        "Settings: {}",
-                        self.settings_store.path().display()
-                    ))
-                    .small()
-                    .weak(),
-                );
+                if let Some(path) = self.settings_store.path() {
+                    ui.label(
+                        RichText::new(format!("Settings: {}", path.display()))
+                            .small()
+                            .weak(),
+                    );
+                }
                 if let Some(status) = self.current_status() {
                     ui.colored_label(Color32::from_rgb(180, 100, 0), status);
                 }
@@ -1304,10 +1301,10 @@ fn visual_options(ui: &mut Ui, settings: &mut Settings) {
         ui.horizontal(|ui| {
             ui.label("Image set");
             ComboBox::from_id_salt("extra-key-set")
-                .selected_text(settings.extra_key_set.label())
+                .selected_text(&settings.extra_key_set)
                 .show_ui(ui, |ui| {
-                    for set in ExtraKeySet::ALL {
-                        ui.selectable_value(&mut settings.extra_key_set, set, set.label());
+                    for pack in crate::packs::available() {
+                        ui.selectable_value(&mut settings.extra_key_set, pack.clone(), pack);
                     }
                 });
         });

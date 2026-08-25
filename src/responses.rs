@@ -1,4 +1,4 @@
-use crate::settings::ExtraKeySet;
+use crate::packs::{self, PackItem};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ShapeKind {
@@ -40,31 +40,34 @@ impl ShapeKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResponseKind {
     Glyph(char),
-    Emoji(&'static str),
+    Emoji(String),
     Shape(ShapeKind),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyResponse {
     pub kind: ResponseKind,
-    pub spoken_text: &'static str,
-    pub extra_key_set: Option<ExtraKeySet>,
+    pub spoken_text: String,
+    pub extra_key_set: Option<String>,
+    pub item_folder: Option<String>,
 }
 
 impl KeyResponse {
-    const fn extra(emoji: &'static str, name: &'static str, set: ExtraKeySet) -> Self {
+    fn extra(item: PackItem, set: &str) -> Self {
         Self {
-            kind: ResponseKind::Emoji(emoji),
-            spoken_text: name,
-            extra_key_set: Some(set),
+            kind: ResponseKind::Emoji(item.fallback_emoji),
+            spoken_text: item.label,
+            extra_key_set: Some(set.to_owned()),
+            item_folder: Some(item.folder),
         }
     }
 
-    const fn shape(shape: ShapeKind) -> Self {
+    fn shape(shape: ShapeKind) -> Self {
         Self {
             kind: ResponseKind::Shape(shape),
-            spoken_text: shape.name(),
+            spoken_text: shape.name().to_owned(),
             extra_key_set: None,
+            item_folder: None,
         }
     }
 }
@@ -139,173 +142,12 @@ const OTHER_KEYS: [&str; 67] = [
     "F24",
 ];
 
-const OTHER_ANIMALS: [(&str, &str); 67] = [
-    ("🐝", "Bee"),
-    ("🦍", "Gorilla"),
-    ("🦁", "Lion"),
-    ("🐘", "Elephant"),
-    ("🐵", "Monkey"),
-    ("🐕", "Dog"),
-    ("🐈", "Cat"),
-    ("🐰", "Rabbit"),
-    ("🐎", "Horse"),
-    ("🐄", "Cow"),
-    ("🐖", "Pig"),
-    ("🐑", "Sheep"),
-    ("🐐", "Goat"),
-    ("🐔", "Chicken"),
-    ("🦆", "Duck"),
-    ("🐸", "Frog"),
-    ("🐢", "Turtle"),
-    ("🐟", "Fish"),
-    ("🐋", "Whale"),
-    ("🐬", "Dolphin"),
-    ("🦈", "Shark"),
-    ("🐙", "Octopus"),
-    ("🦀", "Crab"),
-    ("🦋", "Butterfly"),
-    ("🐞", "Ladybug"),
-    ("🐌", "Snail"),
-    ("🐜", "Ant"),
-    ("🕷️", "Spider"),
-    ("🦉", "Owl"),
-    ("🐧", "Penguin"),
-    ("🦜", "Parrot"),
-    ("🦅", "Eagle"),
-    ("🦒", "Giraffe"),
-    ("🦓", "Zebra"),
-    ("🐼", "Panda"),
-    ("🐨", "Koala"),
-    ("🦘", "Kangaroo"),
-    ("🐪", "Camel"),
-    ("🦛", "Hippopotamus"),
-    ("🦏", "Rhinoceros"),
-    ("🦊", "Fox"),
-    ("🦌", "Deer"),
-    ("🐊", "Crocodile"),
-    ("🐍", "Snake"),
-    ("🦎", "Lizard"),
-    ("🦭", "Seal"),
-    ("🦇", "Bat"),
-    ("🐁", "Mouse"),
-    ("🫏", "Donkey"),
-    ("🫎", "Moose"),
-    ("🦝", "Raccoon"),
-    ("🐿️", "Squirrel"),
-    ("🦔", "Hedgehog"),
-    ("🦦", "Otter"),
-    ("🦃", "Turkey"),
-    ("🐥", "Chick"),
-    ("🦩", "Flamingo"),
-    ("🦚", "Peacock"),
-    ("🪿", "Goose"),
-    ("🐛", "Caterpillar"),
-    ("🦧", "Orangutan"),
-    ("🦬", "Bison"),
-    ("🦙", "Llama"),
-    ("🦫", "Beaver"),
-    ("🦥", "Sloth"),
-    ("🦨", "Skunk"),
-    ("🦡", "Badger"),
-];
-
-const FOODS: [(&str, &str); 69] = [
-    ("🍎", "Red apple"),
-    ("🍏", "Green apple"),
-    ("🍐", "Pear"),
-    ("🍊", "Tangerine"),
-    ("🍋", "Lemon"),
-    ("🍌", "Banana"),
-    ("🍉", "Watermelon"),
-    ("🍇", "Grapes"),
-    ("🍓", "Strawberry"),
-    ("🫐", "Blueberries"),
-    ("🍈", "Melon"),
-    ("🍒", "Cherries"),
-    ("🍑", "Peach"),
-    ("🥭", "Mango"),
-    ("🍍", "Pineapple"),
-    ("🥥", "Coconut"),
-    ("🥝", "Kiwi fruit"),
-    ("🍅", "Tomato"),
-    ("🍆", "Eggplant"),
-    ("🥑", "Avocado"),
-    ("🥦", "Broccoli"),
-    ("🥬", "Leafy green"),
-    ("🥒", "Cucumber"),
-    ("🌶️", "Hot pepper"),
-    ("🫑", "Bell pepper"),
-    ("🌽", "Corn"),
-    ("🥕", "Carrot"),
-    ("🫒", "Olive"),
-    ("🧄", "Garlic"),
-    ("🧅", "Onion"),
-    ("🥔", "Potato"),
-    ("🍠", "Sweet potato"),
-    ("🫘", "Beans"),
-    ("🌰", "Chestnut"),
-    ("🥜", "Peanuts"),
-    ("🍞", "Bread"),
-    ("🥐", "Croissant"),
-    ("🥖", "Baguette"),
-    ("🫓", "Flatbread"),
-    ("🥨", "Pretzel"),
-    ("🥯", "Bagel"),
-    ("🥞", "Pancakes"),
-    ("🧇", "Waffle"),
-    ("🧀", "Cheese"),
-    ("🍖", "Meat on bone"),
-    ("🍗", "Poultry leg"),
-    ("🥩", "Steak"),
-    ("🥓", "Bacon"),
-    ("🍔", "Hamburger"),
-    ("🍟", "French fries"),
-    ("🍕", "Pizza"),
-    ("🌭", "Hot dog"),
-    ("🥪", "Sandwich"),
-    ("🌮", "Taco"),
-    ("🌯", "Burrito"),
-    ("🧆", "Falafel"),
-    ("🥚", "Egg"),
-    ("🍳", "Fried egg"),
-    ("🥘", "Paella"),
-    ("🍲", "Stew"),
-    ("🥣", "Cereal"),
-    ("🥗", "Salad"),
-    ("🍿", "Popcorn"),
-    ("🧈", "Butter"),
-    ("🍦", "Ice cream"),
-    ("🍩", "Doughnut"),
-    ("🍪", "Cookie"),
-    ("🎂", "Birthday cake"),
-    ("🍫", "Chocolate"),
-];
-
-const INSTRUMENTS: [(&str, &str); 16] = [
-    ("🪗", "Accordion"),
-    ("🪕", "Banjo"),
-    ("🥁", "Drum"),
-    ("🪘", "Long drum"),
-    ("🪇", "Maracas"),
-    ("🪈", "Flute"),
-    ("🎸", "Guitar"),
-    ("🎹", "Keyboard"),
-    ("🎷", "Saxophone"),
-    ("🎺", "Trumpet"),
-    ("🎻", "Violin"),
-    ("🎤", "Microphone"),
-    ("🎧", "Headphones"),
-    ("📯", "Horn"),
-    ("🔔", "Bell"),
-    ("🎼", "Musical score"),
-];
-
 #[cfg(test)]
 pub fn response_for(key_name: &str) -> KeyResponse {
-    response_for_set(key_name, ExtraKeySet::Animals)
+    response_for_set(key_name, "animals")
 }
 
-pub fn response_for_set(key_name: &str, extra_key_set: ExtraKeySet) -> KeyResponse {
+pub fn response_for_set(key_name: &str, extra_key_set: &str) -> KeyResponse {
     match key_name {
         "Decimal" | "NumpadDecimal" => return KeyResponse::shape(ShapeKind::Circle),
         "NumPad0" => return KeyResponse::shape(ShapeKind::Oval),
@@ -340,33 +182,30 @@ pub fn response_for_set(key_name: &str, extra_key_set: ExtraKeySet) -> KeyRespon
         let glyph = bytes[0].to_ascii_uppercase() as char;
         return KeyResponse {
             kind: ResponseKind::Glyph(glyph),
-            spoken_text: "",
+            spoken_text: String::new(),
             extra_key_set: None,
+            item_folder: None,
         };
     }
     if bytes.len() == 2 && bytes[0] == b'D' && bytes[1].is_ascii_digit() {
         return KeyResponse {
             kind: ResponseKind::Glyph(bytes[1] as char),
-            spoken_text: "",
+            spoken_text: String::new(),
             extra_key_set: None,
+            item_folder: None,
         };
     }
 
     extra_response(extra_key_set, stable_hash(normalized) as usize)
 }
 
-fn extra_response(set: ExtraKeySet, index: usize) -> KeyResponse {
-    let items: &[(&str, &str)] = match set {
-        ExtraKeySet::Animals => &[("🐻", "Bear"), ("🐯", "Tiger")],
-        ExtraKeySet::Foods => &FOODS,
-        ExtraKeySet::Instruments => &INSTRUMENTS,
-    };
-    if set == ExtraKeySet::Animals && index >= 2 {
-        let (emoji, name) = OTHER_ANIMALS[(index - 2) % OTHER_ANIMALS.len()];
-        return KeyResponse::extra(emoji, name, set);
-    }
-    let (emoji, name) = items[index % items.len()];
-    KeyResponse::extra(emoji, name, set)
+fn extra_response(set: &str, index: usize) -> KeyResponse {
+    let item = packs::item(set, index).unwrap_or(PackItem {
+        folder: "item".to_owned(),
+        label: "Item".to_owned(),
+        fallback_emoji: "★".to_owned(),
+    });
+    KeyResponse::extra(item, set)
 }
 
 fn normalize_key_name(key_name: &str) -> &str {
@@ -450,6 +289,7 @@ mod tests {
 
     #[test]
     fn every_standard_special_key_has_a_unique_animal() {
+        assert!(packs::install_builtin_packs().is_ok());
         let mut names = OTHER_KEYS
             .iter()
             .map(|key| response_for(key).spoken_text)
@@ -462,17 +302,18 @@ mod tests {
 
     #[test]
     fn food_set_covers_every_extra_key_and_instruments_repeat_the_catalog() {
+        assert!(packs::install_builtin_packs().is_ok());
         let mut food_names = ["Escape", "Space"]
             .into_iter()
             .chain(OTHER_KEYS)
-            .map(|key| response_for_set(key, ExtraKeySet::Foods).spoken_text)
+            .map(|key| response_for_set(key, "foods").spoken_text)
             .collect::<Vec<_>>();
         food_names.sort_unstable();
         food_names.dedup();
         assert_eq!(food_names.len(), 69);
 
-        let instrument = response_for_set("Escape", ExtraKeySet::Instruments);
+        let instrument = response_for_set("Escape", "instruments");
         assert_eq!(instrument.spoken_text, "Accordion");
-        assert_eq!(instrument.extra_key_set, Some(ExtraKeySet::Instruments));
+        assert_eq!(instrument.extra_key_set.as_deref(), Some("instruments"));
     }
 }
