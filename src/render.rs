@@ -341,6 +341,17 @@ fn draw_animal(
             vertex.pos = rotate(vertex.pos, image_rect.center(), angle);
         }
         painter.add(Shape::mesh(mesh));
+    } else if fallback_emoji == "★"
+        && let Some(star) = cache.shapes.get(&ShapeKind::Star)
+    {
+        draw_svg_layer(
+            painter,
+            &star.fill,
+            image_rect,
+            with_opacity(Color32::WHITE, opacity),
+            angle,
+            image_rect.center(),
+        );
     } else {
         painter.text(
             rect.center(),
