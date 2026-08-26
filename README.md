@@ -115,19 +115,29 @@ PNG images and Ogg Opus recordings for one item live together. For example,
 and it appears in the Settings dropdown without a code change or restart.
 
 By default, item folders are assigned to extra keys in alphabetical order. Add
-a `pack.json` file to control the order:
+a `pack.json` file to assign item folders to named keys directly:
 
 ```json
 {
-  "items": ["tiger", "bear", "red panda"]
+  "keys": [
+    { "key": "Escape", "item": "tiger" },
+    { "key": "Space", "item": "bear" },
+    { "key": "F1", "item": "red panda" }
+  ]
 }
 ```
 
-The first items map to Escape, Space, then the remaining extra keys in KeySlam's
-stable key order. The list wraps when a pack has fewer items than keys. A list
-entry can instead be an object such as
-`{"folder":"red panda","name":"Red panda","emoji":"🐼"}` to override the
-spoken/display name and the fallback shown when no valid PNG exists.
+The bundled manifests list every assignable key using readable names such as
+`Print Screen`, `Left Shift`, and `Page Up`; use one as a template. Change an
+entry's `item` to the exact name of another item folder to reassign that key.
+Key names are case-insensitive. Optional `name` and `emoji` fields override the
+spoken/display name and the fallback shown when no valid PNG exists. A key
+omitted from the manifest displays the generic star item. Numpad digits and
+Decimal, Multiply, and Add always produce KeySlam's built-in shapes.
+
+Development builds run with `cargo run` read `assets\packs` directly, including
+changes made while KeySlam is open. Packaged builds read `packs` beside
+`keyslam.exe`.
 
 Put any number of PNG or Opus files in an item folder; KeySlam sorts each type
 alphabetically and cycles through it. New filenames are picked up while the app

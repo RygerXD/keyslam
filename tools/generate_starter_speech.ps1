@@ -57,8 +57,9 @@ if (-not $SkipCommon -and -not $ExtraKeySetsOnly) {
             Write-Clip $commonSynth "numbers\$digit.wav" $digit
         }
 
-        $animalManifest = Get-Content -Raw (Join-Path $PacksRoot 'animals\pack.json') | ConvertFrom-Json
-        foreach ($folder in $animalManifest.items) {
+        $animalFolders = Get-ChildItem -LiteralPath (Join-Path $PacksRoot 'animals') -Directory |
+            Select-Object -ExpandProperty Name
+        foreach ($folder in $animalFolders) {
             $animal = (Get-Culture).TextInfo.ToTitleCase($folder.Replace('-', ' ').Replace('_', ' '))
             Write-PackClip $commonSynth "animals\$folder\$folder.wav" $animal
         }
