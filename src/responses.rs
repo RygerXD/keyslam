@@ -72,74 +72,74 @@ impl KeyResponse {
     }
 }
 
-const OTHER_KEYS: [&str; 67] = [
-    "F1",
-    "F2",
-    "F3",
-    "F4",
-    "F5",
-    "F6",
-    "F7",
-    "F8",
-    "F9",
-    "F10",
-    "F11",
-    "F12",
-    "Snapshot",
-    "Scroll",
-    "Pause",
-    "Oem3",
-    "OemMinus",
-    "OemPlus",
-    "Back",
-    "Tab",
-    "Oem4",
-    "Oem6",
-    "Oem5",
-    "Capital",
-    "Oem1",
-    "Oem7",
-    "Return",
-    "LeftShift",
-    "OemComma",
-    "OemPeriod",
-    "Oem2",
-    "RightShift",
-    "LeftCtrl",
-    "LWin",
-    "LeftAlt",
-    "RightAlt",
-    "RWin",
-    "Apps",
-    "RightCtrl",
-    "Insert",
-    "Home",
-    "Prior",
-    "Delete",
-    "End",
-    "Next",
-    "Left",
-    "Up",
-    "Down",
-    "Right",
-    "NumLock",
-    "Divide",
-    "Multiply",
-    "Subtract",
-    "Add",
-    "Decimal",
-    "F13",
-    "F14",
-    "F15",
-    "F16",
-    "F17",
-    "F18",
-    "F19",
-    "F20",
-    "F21",
-    "F22",
-    "F23",
-    "F24",
+const OTHER_KEYS: [(&str, &str); 67] = [
+    ("F1", "F1"),
+    ("F2", "F2"),
+    ("F3", "F3"),
+    ("F4", "F4"),
+    ("F5", "F5"),
+    ("F6", "F6"),
+    ("F7", "F7"),
+    ("F8", "F8"),
+    ("F9", "F9"),
+    ("F10", "F10"),
+    ("F11", "F11"),
+    ("F12", "F12"),
+    ("Snapshot", "Print Screen"),
+    ("Scroll", "Scroll Lock"),
+    ("Pause", "Pause"),
+    ("Oem3", "Backtick"),
+    ("OemMinus", "Minus"),
+    ("OemPlus", "Equals"),
+    ("Back", "Backspace"),
+    ("Tab", "Tab"),
+    ("Oem4", "Left Bracket"),
+    ("Oem6", "Right Bracket"),
+    ("Oem5", "Backslash"),
+    ("Capital", "Caps Lock"),
+    ("Oem1", "Semicolon"),
+    ("Oem7", "Quote"),
+    ("Return", "Enter"),
+    ("LeftShift", "Left Shift"),
+    ("OemComma", "Comma"),
+    ("OemPeriod", "Period"),
+    ("Oem2", "Slash"),
+    ("RightShift", "Right Shift"),
+    ("LeftCtrl", "Left Ctrl"),
+    ("LWin", "Left Windows"),
+    ("LeftAlt", "Left Alt"),
+    ("RightAlt", "Right Alt"),
+    ("RWin", "Right Windows"),
+    ("Apps", "Menu"),
+    ("RightCtrl", "Right Ctrl"),
+    ("Insert", "Insert"),
+    ("Home", "Home"),
+    ("Prior", "Page Up"),
+    ("Delete", "Delete"),
+    ("End", "End"),
+    ("Next", "Page Down"),
+    ("Left", "Left Arrow"),
+    ("Up", "Up Arrow"),
+    ("Down", "Down Arrow"),
+    ("Right", "Right Arrow"),
+    ("NumLock", "Num Lock"),
+    ("Divide", "Numpad Divide"),
+    ("Multiply", "Numpad Multiply"),
+    ("Subtract", "Numpad Subtract"),
+    ("Add", "Numpad Add"),
+    ("Decimal", "Numpad Decimal"),
+    ("F13", "F13"),
+    ("F14", "F14"),
+    ("F15", "F15"),
+    ("F16", "F16"),
+    ("F17", "F17"),
+    ("F18", "F18"),
+    ("F19", "F19"),
+    ("F20", "F20"),
+    ("F21", "F21"),
+    ("F22", "F22"),
+    ("F23", "F23"),
+    ("F24", "F24"),
 ];
 
 #[cfg(test)]
@@ -164,17 +164,18 @@ pub fn response_for_set(key_name: &str, extra_key_set: &str) -> KeyResponse {
             return KeyResponse::shape(ShapeKind::Star);
         }
         "Add" | "NumpadAdd" => return KeyResponse::shape(ShapeKind::Cross),
-        "Escape" => return extra_response(extra_key_set, 0),
-        "Space" => return extra_response(extra_key_set, 1),
+        "Escape" => return extra_response(extra_key_set, "Escape", 0),
+        "Space" => return extra_response(extra_key_set, "Space", 1),
         _ => {}
     }
 
     let normalized = normalize_key_name(key_name);
-    if let Some(index) = OTHER_KEYS
+    if let Some((index, (_, manifest_key))) = OTHER_KEYS
         .iter()
-        .position(|candidate| *candidate == normalized)
+        .enumerate()
+        .find(|(_, (input_key, _))| *input_key == normalized)
     {
-        return extra_response(extra_key_set, index + 2);
+        return extra_response(extra_key_set, manifest_key, index + 2);
     }
 
     let bytes = normalized.as_bytes();
@@ -196,11 +197,11 @@ pub fn response_for_set(key_name: &str, extra_key_set: &str) -> KeyResponse {
         };
     }
 
-    extra_response(extra_key_set, stable_hash(normalized) as usize)
+    extra_response(extra_key_set, normalized, stable_hash(normalized) as usize)
 }
 
-fn extra_response(set: &str, index: usize) -> KeyResponse {
-    let item = packs::item(set, index).unwrap_or(PackItem {
+fn extra_response(set: &str, key: &str, legacy_index: usize) -> KeyResponse {
+    let item = packs::item(set, key, legacy_index).unwrap_or(PackItem {
         folder: "item".to_owned(),
         label: "Item".to_owned(),
         fallback_emoji: "★".to_owned(),
@@ -292,7 +293,7 @@ mod tests {
         assert!(packs::install_builtin_packs().is_ok());
         let mut names = OTHER_KEYS
             .iter()
-            .map(|key| response_for(key).spoken_text)
+            .map(|(key, _)| response_for(key).spoken_text)
             .collect::<Vec<_>>();
         names.sort_unstable();
         names.dedup();
@@ -305,7 +306,7 @@ mod tests {
         assert!(packs::install_builtin_packs().is_ok());
         let mut food_names = ["Escape", "Space"]
             .into_iter()
-            .chain(OTHER_KEYS)
+            .chain(OTHER_KEYS.iter().map(|(key, _)| *key))
             .map(|key| response_for_set(key, "foods").spoken_text)
             .collect::<Vec<_>>();
         food_names.sort_unstable();
@@ -315,5 +316,10 @@ mod tests {
         let instrument = response_for_set("Escape", "instruments");
         assert_eq!(instrument.spoken_text, "Accordion");
         assert_eq!(instrument.extra_key_set.as_deref(), Some("instruments"));
+    }
+
+    #[test]
+    fn named_manifest_assignment_is_used_for_delete() {
+        assert_eq!(response_for_set("Delete", "animals").spoken_text, "Toucan");
     }
 }
