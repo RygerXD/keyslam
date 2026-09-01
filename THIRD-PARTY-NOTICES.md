@@ -35,10 +35,9 @@ under CC BY-SA 3.0 or CC BY-SA 4.0. Complete per-file attribution, source links,
 license links, and modification details are in
 [`assets/sounds/ANIMAL-SOUNDS.md`](assets/sounds/ANIMAL-SOUNDS.md).
 
-## Shadertoy trail references
+## Shadertoy trail reference
 
 The following pointer effects are Rust/egui adaptations of visual techniques
 demonstrated by Shadertoy authors. The original shader source is not embedded:
 
 - [Test 11 - fading mouse trails](https://www.shadertoy.com/view/mtSGDy) by gorplex
-- [Neon worm](https://www.shadertoy.com/view/clB3RK) by sh1boot

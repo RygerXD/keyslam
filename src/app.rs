@@ -644,12 +644,7 @@ impl KeySlamApp {
         let rect = ui.max_rect();
         if let Some(display) = self.game.displays.get_mut(display_index) {
             display.size = rect.size();
-            display.pointer.update(
-                now,
-                self.frame_seconds,
-                rect.size(),
-                self.settings.cursor_effect,
-            );
+            display.pointer.update(now, self.frame_seconds);
         }
         self.handle_input(ui, display_index, now);
         self.game.limit_active_item_animations(now);
@@ -1038,14 +1033,27 @@ impl KeySlamApp {
                 });
                 ui.separator();
                 let previous_settings = self.settings.clone();
-                egui::ScrollArea::vertical()
+                let action = egui::ScrollArea::vertical()
                     .max_height(480.0)
                     .show(ui, |ui| match self.options_tab {
-                        OptionsTab::Audio => audio_options(ui, &mut self.settings),
+                        OptionsTab::Audio => {
+                            audio_options(ui, &mut self.settings);
+                            None
+                        }
                         OptionsTab::Visuals => visual_options(ui, &mut self.settings),
-                        OptionsTab::Input => input_options(ui, &mut self.settings),
-                        OptionsTab::Letters => letter_options(ui, &mut self.settings),
-                    });
+                        OptionsTab::Input => {
+                            input_options(ui, &mut self.settings);
+                            None
+                        }
+                        OptionsTab::Letters => {
+                            letter_options(ui, &mut self.settings);
+                            None
+                        }
+                    })
+                    .inner;
+                if let Some(action) = action {
+                    self.status = Some(action);
+                }
                 if self.settings != previous_settings {
                     self.settings.normalize();
                     match self.settings_store.save(&self.settings) {
@@ -1296,7 +1304,8 @@ fn audio_options(ui: &mut Ui, settings: &mut Settings) {
     });
 }
 
-fn visual_options(ui: &mut Ui, settings: &mut Settings) {
+fn visual_options(ui: &mut Ui, settings: &mut Settings) -> Option<String> {
+    let mut status = None;
     section(ui, "Extra keys", |ui| {
         ui.horizontal(|ui| {
             ui.label("Image set");
@@ -1308,6 +1317,14 @@ fn visual_options(ui: &mut Ui, settings: &mut Settings) {
                     }
                 });
         });
+        if ui.button("Open packs folder").clicked() {
+            status = match crate::packs::root()
+                .and_then(|path| crate::paths::open_directory(&path).map(|_| path))
+            {
+                Ok(path) => Some(format!("Opened packs folder: {}", path.display())),
+                Err(error) => Some(format!("Could not open packs folder: {error}")),
+            };
+        }
         ui.label("Used for keys that are not letters, top-row numbers, or numpad shapes.");
     });
     section(ui, "Shapes and animation", |ui| {
@@ -1348,6 +1365,7 @@ fn visual_options(ui: &mut Ui, settings: &mut Settings) {
                 .text("Background brightness (%)"),
         );
     });
+    status
 }
 
 fn input_options(ui: &mut Ui, settings: &mut Settings) {

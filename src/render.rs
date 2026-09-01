@@ -513,7 +513,6 @@ pub fn draw_pointer_effects(
     now: Instant,
 ) {
     draw_rainbow_trail(painter, state);
-    draw_neon_worm(painter, state);
     draw_trail_marks(painter, &state.trail_marks, now);
     for particle in &state.particles {
         draw_particle(painter, cache, particle, now);
@@ -571,36 +570,6 @@ fn draw_rainbow_trail(painter: &Painter, state: &PointerState) {
             );
         }
     }
-}
-
-fn draw_neon_worm(painter: &Painter, state: &PointerState) {
-    let points = state.neon_worm.points();
-    if points.len() < 2 {
-        return;
-    }
-    for (index, pair) in points.windows(2).enumerate().rev() {
-        if pair[0].distance_sq(pair[1]) < 0.01 {
-            continue;
-        }
-        let tail = index as f32 / (points.len() - 1) as f32;
-        let tail_fade = 1.0 - smoothstep(0.75, 1.0, tail);
-        let opacity = state.neon_worm.opacity() * tail_fade;
-        let color = neon_palette(index);
-        for (width, alpha) in [(24.0, 0.025), (12.0, 0.09), (5.0, 0.32), (2.0, 1.0)] {
-            painter.line_segment(
-                [pair[0], pair[1]],
-                Stroke::new(width, with_opacity(color, opacity * alpha)),
-            );
-        }
-    }
-}
-
-fn neon_palette(index: usize) -> Color32 {
-    let t = index as f32 * 0.0025;
-    let channel = |phase: f32| {
-        ((0.5 + 0.5 * (std::f32::consts::TAU * (t + phase)).cos()) * 255.0).round() as u8
-    };
-    Color32::from_rgb(channel(0.0), channel(0.33), channel(0.67))
 }
 
 fn draw_trail_marks(painter: &Painter, marks: &[TrailMark], now: Instant) {
