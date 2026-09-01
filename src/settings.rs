@@ -114,10 +114,8 @@ impl PianoKey {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CursorEffect {
-    None,
     Rainbow,
     FadingTrail,
-    NeonWorm,
     Sparkles,
     Bubbles,
     Coloring,
@@ -125,11 +123,9 @@ pub enum CursorEffect {
 }
 
 impl CursorEffect {
-    pub const ALL: [Self; 8] = [
-        Self::None,
+    pub const ALL: [Self; 6] = [
         Self::Rainbow,
         Self::FadingTrail,
-        Self::NeonWorm,
         Self::Sparkles,
         Self::Bubbles,
         Self::Coloring,
@@ -138,10 +134,8 @@ impl CursorEffect {
 
     pub const fn label(self) -> &'static str {
         match self {
-            Self::None => "None",
             Self::Rainbow => "Rainbow ribbon",
             Self::FadingTrail => "Fading mouse trails",
-            Self::NeonWorm => "Neon worm",
             Self::Sparkles => "Sparkles",
             Self::Bubbles => "Bubbles",
             Self::Coloring => "Coloring mode",
@@ -152,7 +146,6 @@ impl CursorEffect {
     pub const fn shadertoy_url(self) -> Option<&'static str> {
         match self {
             Self::FadingTrail => Some("https://www.shadertoy.com/view/mtSGDy"),
-            Self::NeonWorm => Some("https://www.shadertoy.com/view/clB3RK"),
             _ => None,
         }
     }
@@ -421,27 +414,17 @@ mod tests {
     fn special_modes_are_part_of_the_scroll_wheel_cycle() {
         assert_eq!(CursorEffect::Bubbles.cycle(true), CursorEffect::Coloring);
         assert_eq!(CursorEffect::Coloring.cycle(true), CursorEffect::PianoRoll);
-        assert_eq!(CursorEffect::PianoRoll.cycle(true), CursorEffect::None);
-        assert_eq!(CursorEffect::PianoRoll.cycle(false), CursorEffect::Coloring);
+        assert_eq!(CursorEffect::PianoRoll.cycle(true), CursorEffect::Rainbow);
+        assert_eq!(CursorEffect::Rainbow.cycle(false), CursorEffect::PianoRoll);
     }
 
     #[test]
-    fn shadertoy_trails_have_labels_and_source_links() {
-        for (effect, label, url) in [
-            (
-                CursorEffect::FadingTrail,
-                "Fading mouse trails",
-                "https://www.shadertoy.com/view/mtSGDy",
-            ),
-            (
-                CursorEffect::NeonWorm,
-                "Neon worm",
-                "https://www.shadertoy.com/view/clB3RK",
-            ),
-        ] {
-            assert_eq!(effect.label(), label);
-            assert_eq!(effect.shadertoy_url(), Some(url));
-        }
+    fn fading_trail_has_label_and_source_link() {
+        assert_eq!(CursorEffect::FadingTrail.label(), "Fading mouse trails");
+        assert_eq!(
+            CursorEffect::FadingTrail.shadertoy_url(),
+            Some("https://www.shadertoy.com/view/mtSGDy")
+        );
     }
 
     #[test]

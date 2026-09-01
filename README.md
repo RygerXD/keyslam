@@ -24,7 +24,7 @@ executable.
 - Matching defaults, letter grouping, fading, item limits, faces, spawn
   animation, and tap animation
 - Speech, continuous stereo sinewave, and configurable paint-color and right-click audio
-- Original blue hand pointer plus rainbow, fading-afterimage, neon-worm,
+- Original blue hand pointer plus rainbow, fading-afterimage,
   sparkle, bubble, background-coloring, and piano-roll modes; the mouse wheel cycles
   effects and briefly pulses the hand larger or smaller
 - One borderless, always-on-top game viewport per monitor (Windows uses native
