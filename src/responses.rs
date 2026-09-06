@@ -290,7 +290,7 @@ mod tests {
 
     #[test]
     fn every_standard_special_key_has_a_unique_animal() {
-        assert!(packs::install_builtin_packs().is_ok());
+        assert!(crate::assets::install_builtins().is_ok());
         let mut names = OTHER_KEYS
             .iter()
             .map(|(key, _)| response_for(key).spoken_text)
@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn food_set_covers_every_extra_key_and_instruments_repeat_the_catalog() {
-        assert!(packs::install_builtin_packs().is_ok());
+        assert!(crate::assets::install_builtins().is_ok());
         let mut food_names = ["Escape", "Space"]
             .into_iter()
             .chain(OTHER_KEYS.iter().map(|(key, _)| *key))

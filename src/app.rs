@@ -65,10 +65,9 @@ impl DisplayConfig {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OptionsTab {
-    Audio,
-    Visuals,
-    Input,
-    Letters,
+    Play,
+    Appearance,
+    Sound,
 }
 
 #[derive(Debug)]
@@ -382,7 +381,7 @@ impl KeySlamApp {
             _keyboard_guard: keyboard_guard,
             close_protection,
             options_open: false,
-            options_tab: OptionsTab::Audio,
+            options_tab: OptionsTab::Play,
             status,
             exit_requested: false,
             resources_prewarmed: false,
@@ -1023,10 +1022,9 @@ impl KeySlamApp {
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
                     for (tab, label) in [
-                        (OptionsTab::Audio, "Audio"),
-                        (OptionsTab::Visuals, "Visuals"),
-                        (OptionsTab::Input, "Input"),
-                        (OptionsTab::Letters, "Letters"),
+                        (OptionsTab::Play, "Play"),
+                        (OptionsTab::Appearance, "Appearance"),
+                        (OptionsTab::Sound, "Sound"),
                     ] {
                         ui.selectable_value(&mut self.options_tab, tab, label);
                     }
@@ -1036,17 +1034,13 @@ impl KeySlamApp {
                 let action = egui::ScrollArea::vertical()
                     .max_height(480.0)
                     .show(ui, |ui| match self.options_tab {
-                        OptionsTab::Audio => {
-                            audio_options(ui, &mut self.settings);
+                        OptionsTab::Play => {
+                            play_options(ui, &mut self.settings);
                             None
                         }
-                        OptionsTab::Visuals => visual_options(ui, &mut self.settings),
-                        OptionsTab::Input => {
-                            input_options(ui, &mut self.settings);
-                            None
-                        }
-                        OptionsTab::Letters => {
-                            letter_options(ui, &mut self.settings);
+                        OptionsTab::Appearance => appearance_options(ui, &mut self.settings),
+                        OptionsTab::Sound => {
+                            sound_options(ui, &mut self.settings);
                             None
                         }
                     })
@@ -1168,15 +1162,17 @@ fn volume_slider_before_dropdown(ui: &mut Ui, value: &mut u8, label: &str) {
     );
 }
 
-fn audio_options(ui: &mut Ui, settings: &mut Settings) {
-    section(ui, "Sounds", |ui| {
+fn sound_options(ui: &mut Ui, settings: &mut Settings) {
+    section(ui, "Overall volume", |ui| {
         full_width_slider(
             ui,
             egui::Slider::new(&mut settings.master_volume_percent, 0..=100)
                 .text("Master Volume")
                 .suffix("%"),
         );
+    });
 
+    section(ui, "Keyboard", |ui| {
         ui.horizontal(|ui| {
             volume_slider_before_dropdown(
                 ui,
@@ -1198,7 +1194,10 @@ fn audio_options(ui: &mut Ui, settings: &mut Settings) {
                     ui.selectable_value(&mut settings.sound_mode, SoundMode::None, "No key sound");
                 });
         });
+        ui.label("Controls the spoken response when a key creates an item.");
+    });
 
+    section(ui, "Pointer", |ui| {
         ui.horizontal(|ui| {
             volume_slider_before_dropdown(
                 ui,
@@ -1227,7 +1226,9 @@ fn audio_options(ui: &mut Ui, settings: &mut Settings) {
         ui.add_enabled_ui(settings.pointer_sound == PointerSound::SineWave, |ui| {
             ui.label("Move vertically for pitch and horizontally for stereo position.");
         });
+    });
 
+    section(ui, "Coloring", |ui| {
         ui.horizontal(|ui| {
             volume_slider_before_dropdown(
                 ui,
@@ -1246,7 +1247,10 @@ fn audio_options(ui: &mut Ui, settings: &mut Settings) {
                     ui.selectable_value(&mut settings.paint_color_speech, false, "No sound");
                 });
         });
+        ui.label("Controls the color name played when a paint color is selected.");
+    });
 
+    section(ui, "Piano", |ui| {
         ui.horizontal(|ui| {
             volume_slider_before_dropdown(
                 ui,
@@ -1304,30 +1308,17 @@ fn audio_options(ui: &mut Ui, settings: &mut Settings) {
     });
 }
 
-fn visual_options(ui: &mut Ui, settings: &mut Settings) -> Option<String> {
+fn appearance_options(ui: &mut Ui, settings: &mut Settings) -> Option<String> {
     let mut status = None;
-    section(ui, "Extra keys", |ui| {
-        ui.horizontal(|ui| {
-            ui.label("Image set");
-            ComboBox::from_id_salt("extra-key-set")
-                .selected_text(&settings.extra_key_set)
-                .show_ui(ui, |ui| {
-                    for pack in crate::packs::available() {
-                        ui.selectable_value(&mut settings.extra_key_set, pack.clone(), pack);
-                    }
-                });
-        });
-        if ui.button("Open packs folder").clicked() {
-            status = match crate::packs::root()
-                .and_then(|path| crate::paths::open_directory(&path).map(|_| path))
-            {
-                Ok(path) => Some(format!("Opened packs folder: {}", path.display())),
-                Err(error) => Some(format!("Could not open packs folder: {error}")),
-            };
-        }
-        ui.label("Used for keys that are not letters, top-row numbers, or numpad shapes.");
+    section(ui, "Background", |ui| {
+        full_width_slider(
+            ui,
+            egui::Slider::new(&mut settings.background_brightness_percent, 0..=100)
+                .text("Background brightness")
+                .suffix("%"),
+        );
     });
-    section(ui, "Shapes and animation", |ui| {
+    section(ui, "Shapes", |ui| {
         ui.checkbox(&mut settings.faces_on_shapes, "Show faces on shapes");
         ui.checkbox(
             &mut settings.spawn_animations,
@@ -1338,7 +1329,65 @@ fn visual_options(ui: &mut Ui, settings: &mut Settings) -> Option<String> {
             "Animate shapes when tapped or scrolled",
         );
     });
-    section(ui, "Cleanup", |ui| {
+    section(ui, "Extra-key images", |ui| {
+        ui.horizontal(|ui| {
+            ui.label("Image set");
+            ComboBox::from_id_salt("extra-key-set")
+                .selected_text(&settings.extra_key_set)
+                .show_ui(ui, |ui| {
+                    for pack in crate::packs::available() {
+                        ui.selectable_value(&mut settings.extra_key_set, pack.clone(), pack);
+                    }
+                });
+        });
+        if ui.button("Open assets folder").clicked() {
+            status = match crate::assets::root()
+                .and_then(|path| crate::paths::open_directory(&path).map(|_| path))
+            {
+                Ok(path) => Some(format!("Opened assets folder: {}", path.display())),
+                Err(error) => Some(format!("Could not open assets folder: {error}")),
+            };
+        }
+        ui.label("Used for keys that are not letters, top-row numbers, or numpad shapes.");
+    });
+    status
+}
+
+fn play_options(ui: &mut Ui, settings: &mut Settings) {
+    section(ui, "Pointer effect", |ui| {
+        ui.horizontal(|ui| {
+            ui.label("Effect");
+            ComboBox::from_id_salt("cursor-effect")
+                .selected_text(settings.cursor_effect.label())
+                .show_ui(ui, |ui| {
+                    for effect in CursorEffect::ALL {
+                        ui.selectable_value(&mut settings.cursor_effect, effect, effect.label());
+                    }
+                });
+        });
+        if let Some(url) = settings.cursor_effect.shadertoy_url() {
+            ui.horizontal(|ui| {
+                ui.label("Adapted from");
+                ui.hyperlink_to("Shadertoy", url);
+            });
+        }
+        ui.label("Use the mouse wheel during play to cycle through the effects.");
+    });
+    section(ui, "Letters and words", |ui| {
+        ui.checkbox(&mut settings.force_uppercase, "Use uppercase letters");
+        ui.checkbox(
+            &mut settings.group_letters,
+            "Line up consecutive letters to form words",
+        );
+        ui.add_enabled_ui(settings.group_letters, |ui| {
+            full_width_slider(
+                ui,
+                egui::Slider::new(&mut settings.letter_grouping_timeout_seconds, 0.1..=10.0)
+                    .text("Start a new word after (seconds)"),
+            );
+        });
+    });
+    section(ui, "Items on screen", |ui| {
         ui.checkbox(&mut settings.fade_away, "Fade items away");
         ui.add_enabled_ui(settings.fade_away, |ui| {
             full_width_slider(
@@ -1357,52 +1406,6 @@ fn visual_options(ui: &mut Ui, settings: &mut Settings) -> Option<String> {
             egui::Slider::new(&mut settings.clear_after, MIN_ITEMS_KEPT..=MAX_ITEMS_KEPT)
                 .text("Items kept on screen"),
         );
-    });
-    section(ui, "Display", |ui| {
-        full_width_slider(
-            ui,
-            egui::Slider::new(&mut settings.background_brightness_percent, 0..=100)
-                .text("Background brightness (%)"),
-        );
-    });
-    status
-}
-
-fn input_options(ui: &mut Ui, settings: &mut Settings) {
-    section(ui, "Mouse and pointer", |ui| {
-        ComboBox::from_id_salt("cursor-effect")
-            .selected_text(settings.cursor_effect.label())
-            .show_ui(ui, |ui| {
-                for effect in CursorEffect::ALL {
-                    ui.selectable_value(&mut settings.cursor_effect, effect, effect.label());
-                }
-            });
-        if let Some(url) = settings.cursor_effect.shadertoy_url() {
-            ui.horizontal(|ui| {
-                ui.label("Adapted from");
-                ui.hyperlink_to("Shadertoy", url);
-            });
-        }
-        ui.label("Use the mouse wheel during play to cycle through the effects.");
-    });
-}
-
-fn letter_options(ui: &mut Ui, settings: &mut Settings) {
-    section(ui, "Words", |ui| {
-        ui.checkbox(
-            &mut settings.group_letters,
-            "Line up consecutive letters to form words",
-        );
-        ui.add_enabled_ui(settings.group_letters, |ui| {
-            full_width_slider(
-                ui,
-                egui::Slider::new(&mut settings.letter_grouping_timeout_seconds, 0.1..=10.0)
-                    .text("Start a new word after (seconds)"),
-            );
-        });
-    });
-    section(ui, "Typography", |ui| {
-        ui.checkbox(&mut settings.force_uppercase, "Use uppercase letters");
     });
 }
 

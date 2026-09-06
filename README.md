@@ -49,6 +49,11 @@ Windows Assigned Access with a dedicated account. On Linux, the window
 consumes keys it receives, but the desktop compositor may retain its own global
 shortcuts.
 
+If a Windows laptop's three-finger swipe accidentally switches apps or exits
+the game, disable the system gesture in **Settings → Bluetooth & devices →
+Touchpad**: set **Three-finger gestures → Swipes** to **Nothing**, and repeat
+the same change for **Four-finger gestures**.
+
 ## Run
 
 Install the current stable Rust toolchain (Rust 1.92 or newer), then:
@@ -94,25 +99,29 @@ cargo build --release
 
 The result is `target/release/keyslam.exe` on Windows.
 
-## Item packs and custom voice recordings
+## Editable assets
 
 Keep `keyslam.exe` in a folder named `keyslam` on the Desktop. The first time
-it runs, KeySlam copies its built-in packs and English sound clips to editable
-folders beside the executable:
+it runs, KeySlam copies its built-in game assets to an editable folder beside
+the executable:
 
 ```text
-Desktop\keyslam\packs
-Desktop\keyslam\sounds
+Desktop\keyslam\assets
 ```
 
 Settings are saved beside the executable at
 `Desktop\keyslam\settings\settings.json`. KeySlam does not create settings or
 asset folders in AppData or elsewhere on the computer.
 
-Each pack is a folder under `packs`, and each item is a folder inside its pack.
-PNG images and Ogg Opus recordings for one item live together. For example,
-`packs\animals\tiger\` holds every tiger image and sound. Add a new pack folder
-and it appears in the Settings dropdown without a code change or restart.
+All editable game assets are under `assets` beside `keyslam.exe`. The Settings
+button opens this folder directly. KeySlam installs any missing built-in files
+without overwriting existing files, so end-user edits are preserved.
+
+Each pack is a folder under `assets\packs`, and each item is a folder inside its
+pack. PNG images and Ogg Opus recordings for one item live together. For
+example, `assets\packs\animals\tiger\` holds every tiger image and sound. Add a
+new pack folder and it appears in the Settings dropdown without a code change
+or restart.
 
 By default, item folders are assigned to extra keys in alphabetical order. Add
 a `pack.json` file to assign item folders to named keys directly:
@@ -135,18 +144,22 @@ spoken/display name and the fallback shown when no valid PNG exists. A key
 omitted from the manifest displays the generic star item. Numpad digits and
 Decimal, Multiply, and Add always produce KeySlam's built-in shapes.
 
-Development builds run with `cargo run` read `assets\packs` directly, including
-changes made while KeySlam is open. Packaged builds read `packs` beside
-`keyslam.exe`.
+Development builds read the repository `assets` folder directly. Packaged
+builds read `assets` beside `keyslam.exe`.
 
 Put any number of PNG or Opus files in an item folder; KeySlam sorts each type
 alphabetically and cycles through it. New filenames are picked up while the app
 is running. Record only the word represented by a speech folder: clips in
-`sounds\colors\standalone\red` are complete
-utterances of “red,” while clips in `sounds\colors\modifier\red` have the continuing
-delivery used before a clip from `sounds\shapes\circle`. Do not record a combined “red
-circle” clip. The separate `sounds` folder contains letters, numbers, colors,
-and shapes. Existing custom files are never overwritten.
+`assets\sounds\colors\standalone\red` are complete utterances of “red,” while
+clips in `assets\sounds\colors\modifier\red` have the continuing delivery used
+before a clip from `assets\sounds\shapes\circle`. Do not record a combined “red
+circle” clip. `assets\sounds` contains letters, numbers, colors, and shapes.
+Existing custom files are never overwritten.
+
+The editable SVGs in `assets\shapes` control the built-in shapes and faces, and
+`assets\keyslam.png` controls the app icon. Restart KeySlam after editing a
+sound, SVG, or icon because those files are loaded or cached at startup. Pack
+images and manifests are discovered while the app is running.
 
 The image and sound cycles start over when KeySlam restarts. Other file types
 are ignored.
@@ -171,6 +184,7 @@ Source layout:
 | File | Responsibility |
 |---|---|
 | `src/app.rs` | Windows/viewports, input routing, settings UI |
+| `src/assets.rs` | Editable asset root and non-overwriting starter installation |
 | `src/game.rs` | Canonical game state, grouping, placement, animation state |
 | `src/render.rs` | Shapes, faces, emoji, text, pointers, particles |
 | `src/responses.rs` | Deterministic key-to-glyph/picture/shape contract |

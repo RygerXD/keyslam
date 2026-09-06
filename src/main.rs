@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod assets;
 mod audio;
 mod game;
 mod images;
@@ -29,8 +30,8 @@ fn main() -> eframe::Result {
     }
     let windowed = args.iter().any(|argument| argument == "--windowed");
 
-    if let Err(error) = packs::install_builtin_packs() {
-        eprintln!("Could not prepare the item packs folder: {error}");
+    if let Err(error) = assets::install_builtins() {
+        eprintln!("Could not prepare the editable assets folder: {error}");
     }
 
     let instance = match single_instance::SingleInstance::new("KeySlamSingleInstance") {
@@ -67,7 +68,9 @@ fn main() -> eframe::Result {
 }
 
 fn load_icon() -> std::sync::Arc<egui::IconData> {
-    match image::load_from_memory(include_bytes!("../assets/keyslam.png")) {
+    match assets::read("keyslam.png")
+        .and_then(|bytes| image::load_from_memory(&bytes).map_err(std::io::Error::other))
+    {
         Ok(image) => {
             let image = image.into_rgba8();
             let width = image.width();

@@ -36,22 +36,8 @@ const SHAPE_KINDS: [ShapeKind; 13] = [
     ShapeKind::Circle,
 ];
 
-fn shape_svg(kind: ShapeKind) -> &'static [u8] {
-    match kind {
-        ShapeKind::Star => include_bytes!("../assets/shapes/star.svg"),
-        ShapeKind::Cross => include_bytes!("../assets/shapes/cross.svg"),
-        ShapeKind::Heart => include_bytes!("../assets/shapes/heart.svg"),
-        ShapeKind::Oval => include_bytes!("../assets/shapes/oval.svg"),
-        ShapeKind::Rectangle => include_bytes!("../assets/shapes/rectangle.svg"),
-        ShapeKind::Triangle => include_bytes!("../assets/shapes/triangle.svg"),
-        ShapeKind::Square => include_bytes!("../assets/shapes/square.svg"),
-        ShapeKind::Pentagon => include_bytes!("../assets/shapes/pentagon.svg"),
-        ShapeKind::Hexagon => include_bytes!("../assets/shapes/hexagon.svg"),
-        ShapeKind::Septagon => include_bytes!("../assets/shapes/septagon.svg"),
-        ShapeKind::Octagon => include_bytes!("../assets/shapes/octagon.svg"),
-        ShapeKind::Trapezoid => include_bytes!("../assets/shapes/trapezoid.svg"),
-        ShapeKind::Circle => include_bytes!("../assets/shapes/circle.svg"),
-    }
+fn shape_svg(kind: ShapeKind) -> Option<Vec<u8>> {
+    crate::assets::read(format!("shapes/{}.svg", kind.name().to_ascii_lowercase())).ok()
 }
 
 fn svg_layer_color_image(tree: &resvg::usvg::Tree, id: &str) -> Option<(ColorImage, Rect)> {
@@ -126,8 +112,8 @@ fn normalized_node_bounds(tree: &resvg::usvg::Tree, id: &str) -> Option<Rect> {
 }
 
 fn shape_textures(ctx: &Context, kind: ShapeKind) -> Option<ShapeTextures> {
-    let tree =
-        resvg::usvg::Tree::from_data(shape_svg(kind), &resvg::usvg::Options::default()).ok()?;
+    let svg = shape_svg(kind)?;
+    let tree = resvg::usvg::Tree::from_data(&svg, &resvg::usvg::Options::default()).ok()?;
     let name = kind.name().to_lowercase();
     Some(ShapeTextures {
         shadow: svg_layer_texture(ctx, &tree, &format!("shape-{name}-shadow"), "shadow")?,
@@ -139,9 +125,9 @@ fn shape_textures(ctx: &Context, kind: ShapeKind) -> Option<ShapeTextures> {
 }
 
 fn face_textures(ctx: &Context) -> Option<FaceTextures> {
-    let face_svg = include_bytes!("../assets/shapes/face.svg");
-    let tree = resvg::usvg::Tree::from_data(face_svg, &resvg::usvg::Options::default()).ok()?;
-    let closed_svg = std::str::from_utf8(face_svg)
+    let face_svg = crate::assets::read("shapes/face.svg").ok()?;
+    let tree = resvg::usvg::Tree::from_data(&face_svg, &resvg::usvg::Options::default()).ok()?;
+    let closed_svg = std::str::from_utf8(&face_svg)
         .ok()?
         .replace("id=\"eyes-closed\" opacity=\".001\"", "id=\"eyes-closed\"");
     let closed_tree =

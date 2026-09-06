@@ -3,13 +3,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use include_dir::{Dir, include_dir};
 use serde::Deserialize;
-
-#[cfg(not(debug_assertions))]
-use crate::paths::executable_directory;
-
-static BUILTIN_PACKS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/packs");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackItem {
@@ -49,36 +43,7 @@ enum ManifestItem {
 }
 
 pub fn root() -> io::Result<PathBuf> {
-    #[cfg(debug_assertions)]
-    {
-        Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/packs"))
-    }
-    #[cfg(not(debug_assertions))]
-    {
-        executable_directory().map(|directory| directory.join("packs"))
-    }
-}
-
-pub fn install_builtin_packs() -> Result<(), String> {
-    let root = root().map_err(|error| error.to_string())?;
-    copy_dir(&BUILTIN_PACKS, &root)
-}
-
-fn copy_dir(directory: &Dir<'_>, root: &Path) -> Result<(), String> {
-    for file in directory.files() {
-        let destination = root.join(file.path());
-        if destination.exists() {
-            continue;
-        }
-        if let Some(parent) = destination.parent() {
-            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-        }
-        fs::write(destination, file.contents()).map_err(|error| error.to_string())?;
-    }
-    for child in directory.dirs() {
-        copy_dir(child, root)?;
-    }
-    Ok(())
+    crate::assets::path("packs")
 }
 
 pub fn available() -> Vec<String> {
