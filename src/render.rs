@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     sync::OnceLock,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use crate::{
@@ -20,6 +20,8 @@ use eframe::egui::{
 
 const GLYPH_PREWARM_TEXT: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const GLYPH_FONT_SIZE: f32 = 264.0;
+const MAX_CACHED_IMAGES: usize = 128;
+const IMAGE_RETRY_DELAY: Duration = Duration::from_secs(1);
 const SHAPE_KINDS: [ShapeKind; 13] = [
     ShapeKind::Star,
     ShapeKind::Cross,
@@ -150,10 +152,16 @@ pub fn prewarm_glyphs(ctx: &Context) {
 }
 
 pub struct TextureCache {
-    images: HashMap<PathBuf, TextureHandle>,
+    images: HashMap<PathBuf, CachedImage>,
     shapes: HashMap<ShapeKind, ShapeTextures>,
     face: Option<FaceTextures>,
     hand_gradient: TextureHandle,
+}
+
+struct CachedImage {
+    texture: Option<TextureHandle>,
+    last_used: Instant,
+    retry_after: Instant,
 }
 
 struct FaceTextures {
@@ -195,20 +203,46 @@ impl TextureCache {
     }
 
     fn image(&mut self, ctx: &Context, path: &Path) -> Option<&TextureHandle> {
-        if !self.images.contains_key(path) {
-            let bytes = std::fs::read(path).ok()?;
-            let image = image::load_from_memory(&bytes).ok()?.into_rgba8();
-            let size = [image.width() as usize, image.height() as usize];
-            let color_image =
-                eframe::egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
-            let texture = ctx.load_texture(
-                format!("pack-item-{}", path.display()),
-                color_image,
-                TextureOptions::LINEAR,
+        let now = Instant::now();
+        let needs_load = self
+            .images
+            .get(path)
+            .is_none_or(|image| image.texture.is_none() && now >= image.retry_after);
+        if needs_load {
+            if self.images.len() >= MAX_CACHED_IMAGES && !self.images.contains_key(path) {
+                let oldest = self
+                    .images
+                    .iter()
+                    .min_by_key(|(_, image)| image.last_used)
+                    .map(|(path, _)| path.clone());
+                if let Some(oldest) = oldest {
+                    self.images.remove(&oldest);
+                }
+            }
+            // Remember failures briefly so an invalid editable PNG is not decoded every frame.
+            let texture = (|| {
+                let bytes = std::fs::read(path).ok()?;
+                let image = image::load_from_memory(&bytes).ok()?.into_rgba8();
+                let size = [image.width() as usize, image.height() as usize];
+                let color_image = ColorImage::from_rgba_unmultiplied(size, image.as_raw());
+                Some(ctx.load_texture(
+                    format!("pack-item-{}", path.display()),
+                    color_image,
+                    TextureOptions::LINEAR,
+                ))
+            })();
+            self.images.insert(
+                path.to_path_buf(),
+                CachedImage {
+                    texture,
+                    last_used: now,
+                    retry_after: now + IMAGE_RETRY_DELAY,
+                },
             );
-            self.images.insert(path.to_path_buf(), texture);
         }
-        self.images.get(path)
+        let image = self.images.get_mut(path)?;
+        image.last_used = now;
+        image.texture.as_ref()
     }
 }
 
@@ -237,7 +271,11 @@ pub fn draw_figure(
     if rect.width() <= 0.01 || rect.height() <= 0.01 {
         return;
     }
-    let draw_bounds = Rect::from_center_size(center, Vec2::splat(rect.size().length() + 24.0));
+    let item_scale = (rect.height() / 300.0).max(0.1);
+    let draw_bounds = Rect::from_center_size(
+        center,
+        Vec2::splat(rect.size().length() + 24.0 * item_scale),
+    );
     if !painter.clip_rect().intersects(draw_bounds) {
         return;
     }
@@ -285,6 +323,7 @@ fn draw_glyph(
     ));
     text_shape.pos = rect.center() - text_shape.galley.size() / 2.0;
     let outline = with_opacity(border_for(color), opacity * 0.75);
+    let outline_scale = rect.height() / 300.0;
     for offset in [
         vec2(-4.0, 0.0),
         vec2(4.0, 0.0),
@@ -296,7 +335,7 @@ fn draw_glyph(
         vec2(3.0, 3.0),
     ] {
         let mut outline_shape = text_shape.clone();
-        outline_shape.pos += offset;
+        outline_shape.pos += offset * outline_scale;
         outline_shape.fallback_color = outline;
         painter.add(outline_shape.with_angle_and_anchor(angle, Align2::CENTER_CENTER));
     }
@@ -497,11 +536,12 @@ pub fn draw_pointer_effects(
     cache: &TextureCache,
     state: &PointerState,
     now: Instant,
+    ui_scale: f32,
 ) {
-    draw_rainbow_trail(painter, state);
-    draw_trail_marks(painter, &state.trail_marks, now);
+    draw_rainbow_trail(painter, state, ui_scale);
+    draw_trail_marks(painter, &state.trail_marks, now, ui_scale);
     for particle in &state.particles {
-        draw_particle(painter, cache, particle, now);
+        draw_particle(painter, cache, particle, now, ui_scale);
     }
     for ripple in &state.piano_ripples {
         let progress = ripple.progress(now);
@@ -509,7 +549,7 @@ pub fn draw_pointer_effects(
         let opacity = (1.0 - progress).powi(2);
         let color = rgb(ripple.color);
         if let Some(note_label) = &ripple.note_label {
-            let font = FontId::proportional(24.0 + 28.0 * eased);
+            let font = FontId::proportional((24.0 + 28.0 * eased) * ui_scale);
             painter.text(
                 ripple.position + vec2(2.0, 2.0),
                 Align2::CENTER_CENTER,
@@ -528,14 +568,17 @@ pub fn draw_pointer_effects(
             let radius = 8.0 + 82.0 * eased;
             painter.circle_stroke(
                 ripple.position,
-                radius,
-                Stroke::new(3.0 - 1.5 * progress, with_opacity(color, opacity)),
+                radius * ui_scale,
+                Stroke::new(
+                    (3.0 - 1.5 * progress) * ui_scale,
+                    with_opacity(color, opacity),
+                ),
             );
         }
     }
 }
 
-fn draw_rainbow_trail(painter: &Painter, state: &PointerState) {
+fn draw_rainbow_trail(painter: &Painter, state: &PointerState, ui_scale: f32) {
     let rainbow = [
         Color32::RED,
         Color32::from_rgb(255, 145, 0),
@@ -550,7 +593,7 @@ fn draw_rainbow_trail(painter: &Painter, state: &PointerState) {
             painter.line_segment(
                 [pair[0], pair[1]],
                 Stroke::new(
-                    54.0 * fade.max(0.25),
+                    54.0 * ui_scale * fade.max(0.25),
                     with_opacity(rainbow[index % rainbow.len()], state.trail.opacity * fade),
                 ),
             );
@@ -558,7 +601,7 @@ fn draw_rainbow_trail(painter: &Painter, state: &PointerState) {
     }
 }
 
-fn draw_trail_marks(painter: &Painter, marks: &[TrailMark], now: Instant) {
+fn draw_trail_marks(painter: &Painter, marks: &[TrailMark], now: Instant, ui_scale: f32) {
     for pair in marks.windows(2) {
         let [from, to] = pair else {
             continue;
@@ -568,13 +611,13 @@ fn draw_trail_marks(painter: &Painter, marks: &[TrailMark], now: Instant) {
         }
         let progress = (from.progress(now) + to.progress(now)) * 0.5;
         if from.effect == CursorEffect::FadingTrail {
-            draw_fading_segment(painter, from.position, to.position, progress);
+            draw_fading_segment(painter, from.position, to.position, progress, ui_scale);
         }
     }
     for mark in marks {
         let progress = mark.progress(now);
         if mark.effect == CursorEffect::FadingTrail {
-            draw_fading_dot(painter, mark.position, progress);
+            draw_fading_dot(painter, mark.position, progress, ui_scale);
         }
     }
 }
@@ -589,19 +632,23 @@ fn fading_trail_color(progress: f32) -> (Color32, f32) {
     (color, opacity)
 }
 
-fn draw_fading_dot(painter: &Painter, position: Pos2, progress: f32) {
+fn draw_fading_dot(painter: &Painter, position: Pos2, progress: f32, ui_scale: f32) {
     let (color, opacity) = fading_trail_color(progress);
     for (radius, alpha) in [(34.0, 0.08), (30.0, 0.2), (25.0, 1.0)] {
-        painter.circle_filled(position, radius, with_opacity(color, opacity * alpha));
+        painter.circle_filled(
+            position,
+            radius * ui_scale,
+            with_opacity(color, opacity * alpha),
+        );
     }
 }
 
-fn draw_fading_segment(painter: &Painter, from: Pos2, to: Pos2, progress: f32) {
+fn draw_fading_segment(painter: &Painter, from: Pos2, to: Pos2, progress: f32, ui_scale: f32) {
     let (color, opacity) = fading_trail_color(progress);
     for (width, alpha) in [(68.0, 0.08), (60.0, 0.2), (50.0, 1.0)] {
         painter.line_segment(
             [from, to],
-            Stroke::new(width, with_opacity(color, opacity * alpha)),
+            Stroke::new(width * ui_scale, with_opacity(color, opacity * alpha)),
         );
     }
 }
@@ -611,7 +658,13 @@ fn smoothstep(edge_0: f32, edge_1: f32, value: f32) -> f32 {
     amount * amount * (3.0 - 2.0 * amount)
 }
 
-fn draw_particle(painter: &Painter, cache: &TextureCache, particle: &Particle, now: Instant) {
+fn draw_particle(
+    painter: &Painter,
+    cache: &TextureCache,
+    particle: &Particle,
+    now: Instant,
+    ui_scale: f32,
+) {
     let progress =
         (now.duration_since(particle.created).as_secs_f32() / particle.duration).clamp(0.0, 1.0);
     let eased = 1.0 - (1.0 - progress).powi(2);
@@ -628,17 +681,21 @@ fn draw_particle(painter: &Painter, cache: &TextureCache, particle: &Particle, n
         _ => with_opacity(rgb(particle.color), 1.0 - progress),
     };
     if particle.effect == CursorEffect::Bubbles {
-        painter.circle_stroke(position, 18.0 * scale, Stroke::new(4.0, color));
+        painter.circle_stroke(
+            position,
+            18.0 * scale * ui_scale,
+            Stroke::new(4.0 * ui_scale, color),
+        );
         painter.circle_filled(
-            position + vec2(-5.0, -6.0) * scale,
-            3.0 * scale,
+            position + vec2(-5.0, -6.0) * scale * ui_scale,
+            3.0 * scale * ui_scale,
             with_opacity(Color32::WHITE, color.a() as f32 / 255.0),
         );
     } else if let Some(star) = cache.shapes.get(&ShapeKind::Star) {
         let angle = (particle.rotation_from
             + (particle.rotation_to - particle.rotation_from) * progress)
             .to_radians();
-        let particle_rect = Rect::from_center_size(position, Vec2::splat(32.0 * scale));
+        let particle_rect = Rect::from_center_size(position, Vec2::splat(32.0 * scale * ui_scale));
         draw_svg_layer(
             painter,
             &star.fill,
@@ -954,6 +1011,27 @@ fn rotate(point: Pos2, center: Pos2, angle: f32) -> Pos2 {
 mod tests {
     use super::*;
     use crate::game::COLORS;
+
+    #[test]
+    fn image_cache_keeps_recent_textures_and_bounds_failed_loads() {
+        let ctx = Context::default();
+        let mut cache = TextureCache::new(&ctx);
+        let icon = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/keyslam.png");
+        assert!(cache.image(&ctx, &icon).is_some());
+        let missing = Path::new(env!("CARGO_MANIFEST_DIR")).join("target/missing-cache-image.png");
+        assert!(cache.image(&ctx, &missing).is_none());
+        let retry_after = cache.images[&missing].retry_after;
+        assert!(cache.image(&ctx, &missing).is_none());
+        assert_eq!(cache.images[&missing].retry_after, retry_after);
+        for index in 0..MAX_CACHED_IMAGES * 2 {
+            assert!(cache.image(&ctx, &icon).is_some());
+            let path = missing.with_file_name(format!("missing-cache-image-{index}.png"));
+            assert!(cache.image(&ctx, &path).is_none());
+            assert!(cache.images.len() <= MAX_CACHED_IMAGES);
+        }
+        assert!(cache.images.contains_key(&icon));
+        assert!(!cache.images.contains_key(&missing));
+    }
 
     #[test]
     fn only_black_items_receive_white_borders() {

@@ -77,7 +77,7 @@ impl Mixer {
     fn new(receiver: Receiver<AudioCommand>, config: &StreamConfig) -> Self {
         Self {
             receiver,
-            voices: Vec::new(),
+            voices: Vec::with_capacity(MAX_VOICES),
             output_rate: f64::from(config.sample_rate),
             output_channels: usize::from(config.channels),
             sine_frequency: 440.0,
@@ -92,6 +92,9 @@ impl Mixer {
         while let Ok(command) = self.receiver.try_recv() {
             match command {
                 AudioCommand::Play(clips, gain) => {
+                    if clips.is_empty() {
+                        continue;
+                    }
                     if self.voices.len() >= MAX_VOICES {
                         self.voices.remove(0);
                     }
@@ -121,6 +124,9 @@ impl Mixer {
         T: Sample + FromSample<f32>,
     {
         self.drain_commands();
+        let phase_step = self.sine_frequency * std::f32::consts::TAU / self.output_rate as f32;
+        let pan_left = ((1.0 - self.sine_pan) * 0.5).sqrt();
+        let pan_right = ((1.0 + self.sine_pan) * 0.5).sqrt();
         for frame in output.chunks_mut(self.output_channels) {
             let mut left = 0.0;
             let mut right = 0.0;
@@ -140,19 +146,12 @@ impl Mixer {
                 right += sample_right * voice.gain;
                 voice.position += clip.sample_rate / self.output_rate;
             }
-            self.voices.retain(|voice| {
-                voice.clip_index + 1 < voice.clips.len()
-                    || voice.position < voice.clips[voice.clip_index].frames() as f64 - 1.0
-            });
-
             self.sine_volume += (self.sine_target_volume - self.sine_volume) * 0.008;
             if self.sine_volume > 0.0001 {
-                self.sine_phase = (self.sine_phase
-                    + self.sine_frequency * std::f32::consts::TAU / self.output_rate as f32)
-                    % std::f32::consts::TAU;
+                self.sine_phase = (self.sine_phase + phase_step) % std::f32::consts::TAU;
                 let tone = self.sine_phase.sin() * self.sine_volume;
-                left += tone * ((1.0 - self.sine_pan) * 0.5).sqrt();
-                right += tone * ((1.0 + self.sine_pan) * 0.5).sqrt();
+                left += tone * pan_left;
+                right += tone * pan_right;
             }
 
             let left = left.clamp(-1.0, 1.0);
@@ -166,6 +165,11 @@ impl Mixer {
                 *sample = T::from_sample(value);
             }
         }
+        // Retire voices once per buffer instead of compacting the list for every sample.
+        self.voices.retain(|voice| {
+            voice.clip_index + 1 < voice.clips.len()
+                || voice.position < voice.clips[voice.clip_index].frames() as f64 - 1.0
+        });
     }
 }
 
@@ -275,7 +279,8 @@ fn start_speech_workers(
     sounds_root: Option<PathBuf>,
     status: Arc<Mutex<Option<String>>>,
 ) {
-    let cache = Arc::new(Mutex::new(HashMap::<String, Arc<AudioClip>>::new()));
+    // Only this worker accesses decoded speech, so the cache needs no shared lock.
+    let mut cache = HashMap::<PathBuf, Arc<AudioClip>>::new();
     let mut cycles = HashMap::<String, usize>::new();
     let _ = thread::Builder::new()
         .name("speech-loader".to_owned())
@@ -284,7 +289,13 @@ fn start_speech_workers(
                 let clips = keys
                     .iter()
                     .filter_map(|key| {
-                        speech_clip(key, sounds_root.as_deref(), &cache, &mut cycles, &status)
+                        speech_clip(
+                            key,
+                            sounds_root.as_deref(),
+                            &mut cache,
+                            &mut cycles,
+                            &status,
+                        )
                     })
                     .collect::<Vec<_>>();
                 if clips.len() == keys.len() {
@@ -297,7 +308,7 @@ fn start_speech_workers(
 fn speech_clip(
     key: &str,
     sounds_root: Option<&Path>,
-    cache: &Mutex<HashMap<String, Arc<AudioClip>>>,
+    cache: &mut HashMap<PathBuf, Arc<AudioClip>>,
     cycles: &mut HashMap<String, usize>,
     status: &Arc<Mutex<Option<String>>>,
 ) -> Option<Arc<AudioClip>> {
@@ -314,17 +325,12 @@ fn speech_clip(
         set_status(status, format!("Sound folder is empty or missing: {key}"));
         return None;
     };
-    let cache_key = relative.to_string_lossy().into_owned();
-    if let Some(clip) = cache
-        .lock()
-        .ok()
-        .and_then(|clips| clips.get(&cache_key).cloned())
-    {
-        return Some(clip);
+    let external = external_root?.join(&relative);
+    if let Some(clip) = cache.get(&external) {
+        return Some(Arc::clone(clip));
     }
 
-    let external = external_root.map(|root| root.join(&relative));
-    let bytes = external.as_deref().and_then(|path| fs::read(path).ok());
+    let bytes = fs::read(&external).ok();
     let loaded = bytes.and_then(|bytes| match decode_opus(&bytes) {
         Ok(clip) => Some(Arc::new(trim_speech_silence(clip))),
         Err(error) => {
@@ -332,16 +338,14 @@ fn speech_clip(
                 status,
                 format!(
                     "Could not decode speech clip {}: {error}",
-                    external.as_deref().unwrap_or(&relative).display()
+                    external.display()
                 ),
             );
             None
         }
     });
-    if let Some(clip) = &loaded
-        && let Ok(mut clips) = cache.lock()
-    {
-        clips.insert(cache_key, Arc::clone(clip));
+    if let Some(clip) = &loaded {
+        cache.insert(external, Arc::clone(clip));
     }
     loaded
 }
@@ -358,17 +362,16 @@ fn next_speech_clip(
 }
 
 fn speech_clips(relative: &Path, sounds_root: Option<&Path>) -> Vec<PathBuf> {
-    let mut names = std::collections::BTreeSet::new();
+    let mut names = Vec::new();
     if let Some(root) = sounds_root
         && let Ok(entries) = fs::read_dir(root.join(relative))
     {
         for entry in entries.flatten() {
             if is_opus_file(&entry.file_name()) {
-                names.insert(entry.file_name());
+                names.push(entry.file_name());
             }
         }
     }
-    let mut names = names.into_iter().collect::<Vec<_>>();
     names.sort_by_key(|name| name.to_string_lossy().to_ascii_lowercase());
     names.into_iter().map(|name| relative.join(name)).collect()
 }
@@ -520,7 +523,7 @@ fn piano_clip(note: i32) -> AudioClip {
     const DURATION: f32 = 1.25;
     let frequency = 440.0 * 2.0_f32.powf((note - 69) as f32 / 12.0);
     let frames = (SAMPLE_RATE as f32 * DURATION) as usize;
-    let mut samples = Vec::with_capacity(frames * 2);
+    let mut samples = Vec::with_capacity(frames);
     for frame in 0..frames {
         let time = frame as f32 / SAMPLE_RATE as f32;
         let attack = (time / 0.008).min(1.0);
@@ -529,11 +532,11 @@ fn piano_clip(note: i32) -> AudioClip {
             + 0.18 * (std::f32::consts::TAU * frequency * 3.03 * time).sin() * (-5.8 * time).exp()
             + 0.08 * (std::f32::consts::TAU * frequency * 4.08 * time).sin() * (-7.5 * time).exp();
         let sample = signal * attack * 0.45 / 1.68;
-        samples.extend([sample, sample]);
+        samples.push(sample);
     }
     AudioClip {
         samples,
-        channels: 2,
+        channels: 1,
         sample_rate: SAMPLE_RATE as f64,
     }
 }
@@ -541,6 +544,80 @@ fn piano_clip(note: i32) -> AudioClip {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_mixer() -> (Sender<AudioCommand>, Mixer) {
+        let (sender, receiver) = bounded(64);
+        let mixer = Mixer::new(
+            receiver,
+            &StreamConfig {
+                channels: 2,
+                sample_rate: 48_000,
+                buffer_size: cpal::BufferSize::Default,
+            },
+        );
+        (sender, mixer)
+    }
+
+    #[test]
+    fn phrases_cross_clip_boundaries_and_retire_at_buffer_end()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let (sender, mut mixer) = test_mixer();
+        sender.send(AudioCommand::Play(Vec::new(), 1.0))?;
+        sender.send(AudioCommand::Play(
+            vec![
+                Arc::new(AudioClip {
+                    samples: vec![0.1, 0.2, 0.3],
+                    channels: 1,
+                    sample_rate: 48_000.0,
+                }),
+                Arc::new(AudioClip {
+                    samples: vec![0.4, 0.5, 0.6],
+                    channels: 1,
+                    sample_rate: 48_000.0,
+                }),
+            ],
+            1.0,
+        ))?;
+        let mut output = [0.0_f32; 12];
+        mixer.write(&mut output);
+        assert_eq!(
+            output,
+            [0.1, 0.1, 0.2, 0.2, 0.4, 0.4, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0]
+        );
+        assert!(mixer.voices.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn mono_piano_preserves_stereo_output_across_buffers() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let mono = piano_clip(69);
+        assert_eq!(mono.channels, 1);
+        assert_eq!(mono.samples.len(), 55_125);
+        let stereo = AudioClip {
+            samples: mono
+                .samples
+                .iter()
+                .flat_map(|&sample| [sample, sample])
+                .collect(),
+            channels: 2,
+            sample_rate: mono.sample_rate,
+        };
+        let (mono_sender, mut mono_mixer) = test_mixer();
+        let (stereo_sender, mut stereo_mixer) = test_mixer();
+        mono_sender.send(AudioCommand::Play(vec![Arc::new(mono)], 0.5))?;
+        stereo_sender.send(AudioCommand::Play(vec![Arc::new(stereo)], 0.5))?;
+        let mut mono_output = [0.0_f32; 512];
+        let mut stereo_output = [0.0_f32; 512];
+        for _ in 0..240 {
+            mono_mixer.write(&mut mono_output);
+            stereo_mixer.write(&mut stereo_output);
+            assert_eq!(mono_output, stereo_output);
+        }
+        assert!(mono_mixer.voices.is_empty());
+        assert!(stereo_mixer.voices.is_empty());
+        Ok(())
+    }
 
     #[test]
     fn arbitrary_sound_filenames_are_sorted_and_cycled() -> Result<(), Box<dyn std::error::Error>> {

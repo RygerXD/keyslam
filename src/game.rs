@@ -12,6 +12,7 @@ use crate::{
     settings::{CursorEffect, PianoKey, PianoScale, Settings},
 };
 
+const REFERENCE_SCREEN: Vec2 = Vec2::new(1280.0, 800.0);
 const LETTER_ADVANCE: f32 = 208.0;
 const LETTER_PADDING: f32 = 24.0;
 const GLYPH_SIZE: Vec2 = Vec2::new(220.0, 300.0);
@@ -376,13 +377,12 @@ impl Game {
 
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1).max(1);
-        let size = size_for(&kind);
         let placements = if continues_word {
             self.displays
                 .iter()
-                .map(|_| Placement {
+                .map(|display| Placement {
                     top_left: Pos2::ZERO,
-                    size,
+                    size: scaled_size_for(&kind, display.size, settings.item_size_percent),
                     interaction: None,
                 })
                 .collect()
@@ -392,6 +392,10 @@ impl Game {
                 .iter()
                 .enumerate()
                 .map(|(display_index, display)| {
+                    let size = scaled_size_for(&kind, display.size, settings.item_size_percent);
+                    let ui_scale = screen_percent_scale(display.size)
+                        * f32::from(settings.ui_scale_percent)
+                        / 100.0;
                     let mut occupied = self
                         .figures
                         .iter()
@@ -402,16 +406,22 @@ impl Game {
                         })
                         .collect::<Vec<_>>();
                     if display_index == 0 {
-                        occupied.push(Rect::from_min_max(pos2(8.0, 8.0), pos2(330.0, 42.0)));
+                        occupied.push(Rect::from_min_max(
+                            pos2(8.0, 8.0) * ui_scale,
+                            pos2(330.0, 42.0) * ui_scale,
+                        ));
                     }
                     if settings.cursor_effect == CursorEffect::Coloring {
                         occupied.push(Rect::from_min_max(
-                            pos2(0.0, (display.size.y - 72.0).max(0.0)),
+                            pos2(0.0, (display.size.y - 72.0 * ui_scale).max(0.0)),
                             pos2(display.size.x, display.size.y),
                         ));
                         occupied.push(Rect::from_min_max(
-                            pos2(0.0, 52.0),
-                            pos2(70.0, (display.size.y - 72.0).max(52.0)),
+                            pos2(0.0, 52.0 * ui_scale),
+                            pos2(
+                                70.0 * ui_scale,
+                                (display.size.y - 72.0 * ui_scale).max(52.0 * ui_scale),
+                            ),
                         ));
                     }
                     Placement {
@@ -444,6 +454,30 @@ impl Game {
         }
         self.fade_items_over_limit(settings.clear_after, now);
         default_speech
+    }
+
+    pub fn rescale_display(
+        &mut self,
+        display_index: usize,
+        display_size: Vec2,
+        item_size_percent: u8,
+    ) {
+        let Some(display) = self.displays.get_mut(display_index) else {
+            return;
+        };
+        if display.size == display_size && display.item_size_percent == item_size_percent {
+            return;
+        }
+        display.size = display_size;
+        display.item_size_percent = item_size_percent;
+        for figure in &mut self.figures {
+            if let Some(placement) = figure.placements.get_mut(display_index) {
+                let center = placement.rect().center();
+                placement.size = scaled_size_for(&figure.kind, display_size, item_size_percent);
+                placement.top_left = center - placement.size / 2.0;
+            }
+        }
+        self.arrange_letter_run(display_index);
     }
 
     fn fade_items_over_limit(&mut self, item_limit: usize, now: Instant) {
@@ -480,12 +514,17 @@ impl Game {
             return;
         }
         self.figures.retain(|figure| !expired.contains(&figure.id));
-        for display in &mut self.displays {
+        for display_index in 0..self.displays.len() {
+            let display = &mut self.displays[display_index];
+            let previous_len = display.letter_run.len();
             display
                 .letter_run
                 .retain(|figure_id| !expired.contains(figure_id));
             if display.letter_run.is_empty() {
                 display.last_letter = None;
+            }
+            if display.letter_run.len() != previous_len {
+                self.arrange_letter_run(display_index);
             }
         }
     }
@@ -572,23 +611,30 @@ impl Game {
         if ids.is_empty() {
             return;
         }
-        let total_width = GLYPH_SIZE.x + LETTER_ADVANCE * (ids.len() - 1) as f32;
-        let max_left = (display_size.x - LETTER_PADDING - total_width).max(LETTER_PADDING);
-        let mut left = if total_width >= (display_size.x - LETTER_PADDING * 2.0).max(0.0) {
-            display_size.x - LETTER_PADDING - total_width
+        let glyph_scale = self
+            .figures
+            .iter()
+            .find(|figure| ids.contains(&figure.id))
+            .and_then(|figure| figure.placements.get(display_index))
+            .map_or(1.0, |placement| placement.size.x / GLYPH_SIZE.x);
+        let padding = LETTER_PADDING * glyph_scale;
+        let total_width = (GLYPH_SIZE.x + LETTER_ADVANCE * (ids.len() - 1) as f32) * glyph_scale;
+        let max_left = (display_size.x - padding - total_width).max(padding);
+        let mut left = if total_width >= (display_size.x - padding * 2.0).max(0.0) {
+            display_size.x - padding - total_width
         } else {
-            (anchor - total_width / 2.0).clamp(LETTER_PADDING, max_left)
+            (anchor - total_width / 2.0).clamp(padding, max_left)
         };
         let top = requested_top.clamp(
-            LETTER_PADDING,
-            (display_size.y - LETTER_PADDING - GLYPH_SIZE.y).max(LETTER_PADDING),
+            padding,
+            (display_size.y - padding - GLYPH_SIZE.y * glyph_scale).max(padding),
         );
         for figure in &mut self.figures {
             if ids.contains(&figure.id)
                 && let Some(placement) = figure.placements.get_mut(display_index)
             {
                 placement.top_left = pos2(left, top);
-                left += LETTER_ADVANCE;
+                left += LETTER_ADVANCE * glyph_scale;
             }
         }
     }
@@ -718,9 +764,20 @@ pub fn size_for(kind: &FigureKind) -> Vec2 {
     }
 }
 
+pub fn screen_percent_scale(display_size: Vec2) -> f32 {
+    (display_size.x / REFERENCE_SCREEN.x)
+        .min(display_size.y / REFERENCE_SCREEN.y)
+        .max(0.1)
+}
+
+pub fn scaled_size_for(kind: &FigureKind, display_size: Vec2, item_size_percent: u8) -> Vec2 {
+    size_for(kind) * screen_percent_scale(display_size) * (f32::from(item_size_percent) / 100.0)
+}
+
 #[derive(Debug)]
 pub struct DisplayState {
     pub size: Vec2,
+    item_size_percent: u8,
     pub letter_run: Vec<u64>,
     pub letter_anchor_x: f32,
     pub letter_top: f32,
@@ -732,6 +789,7 @@ impl DisplayState {
     fn new(size: Vec2) -> Self {
         Self {
             size,
+            item_size_percent: 100,
             letter_run: Vec::new(),
             letter_anchor_x: 0.0,
             letter_top: 0.0,
@@ -1334,5 +1392,64 @@ mod tests {
         ] {
             assert_eq!(size_for(&FigureKind::Shape(shape)), expected);
         }
+    }
+
+    #[test]
+    fn item_sizes_follow_screen_scale_and_item_percentage() {
+        let glyph = FigureKind::Glyph('A');
+        assert_eq!(screen_percent_scale(vec2(1280.0, 800.0)), 1.0);
+        assert_eq!(screen_percent_scale(vec2(2560.0, 1600.0)), 2.0);
+        assert_eq!(
+            scaled_size_for(&glyph, vec2(2560.0, 1600.0), 50),
+            GLYPH_SIZE
+        );
+        assert_eq!(
+            scaled_size_for(&glyph, vec2(1280.0, 800.0), 150),
+            GLYPH_SIZE * 1.5
+        );
+    }
+
+    #[test]
+    fn display_rescaling_updates_figures_only_when_parameters_change() {
+        let size = vec2(1280.0, 800.0);
+        let mut game = Game::new([size]);
+        game.add_response(
+            response_for("NumPad0"),
+            &Settings::default(),
+            Instant::now(),
+        );
+        let original_size = game.figures[0].placements[0].size;
+        game.rescale_display(0, size, 150);
+        assert_eq!(game.figures[0].placements[0].size, original_size * 1.5);
+        let rect = game.figures[0].placements[0].rect();
+        for _ in 0..100 {
+            game.rescale_display(0, size, 150);
+        }
+        assert_eq!(game.figures[0].placements[0].rect(), rect);
+        game.rescale_display(0, size * 2.0, 150);
+        assert_eq!(game.figures[0].placements[0].size, original_size * 3.0);
+        assert!(
+            game.figures[0].placements[0]
+                .rect()
+                .center()
+                .distance(rect.center())
+                < 0.001
+        );
+    }
+
+    #[test]
+    fn removing_expired_letters_recenters_the_remaining_word() {
+        let mut game = Game::new([vec2(1280.0, 800.0)]);
+        let settings = Settings::default();
+        let now = Instant::now();
+        game.add_response(response_for("A"), &settings, now);
+        game.add_response(response_for("B"), &settings, now);
+        game.displays[0].letter_anchor_x = 640.0;
+        game.arrange_letter_run(0);
+        game.figures[0].start_removal_fade(now);
+        game.remove_expired(now + Duration::from_secs(1));
+        assert_eq!(game.figures.len(), 1);
+        assert_eq!(game.displays[0].letter_run.len(), 1);
+        assert!((game.figures[0].placements[0].rect().center().x - 640.0).abs() < 0.001);
     }
 }

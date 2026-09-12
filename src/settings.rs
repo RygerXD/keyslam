@@ -13,6 +13,10 @@ pub const MIN_FADE_AFTER_SECONDS: f32 = 0.0;
 pub const MAX_FADE_AFTER_SECONDS: f32 = 120.0;
 pub const MIN_ITEMS_KEPT: usize = 5;
 pub const MAX_ITEMS_KEPT: usize = 50;
+pub const MIN_UI_SCALE_PERCENT: u8 = 50;
+pub const MAX_UI_SCALE_PERCENT: u8 = 200;
+pub const MIN_ITEM_SIZE_PERCENT: u8 = 50;
+pub const MAX_ITEM_SIZE_PERCENT: u8 = 200;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SoundMode {
@@ -161,6 +165,7 @@ impl CursorEffect {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Settings {
     pub sound_mode: SoundMode,
     pub extra_key_set: String,
@@ -183,6 +188,8 @@ pub struct Settings {
     pub interaction_animations: bool,
     pub faces_on_shapes: bool,
     pub background_brightness_percent: u8,
+    pub ui_scale_percent: u8,
+    pub item_size_percent: u8,
     pub cursor_effect: CursorEffect,
     pub force_uppercase: bool,
 }
@@ -211,6 +218,8 @@ impl Default for Settings {
             interaction_animations: true,
             faces_on_shapes: true,
             background_brightness_percent: 7,
+            ui_scale_percent: 100,
+            item_size_percent: 100,
             cursor_effect: CursorEffect::Rainbow,
             force_uppercase: true,
         }
@@ -237,6 +246,12 @@ impl Settings {
         self.piano_note_volume_percent = self.piano_note_volume_percent.min(100);
         self.sine_wave_volume_percent = self.sine_wave_volume_percent.min(100);
         self.background_brightness_percent = self.background_brightness_percent.min(100);
+        self.ui_scale_percent = self
+            .ui_scale_percent
+            .clamp(MIN_UI_SCALE_PERCENT, MAX_UI_SCALE_PERCENT);
+        self.item_size_percent = self
+            .item_size_percent
+            .clamp(MIN_ITEM_SIZE_PERCENT, MAX_ITEM_SIZE_PERCENT);
     }
 
     pub fn sound_clip_gain(&self) -> f32 {
@@ -363,6 +378,8 @@ mod tests {
             piano_note_volume_percent: 125,
             sine_wave_volume_percent: 100,
             background_brightness_percent: 250,
+            ui_scale_percent: 0,
+            item_size_percent: 250,
             ..Settings::default()
         };
         settings.normalize();
@@ -375,6 +392,8 @@ mod tests {
         assert_eq!(settings.piano_note_volume_percent, 100);
         assert_eq!(settings.sine_wave_volume_percent, 100);
         assert_eq!(settings.background_brightness_percent, 100);
+        assert_eq!(settings.ui_scale_percent, MIN_UI_SCALE_PERCENT);
+        assert_eq!(settings.item_size_percent, MAX_ITEM_SIZE_PERCENT);
     }
 
     #[test]

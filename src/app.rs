@@ -4,7 +4,7 @@ use crate::{
     audio::AudioSystem,
     game::{
         BabyColor, COLORS, FigureKind, Game, chroma_color_for_note, piano_note, piano_tone,
-        pointer_tone,
+        pointer_tone, screen_percent_scale,
     },
     localization::Localization,
     platform::{
@@ -14,8 +14,10 @@ use crate::{
     render::{self, TextureCache},
     responses::response_for_set,
     settings::{
-        CursorEffect, MAX_FADE_AFTER_SECONDS, MAX_ITEMS_KEPT, MIN_FADE_AFTER_SECONDS,
-        MIN_ITEMS_KEPT, PianoKey, PianoScale, PointerSound, Settings, SettingsStore, SoundMode,
+        CursorEffect, MAX_FADE_AFTER_SECONDS, MAX_ITEM_SIZE_PERCENT, MAX_ITEMS_KEPT,
+        MAX_UI_SCALE_PERCENT, MIN_FADE_AFTER_SECONDS, MIN_ITEM_SIZE_PERCENT, MIN_ITEMS_KEPT,
+        MIN_UI_SCALE_PERCENT, PianoKey, PianoScale, PointerSound, Settings, SettingsStore,
+        SoundMode,
     },
 };
 use crossbeam_channel::{Receiver, bounded};
@@ -202,8 +204,28 @@ struct PianoRollRow {
     bottom: f32,
 }
 
-fn piano_roll_width(display_width: f32) -> f32 {
-    (display_width * 0.1).clamp(PIANO_ROLL_MIN_WIDTH, PIANO_ROLL_MAX_WIDTH)
+#[derive(Default)]
+struct PianoRollLayout {
+    parameters: Option<(Vec2, PianoScale, PianoKey)>,
+    rows: Vec<PianoRollRow>,
+}
+
+impl PianoRollLayout {
+    fn rows(&mut self, display: Vec2, scale: PianoScale, key: PianoKey) -> &[PianoRollRow] {
+        let parameters = (display, scale, key);
+        if self.parameters != Some(parameters) {
+            self.rows = piano_roll_rows(display, scale, key);
+            self.parameters = Some(parameters);
+        }
+        &self.rows
+    }
+}
+
+fn piano_roll_width(display_width: f32, ui_scale: f32) -> f32 {
+    (display_width * 0.1).clamp(
+        PIANO_ROLL_MIN_WIDTH * ui_scale,
+        PIANO_ROLL_MAX_WIDTH * ui_scale,
+    )
 }
 
 fn piano_roll_rows(display: Vec2, scale: PianoScale, key: PianoKey) -> Vec<PianoRollRow> {
@@ -267,13 +289,13 @@ fn piano_note_label(note: i32, key: PianoKey) -> String {
     format!("{}{octave}", names[note.rem_euclid(12) as usize])
 }
 
-fn coloring_layout(display: Vec2) -> ColoringLayout {
-    let margin = 12.0;
-    let gap = 6.0;
-    let clear_width = 112.0_f32.min((display.x * 0.18).max(72.0));
+fn coloring_layout(display: Vec2, ui_scale: f32) -> ColoringLayout {
+    let margin = 12.0 * ui_scale;
+    let gap = 6.0 * ui_scale;
+    let clear_width = (112.0 * ui_scale).min((display.x * 0.18).max(72.0 * ui_scale));
     let color_count = COLORS.len() as f32;
     let swatch_size = ((display.x - margin * 2.0 - clear_width - gap * color_count) / color_count)
-        .clamp(12.0, MAX_COLOR_SWATCH_SIZE);
+        .clamp(12.0 * ui_scale, MAX_COLOR_SWATCH_SIZE * ui_scale);
     let total_width = swatch_size * color_count + gap * color_count + clear_width;
     let start_x = ((display.x - total_width) / 2.0).max(4.0);
     let swatch_top = (display.y - margin - swatch_size).max(0.0);
@@ -291,11 +313,20 @@ fn coloring_layout(display: Vec2) -> ColoringLayout {
         pos2((clear_button.right() + 8.0).min(display.x), display.y),
     );
 
-    let slider_bottom = (bottom_panel.top() - 14.0).max(112.0);
-    let slider_panel = Rect::from_min_max(pos2(10.0, 58.0), pos2(62.0, slider_bottom));
+    let slider_bottom = (bottom_panel.top() - 14.0 * ui_scale).max(112.0 * ui_scale);
+    let slider_panel = Rect::from_min_max(
+        pos2(10.0 * ui_scale, 58.0 * ui_scale),
+        pos2(62.0 * ui_scale, slider_bottom),
+    );
     let slider_track = Rect::from_min_max(
-        pos2(slider_panel.center().x - 4.0, slider_panel.top() + 16.0),
-        pos2(slider_panel.center().x + 4.0, slider_panel.bottom() - 16.0),
+        pos2(
+            slider_panel.center().x - 4.0 * ui_scale,
+            slider_panel.top() + 16.0 * ui_scale,
+        ),
+        pos2(
+            slider_panel.center().x + 4.0 * ui_scale,
+            slider_panel.bottom() - 16.0 * ui_scale,
+        ),
     );
 
     ColoringLayout {
@@ -330,6 +361,10 @@ fn brush_size_for(position: Pos2, track: Rect) -> f32 {
     MIN_BRUSH_SIZE + (MAX_BRUSH_SIZE - MIN_BRUSH_SIZE) * progress
 }
 
+fn ui_scale_for(display_size: Vec2, settings: &Settings) -> f32 {
+    screen_percent_scale(display_size) * f32::from(settings.ui_scale_percent) / 100.0
+}
+
 pub struct KeySlamApp {
     displays: Vec<DisplayConfig>,
     settings: Settings,
@@ -339,6 +374,7 @@ pub struct KeySlamApp {
     audio: AudioSystem,
     textures: TextureCache,
     coloring: ColoringState,
+    piano_layouts: Vec<PianoRollLayout>,
     platform_events: Receiver<PlatformEvent>,
     _keyboard_guard: Option<KeyboardGuard>,
     close_protection: bool,
@@ -368,6 +404,10 @@ impl KeySlamApp {
             .map(|display| display.size)
             .collect::<Vec<_>>();
         let coloring = ColoringState::new(displays.len());
+        let piano_layouts = displays
+            .iter()
+            .map(|_| PianoRollLayout::default())
+            .collect();
         Self {
             displays,
             settings,
@@ -377,6 +417,7 @@ impl KeySlamApp {
             audio,
             textures: TextureCache::new(ctx),
             coloring,
+            piano_layouts,
             platform_events,
             _keyboard_guard: keyboard_guard,
             close_protection,
@@ -463,7 +504,7 @@ impl KeySlamApp {
         }
     }
 
-    fn draw_painting(&self, painter: &Painter, display_index: usize) {
+    fn draw_painting(&self, painter: &Painter, display_index: usize, ui_scale: f32) {
         let Some(strokes) = self.coloring.strokes.get(display_index) else {
             return;
         };
@@ -474,28 +515,39 @@ impl KeySlamApp {
                 stroke.color.rgb[2],
             );
             for pair in stroke.points.windows(2) {
-                painter.line_segment([pair[0], pair[1]], Stroke::new(stroke.brush_size, color));
+                painter.line_segment(
+                    [pair[0], pair[1]],
+                    Stroke::new(stroke.brush_size * ui_scale, color),
+                );
             }
             // Every sampled brush position is capped with the same filled
             // circle as a click. The union forms a continuous stroke with
             // round joins and round ends instead of angular segment seams.
             for point in &stroke.points {
-                painter.circle_filled(*point, stroke.brush_size / 2.0, color);
+                painter.circle_filled(*point, stroke.brush_size * ui_scale / 2.0, color);
             }
         }
     }
 
-    fn draw_coloring_controls(&self, painter: &Painter, display: Vec2) {
-        let layout = coloring_layout(display);
-        painter.rect_filled(layout.bottom_panel, 10.0, Color32::from_black_alpha(205));
-        painter.rect_filled(layout.slider_panel, 10.0, Color32::from_black_alpha(205));
+    fn draw_coloring_controls(&self, painter: &Painter, display: Vec2, ui_scale: f32) {
+        let layout = coloring_layout(display, ui_scale);
+        painter.rect_filled(
+            layout.bottom_panel,
+            10.0 * ui_scale,
+            Color32::from_black_alpha(205),
+        );
+        painter.rect_filled(
+            layout.slider_panel,
+            10.0 * ui_scale,
+            Color32::from_black_alpha(205),
+        );
 
         for (index, swatch) in layout.swatches.iter().enumerate() {
             let center = swatch.center();
             let radius = swatch.width().min(swatch.height()) / 2.0 - 2.0;
             if index == self.coloring.selected_color {
-                painter.circle_filled(center, radius + 3.0, Color32::WHITE);
-                painter.circle_filled(center, radius + 1.0, Color32::BLACK);
+                painter.circle_filled(center, radius + 3.0 * ui_scale, Color32::WHITE);
+                painter.circle_filled(center, radius + 1.0 * ui_scale, Color32::BLACK);
             }
             let color = COLORS[index];
             painter.circle_filled(
@@ -504,16 +556,22 @@ impl KeySlamApp {
                 Color32::from_rgb(color.rgb[0], color.rgb[1], color.rgb[2]),
             );
             if color.rgb == [0, 0, 0] {
-                painter.circle_stroke(center, radius, Stroke::new(2.0, Color32::WHITE));
+                painter.circle_stroke(center, radius, Stroke::new(2.0 * ui_scale, Color32::WHITE));
             }
         }
 
-        painter.rect_filled(layout.clear_button, 7.0, Color32::from_rgb(115, 35, 35));
+        painter.rect_filled(
+            layout.clear_button,
+            7.0 * ui_scale,
+            Color32::from_rgb(115, 35, 35),
+        );
         painter.text(
             layout.clear_button.center(),
             Align2::CENTER_CENTER,
             "Clear screen",
-            FontId::proportional((layout.clear_button.height() * 0.34).clamp(10.0, 16.0)),
+            FontId::proportional(
+                (layout.clear_button.height() * 0.34).clamp(10.0 * ui_scale, 16.0 * ui_scale),
+            ),
             Color32::WHITE,
         );
 
@@ -522,42 +580,52 @@ impl KeySlamApp {
                 layout.slider_track.center_top(),
                 layout.slider_track.center_bottom(),
             ],
-            Stroke::new(8.0, Color32::from_gray(85)),
+            Stroke::new(8.0 * ui_scale, Color32::from_gray(85)),
         );
         let progress =
             (self.coloring.brush_size - MIN_BRUSH_SIZE) / (MAX_BRUSH_SIZE - MIN_BRUSH_SIZE);
         let thumb_y = layout.slider_track.bottom() - layout.slider_track.height() * progress;
         let thumb = pos2(layout.slider_track.center().x, thumb_y);
         let selected = COLORS[self.coloring.selected_color];
-        painter.circle_filled(thumb, 12.0, Color32::WHITE);
+        painter.circle_filled(thumb, 12.0 * ui_scale, Color32::WHITE);
         painter.circle_filled(
             thumb,
-            9.0,
+            9.0 * ui_scale,
             Color32::from_rgb(selected.rgb[0], selected.rgb[1], selected.rgb[2]),
         );
     }
 
-    fn draw_brush_cursor(&self, painter: &Painter, position: Pos2) {
+    fn draw_brush_cursor(&self, painter: &Painter, position: Pos2, ui_scale: f32) {
         let selected = COLORS[self.coloring.selected_color];
-        let radius = self.coloring.brush_size / 2.0;
+        let radius = self.coloring.brush_size * ui_scale / 2.0;
         painter.circle_filled(
             position,
             radius,
             Color32::from_rgba_unmultiplied(selected.rgb[0], selected.rgb[1], selected.rgb[2], 42),
         );
-        painter.circle_stroke(position, radius, Stroke::new(3.0, Color32::BLACK));
-        painter.circle_stroke(position, radius, Stroke::new(1.0, Color32::WHITE));
+        painter.circle_stroke(
+            position,
+            radius,
+            Stroke::new(3.0 * ui_scale, Color32::BLACK),
+        );
+        painter.circle_stroke(
+            position,
+            radius,
+            Stroke::new(1.0 * ui_scale, Color32::WHITE),
+        );
     }
 
     fn draw_piano_roll(
-        &self,
+        &mut self,
         painter: &Painter,
+        display_index: usize,
         rect: Rect,
         pointer_position: Option<Pos2>,
         light_background: bool,
     ) {
         let display = rect.size();
-        let keyboard_width = piano_roll_width(display.x);
+        let ui_scale = ui_scale_for(display, &self.settings);
+        let keyboard_width = piano_roll_width(display.x, ui_scale);
         let keyboard_right = rect.left() + keyboard_width;
         let hovered_note = pointer_position.map(|position| {
             piano_note(
@@ -567,7 +635,7 @@ impl KeySlamApp {
                 self.settings.right_click_piano_key,
             )
         });
-        let rows = piano_roll_rows(
+        let rows = self.piano_layouts[display_index].rows(
             display,
             self.settings.right_click_piano_scale,
             self.settings.right_click_piano_key,
@@ -593,7 +661,7 @@ impl KeySlamApp {
 
             painter.line_segment(
                 [pos2(keyboard_right, top), pos2(rect.right(), top)],
-                Stroke::new(if is_hovered { 2.0 } else { 1.0 }, grid_color),
+                Stroke::new((if is_hovered { 2.0 } else { 1.0 }) * ui_scale, grid_color),
             );
 
             let black_key = is_black_piano_key(row.note);
@@ -611,7 +679,7 @@ impl KeySlamApp {
             painter.rect_stroke(
                 key_rect,
                 0.0,
-                Stroke::new(1.0, Color32::from_gray(75)),
+                Stroke::new(1.0 * ui_scale, Color32::from_gray(75)),
                 egui::StrokeKind::Inside,
             );
             let text_color =
@@ -622,10 +690,12 @@ impl KeySlamApp {
                     Color32::WHITE
                 };
             painter.text(
-                key_rect.right_center() - vec2(7.0, 0.0),
+                key_rect.right_center() - vec2(7.0 * ui_scale, 0.0),
                 Align2::RIGHT_CENTER,
                 piano_note_label(row.note, self.settings.right_click_piano_key),
-                FontId::proportional((key_rect.height() * 0.46).clamp(10.0, 16.0)),
+                FontId::proportional(
+                    (key_rect.height() * 0.46).clamp(10.0 * ui_scale, 16.0 * ui_scale),
+                ),
                 text_color,
             );
         }
@@ -634,17 +704,19 @@ impl KeySlamApp {
                 pos2(keyboard_right, rect.top()),
                 pos2(keyboard_right, rect.bottom()),
             ],
-            Stroke::new(2.0, grid_color),
+            Stroke::new(2.0 * ui_scale, grid_color),
         );
     }
 
     fn render_viewport(&mut self, ui: &mut Ui, display_index: usize) {
         let now = Instant::now();
         let rect = ui.max_rect();
+        self.game
+            .rescale_display(display_index, rect.size(), self.settings.item_size_percent);
         if let Some(display) = self.game.displays.get_mut(display_index) {
-            display.size = rect.size();
             display.pointer.update(now, self.frame_seconds);
         }
+        let ui_scale = ui_scale_for(rect.size(), &self.settings);
         self.handle_input(ui, display_index, now);
         self.game.limit_active_item_animations(now);
 
@@ -652,7 +724,7 @@ impl KeySlamApp {
         let channel = (f32::from(brightness) * 2.55).round() as u8;
         ui.painter()
             .rect_filled(rect, 0.0, Color32::from_gray(channel));
-        self.draw_painting(ui.painter(), display_index);
+        self.draw_painting(ui.painter(), display_index, ui_scale);
         let render_limit = self.settings.clear_after + MAX_RENDERED_FADING_ITEMS;
         let first_rendered = self.game.figures.len().saturating_sub(render_limit);
         for figure in self.game.figures.iter().skip(first_rendered) {
@@ -672,10 +744,22 @@ impl KeySlamApp {
             .get(display_index)
             .and_then(|display| display.pointer.position);
         if !self.options_open && self.settings.cursor_effect == CursorEffect::PianoRoll {
-            self.draw_piano_roll(ui.painter(), rect, pointer_position, brightness >= 55);
+            self.draw_piano_roll(
+                ui.painter(),
+                display_index,
+                rect,
+                pointer_position,
+                brightness >= 55,
+            );
         }
         if let Some(display) = self.game.displays.get(display_index) {
-            render::draw_pointer_effects(ui.painter(), &self.textures, &display.pointer, now);
+            render::draw_pointer_effects(
+                ui.painter(),
+                &self.textures,
+                &display.pointer,
+                now,
+                ui_scale,
+            );
         }
 
         if display_index == 0 {
@@ -687,34 +771,35 @@ impl KeySlamApp {
             };
             let instruction_left =
                 if !self.options_open && self.settings.cursor_effect == CursorEffect::PianoRoll {
-                    piano_roll_width(rect.width())
+                    piano_roll_width(rect.width(), ui_scale)
                 } else {
                     0.0
                 };
             ui.painter().text(
-                rect.left_top() + vec2(instruction_left + 15.0, 15.0),
+                rect.left_top() + vec2(instruction_left + 15.0 * ui_scale, 15.0 * ui_scale),
                 Align2::LEFT_TOP,
                 "Alt+F4 exits • Alt+O opens settings",
-                FontId::proportional(14.0),
+                FontId::proportional(14.0 * ui_scale),
                 secondary,
             );
         }
         if let Some(position) = pointer_position {
             ui.ctx().set_cursor_icon(egui::CursorIcon::None);
             if !self.options_open && self.settings.cursor_effect == CursorEffect::Coloring {
-                self.draw_brush_cursor(ui.painter(), position);
+                self.draw_brush_cursor(ui.painter(), position, ui_scale);
             }
         }
 
         if !self.options_open && self.settings.cursor_effect == CursorEffect::Coloring {
-            self.draw_coloring_controls(ui.painter(), rect.size());
+            self.draw_coloring_controls(ui.painter(), rect.size(), ui_scale);
         }
         if let Some(position) = pointer_position {
             let scale = self
                 .game
                 .displays
                 .get(display_index)
-                .map_or(1.0, |display| display.pointer.cursor_scale(now));
+                .map_or(1.0, |display| display.pointer.cursor_scale(now))
+                * ui_scale;
             let cursor_painter = ui.ctx().layer_painter(LayerId::new(
                 Order::Debug,
                 Id::new(("keyslam-custom-cursor", display_index)),
@@ -727,7 +812,8 @@ impl KeySlamApp {
         let Some(display) = self.game.displays.get_mut(display_index) else {
             return;
         };
-        let layout = coloring_layout(display.size);
+        let ui_scale = ui_scale_for(display.size, &self.settings);
+        let layout = coloring_layout(display.size, ui_scale);
         if !self
             .coloring
             .update_dragged_brush_size(display_index, position, layout.slider_track)
@@ -762,7 +848,8 @@ impl KeySlamApp {
         }
 
         display.pointer.press(position, CursorEffect::Coloring, now);
-        let layout = coloring_layout(display.size);
+        let ui_scale = ui_scale_for(display.size, &self.settings);
+        let layout = coloring_layout(display.size, ui_scale);
         match coloring_control_at(position, &layout) {
             ColoringControl::Canvas => self.coloring.begin_stroke(display_index, position),
             ColoringControl::Swatch(index) => {
@@ -1100,6 +1187,13 @@ impl eframe::App for KeySlamApp {
 
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        // `max_rect` is expressed in logical points, so multiply by the current zoom to
+        // recover the unscaled screen size before choosing the next UI zoom. This keeps the
+        // percentage stable when the setting itself changes or a window is resized.
+        let screen_size = ui.max_rect().size() * ctx.zoom_factor().max(0.1);
+        let ui_zoom =
+            screen_percent_scale(screen_size) * f32::from(self.settings.ui_scale_percent) / 100.0;
+        ctx.set_zoom_factor(ui_zoom);
         if !self.resources_prewarmed {
             render::prewarm_glyphs(&ctx);
             self.resources_prewarmed = true;
@@ -1310,6 +1404,27 @@ fn sound_options(ui: &mut Ui, settings: &mut Settings) {
 
 fn appearance_options(ui: &mut Ui, settings: &mut Settings) -> Option<String> {
     let mut status = None;
+    section(ui, "Sizing", |ui| {
+        full_width_slider(
+            ui,
+            egui::Slider::new(
+                &mut settings.ui_scale_percent,
+                MIN_UI_SCALE_PERCENT..=MAX_UI_SCALE_PERCENT,
+            )
+            .text("UI scaling")
+            .suffix("%"),
+        );
+        full_width_slider(
+            ui,
+            egui::Slider::new(
+                &mut settings.item_size_percent,
+                MIN_ITEM_SIZE_PERCENT..=MAX_ITEM_SIZE_PERCENT,
+            )
+            .text("Item size scaling")
+            .suffix("%"),
+        );
+        ui.label("Both sizes are relative to the screen, so they stay consistent across displays.");
+    });
     section(ui, "Background", |ui| {
         full_width_slider(
             ui,
@@ -1468,8 +1583,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn piano_layout_tracks_resize_scale_and_key_changes() {
+        let mut layout = PianoRollLayout::default();
+        for (display, scale, key) in [
+            (vec2(1280.0, 800.0), PianoScale::Chromatic, PianoKey::C),
+            (vec2(1280.0, 800.0), PianoScale::Major, PianoKey::C),
+            (vec2(1280.0, 800.0), PianoScale::Major, PianoKey::D),
+            (vec2(1920.0, 1080.0), PianoScale::Minor, PianoKey::D),
+        ] {
+            let rows = layout.rows(display, scale, key);
+            assert!(!rows.is_empty());
+            assert_eq!(rows[0].top, 0.0);
+            assert_eq!(rows[rows.len() - 1].bottom, display.y);
+            for row in rows {
+                assert_eq!(
+                    row.note,
+                    piano_note(pos2(0.0, (row.top + row.bottom) * 0.5), display, scale, key)
+                );
+            }
+            let allocation = layout.rows.as_ptr();
+            assert_eq!(layout.rows(display, scale, key).as_ptr(), allocation);
+        }
+    }
+
+    #[test]
     fn coloring_layout_exposes_all_swatches_and_clear_button() {
-        let layout = coloring_layout(vec2(1280.0, 800.0));
+        let layout = coloring_layout(vec2(1280.0, 800.0), 1.0);
         assert_eq!(layout.swatches.len(), COLORS.len());
         assert_eq!(layout.swatches[0].width(), MAX_COLOR_SWATCH_SIZE);
         for (index, swatch) in layout.swatches.iter().enumerate() {
@@ -1486,7 +1625,7 @@ mod tests {
 
     #[test]
     fn brush_slider_maps_bottom_to_small_and_top_to_large() {
-        let layout = coloring_layout(vec2(1280.0, 800.0));
+        let layout = coloring_layout(vec2(1280.0, 800.0), 1.0);
         assert_eq!(
             brush_size_for(layout.slider_track.center_bottom(), layout.slider_track),
             MIN_BRUSH_SIZE
@@ -1499,7 +1638,7 @@ mod tests {
 
     #[test]
     fn dragging_brush_slider_updates_the_live_brush_size() {
-        let layout = coloring_layout(vec2(1280.0, 800.0));
+        let layout = coloring_layout(vec2(1280.0, 800.0), 1.0);
         let mut coloring = ColoringState::new(1);
         coloring.slider_dragging[0] = true;
 

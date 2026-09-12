@@ -99,6 +99,11 @@ cargo build --release
 
 The result is `target/release/keyslam.exe` on Windows.
 
+Release builds use full link-time optimization and a single code generation unit
+to reduce executable size while retaining speed optimizations. This makes release
+compilation slower; regular development builds are unaffected. The WAV decoder
+is a development-only dependency for `examples/encode_speech.rs`.
+
 ## Editable assets
 
 Keep `keyslam.exe` in a folder named `keyslam` on the Desktop. The first time
@@ -172,6 +177,11 @@ are ignored.
   its own placement and pointer state, avoiding duplicate gameplay logic.
 - Audio uses one bounded, nonblocking mixer. It resamples effects, decodes
   pre-recorded Opus speech, and caps simultaneous voices.
+- Piano samples are stored once in mono and mixed to stereo. Voice cleanup and
+  sine pan calculations run once per audio buffer.
+- Display sizing and piano key boundaries are recalculated only when their
+  inputs change. The image texture cache retains at most 128 recently used
+  entries; invalid images are retried at most once per second while cached.
 - Missing or invalid speech clips produce a warning in settings while the
   visual game continues.
 - Active figures and cursor particles are bounded. Figures displaced by the
