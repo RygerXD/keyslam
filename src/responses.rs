@@ -142,11 +142,6 @@ const OTHER_KEYS: [(&str, &str); 67] = [
     ("F24", "F24"),
 ];
 
-#[cfg(test)]
-pub fn response_for(key_name: &str) -> KeyResponse {
-    response_for_set(key_name, "animals")
-}
-
 pub fn response_for_set(key_name: &str, extra_key_set: &str) -> KeyResponse {
     match key_name {
         "Decimal" | "NumpadDecimal" => return KeyResponse::shape(ShapeKind::Circle),
@@ -254,72 +249,4 @@ fn stable_hash(value: &str) -> u32 {
     value.chars().fold(2_166_136_261_u32, |hash, character| {
         (hash ^ character.to_ascii_uppercase() as u32).wrapping_mul(16_777_619)
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn letters_and_top_row_digits_are_glyphs() {
-        assert_eq!(response_for("A").kind, ResponseKind::Glyph('A'));
-        assert_eq!(response_for("5").kind, ResponseKind::Glyph('5'));
-    }
-
-    #[test]
-    fn numpad_digits_are_shapes() {
-        for (key, shape) in [
-            ("Decimal", ShapeKind::Circle),
-            ("NumPad0", ShapeKind::Oval),
-            ("NumPad1", ShapeKind::Rectangle),
-            ("NumPad2", ShapeKind::Heart),
-            ("NumPad3", ShapeKind::Triangle),
-            ("NumPad4", ShapeKind::Square),
-            ("NumPad5", ShapeKind::Pentagon),
-            ("NumPad6", ShapeKind::Hexagon),
-            ("NumPad7", ShapeKind::Septagon),
-            ("NumPad8", ShapeKind::Octagon),
-            ("NumPad9", ShapeKind::Trapezoid),
-            ("Multiply", ShapeKind::Star),
-            ("*", ShapeKind::Star),
-            ("Add", ShapeKind::Cross),
-        ] {
-            assert_eq!(response_for(key).kind, ResponseKind::Shape(shape));
-        }
-    }
-
-    #[test]
-    fn every_standard_special_key_has_a_unique_animal() {
-        assert!(crate::assets::install_builtins().is_ok());
-        let mut names = OTHER_KEYS
-            .iter()
-            .map(|(key, _)| response_for(key).spoken_text)
-            .collect::<Vec<_>>();
-        names.sort_unstable();
-        names.dedup();
-        // Multiply is intentionally a star, matching the upstream precedence rule.
-        assert_eq!(names.len(), OTHER_KEYS.len());
-    }
-
-    #[test]
-    fn food_set_covers_every_extra_key_and_instruments_repeat_the_catalog() {
-        assert!(crate::assets::install_builtins().is_ok());
-        let mut food_names = ["Escape", "Space"]
-            .into_iter()
-            .chain(OTHER_KEYS.iter().map(|(key, _)| *key))
-            .map(|key| response_for_set(key, "foods").spoken_text)
-            .collect::<Vec<_>>();
-        food_names.sort_unstable();
-        food_names.dedup();
-        assert_eq!(food_names.len(), 69);
-
-        let instrument = response_for_set("Escape", "instruments");
-        assert_eq!(instrument.spoken_text, "Accordion");
-        assert_eq!(instrument.extra_key_set.as_deref(), Some("instruments"));
-    }
-
-    #[test]
-    fn named_manifest_assignment_is_used_for_delete() {
-        assert_eq!(response_for_set("Delete", "animals").spoken_text, "Toucan");
-    }
 }

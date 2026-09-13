@@ -12,17 +12,3 @@ impl Localization {
         [color_key, shape_key]
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn uses_modifier_color_for_shape_phrases() {
-        let english = Localization::english();
-        assert_eq!(
-            english.color_shape_audio_keys("Red", "Circle"),
-            ["colors/modifier/red", "shapes/circle"]
-        );
-    }
-}

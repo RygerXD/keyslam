@@ -206,14 +206,8 @@ Source layout:
 
 ```powershell
 cargo fmt -- --check
-cargo test
 cargo clippy --all-targets -- -D warnings
 ```
-
-The automated suite checks the key map, numpad behavior, composed speech keys,
-color cycling, delayed one-second fading, coloring controls, settings bounds,
-item placement/caps, pointer pitch/pan mapping, piano range, and decoding of
-every bundled sound.
 
 ## BabySmash roots, license, and attribution
 

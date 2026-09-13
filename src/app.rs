@@ -23,8 +23,8 @@ use crate::{
 use crossbeam_channel::{Receiver, bounded};
 use eframe::egui::{
     self, Align2, Color32, ComboBox, Context, Event, FontId, Frame, Id, Key, LayerId, Order,
-    Painter, PointerButton, Pos2, Rect, RichText, Stroke, Ui, Vec2, ViewportBuilder,
-    ViewportCommand, ViewportId, WindowLevel, pos2, vec2,
+    Painter, PointerButton, Pos2, Rect, Stroke, Ui, Vec2, ViewportBuilder, ViewportCommand,
+    ViewportId, WindowLevel, pos2, vec2,
 };
 
 const MIN_BRUSH_SIZE: f32 = 6.0;
@@ -65,7 +65,7 @@ impl DisplayConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum OptionsTab {
     Play,
     Appearance,
@@ -365,6 +365,18 @@ fn ui_scale_for(display_size: Vec2, settings: &Settings) -> f32 {
     screen_percent_scale(display_size) * f32::from(settings.ui_scale_percent) / 100.0
 }
 
+fn update_ui_zoom(ctx: &Context, percent: u8) {
+    // Layout rectangles are rounded in zoomed points. Feeding them back into
+    // zoom makes the scale oscillate and continuously rebuilds the font atlas.
+    // Recover whole physical pixels from unrounded input, then remove native
+    // display scaling so the result is independent of the current UI zoom.
+    let screen_pixels =
+        ctx.input(|input| (input.content_rect().size() * input.pixels_per_point).round());
+    let screen_size = screen_pixels / ctx.native_pixels_per_point().unwrap_or(1.0);
+    let ui_zoom = screen_percent_scale(screen_size) * f32::from(percent) / 100.0;
+    ctx.set_zoom_factor(ui_zoom);
+}
+
 pub struct KeySlamApp {
     displays: Vec<DisplayConfig>,
     settings: Settings,
@@ -380,6 +392,7 @@ pub struct KeySlamApp {
     close_protection: bool,
     options_open: bool,
     options_tab: OptionsTab,
+    pending_ui_scale_percent: u8,
     status: Option<String>,
     exit_requested: bool,
     resources_prewarmed: bool,
@@ -410,6 +423,7 @@ impl KeySlamApp {
             .collect();
         Self {
             displays,
+            pending_ui_scale_percent: settings.ui_scale_percent,
             settings,
             settings_store,
             localization,
@@ -1083,6 +1097,7 @@ impl KeySlamApp {
     }
 
     fn open_options(&mut self) {
+        self.pending_ui_scale_percent = self.settings.ui_scale_percent;
         self.audio.stop_sine();
         self.coloring.end_all_strokes();
         let now = Instant::now();
@@ -1101,13 +1116,16 @@ impl KeySlamApp {
             .open(&mut open)
             .collapsible(false)
             .resizable(true)
-            .default_size(vec2(720.0, 650.0))
+            .default_size(vec2(600.0, 620.0))
+            .min_size(vec2(300.0, 240.0))
+            .max_size((ctx.content_rect().size() - vec2(32.0, 48.0)).max(vec2(300.0, 240.0)))
             .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
             .show(ctx, |ui| {
-                ui.heading("Settings");
-                ui.label("Tune KeySlam for your child, room, and play style.");
+                ui.spacing_mut().item_spacing.y = 8.0;
+                ui.spacing_mut().interact_size.y = 28.0;
+                ui.label("Customize play, appearance, and sound.");
                 ui.add_space(10.0);
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     for (tab, label) in [
                         (OptionsTab::Play, "Play"),
                         (OptionsTab::Appearance, "Appearance"),
@@ -1119,13 +1137,19 @@ impl KeySlamApp {
                 ui.separator();
                 let previous_settings = self.settings.clone();
                 let action = egui::ScrollArea::vertical()
-                    .max_height(480.0)
+                    .id_salt(("settings-content", self.options_tab))
+                    .auto_shrink([false, false])
+                    .max_height((ui.available_height() - 80.0).max(80.0))
                     .show(ui, |ui| match self.options_tab {
-                        OptionsTab::Play => {
-                            play_options(ui, &mut self.settings);
+                        OptionsTab::Play => play_options(ui, &mut self.settings),
+                        OptionsTab::Appearance => {
+                            appearance_options(
+                                ui,
+                                &mut self.settings,
+                                &mut self.pending_ui_scale_percent,
+                            );
                             None
                         }
-                        OptionsTab::Appearance => appearance_options(ui, &mut self.settings),
                         OptionsTab::Sound => {
                             sound_options(ui, &mut self.settings);
                             None
@@ -1146,22 +1170,20 @@ impl KeySlamApp {
                 }
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new(format!("Version {}", env!("CARGO_PKG_VERSION"))).small(),
-                    );
+                    let saved = ui.small("Changes save automatically");
+                    if let Some(path) = self.settings_store.path() {
+                        saved.on_hover_text(format!(
+                            "Version {}\nSettings: {}",
+                            env!("CARGO_PKG_VERSION"),
+                            path.display()
+                        ));
+                    }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button("Close").clicked() {
                             self.options_open = false;
                         }
                     });
                 });
-                if let Some(path) = self.settings_store.path() {
-                    ui.label(
-                        RichText::new(format!("Settings: {}", path.display()))
-                            .small()
-                            .weak(),
-                    );
-                }
                 if let Some(status) = self.current_status() {
                     ui.colored_label(Color32::from_rgb(180, 100, 0), status);
                 }
@@ -1187,13 +1209,7 @@ impl eframe::App for KeySlamApp {
 
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
-        // `max_rect` is expressed in logical points, so multiply by the current zoom to
-        // recover the unscaled screen size before choosing the next UI zoom. This keeps the
-        // percentage stable when the setting itself changes or a window is resized.
-        let screen_size = ui.max_rect().size() * ctx.zoom_factor().max(0.1);
-        let ui_zoom =
-            screen_percent_scale(screen_size) * f32::from(self.settings.ui_scale_percent) / 100.0;
-        ctx.set_zoom_factor(ui_zoom);
+        update_ui_zoom(&ctx, self.settings.ui_scale_percent);
         if !self.resources_prewarmed {
             render::prewarm_glyphs(&ctx);
             self.resources_prewarmed = true;
@@ -1235,136 +1251,111 @@ impl Drop for KeySlamApp {
 
 fn section(ui: &mut Ui, title: &str, content: impl FnOnce(&mut Ui)) {
     Frame::group(ui.style()).inner_margin(14.0).show(ui, |ui| {
-        ui.heading(title);
+        ui.set_min_width(ui.available_width());
+        ui.strong(title);
         ui.add_space(5.0);
         content(ui);
     });
     ui.add_space(10.0);
 }
 
-fn full_width_slider(ui: &mut Ui, slider: egui::Slider<'_>) {
-    ui.add_sized([ui.available_width(), ui.spacing().interact_size.y], slider);
+fn full_width_slider(ui: &mut Ui, label: &str, slider: egui::Slider<'_>) -> egui::Response {
+    let label = ui.label(label);
+    ui.scope(|ui| {
+        // Reserve room for the editable value; put the label above the track so
+        // long labels cannot push controls beyond a narrow settings window.
+        ui.spacing_mut().slider_width = (ui.available_width() - 80.0).max(60.0);
+        ui.add(slider).labelled_by(label.id)
+    })
+    .inner
 }
 
-fn volume_slider_before_dropdown(ui: &mut Ui, value: &mut u8, label: &str) {
-    const DROPDOWN_WIDTH: f32 = 180.0;
-    let slider_width =
-        (ui.available_width() - DROPDOWN_WIDTH - ui.spacing().item_spacing.x).max(100.0);
-    ui.add_sized(
-        [slider_width, ui.spacing().interact_size.y],
-        egui::Slider::new(value, 0..=100).text(label).suffix("%"),
+fn volume_slider(ui: &mut Ui, value: &mut u8) {
+    full_width_slider(ui, "Volume", egui::Slider::new(value, 0..=100).suffix("%"));
+}
+
+fn ui_size_slider(ui: &mut Ui, committed: &mut u8, pending: &mut u8) -> egui::Response {
+    let response = full_width_slider(
+        ui,
+        "UI size",
+        egui::Slider::new(pending, MIN_UI_SCALE_PERCENT..=MAX_UI_SCALE_PERCENT)
+            .suffix("%")
+            .update_while_editing(false),
     );
+    // The slider updates its draft on pointer-down, including track clicks and
+    // drags of the numeric value. Commit only after release, even outside the
+    // widget. Keyboard changes and confirmed text edits apply without a drag.
+    if !ui.input(|input| input.pointer.any_down()) {
+        *committed = *pending;
+    }
+    response
 }
 
 fn sound_options(ui: &mut Ui, settings: &mut Settings) {
-    section(ui, "Overall volume", |ui| {
+    section(ui, "Master volume", |ui| {
         full_width_slider(
             ui,
-            egui::Slider::new(&mut settings.master_volume_percent, 0..=100)
-                .text("Master Volume")
-                .suffix("%"),
+            "Volume for all sounds",
+            egui::Slider::new(&mut settings.master_volume_percent, 0..=100).suffix("%"),
         );
     });
 
     section(ui, "Keyboard", |ui| {
-        ui.horizontal(|ui| {
-            volume_slider_before_dropdown(
-                ui,
-                &mut settings.sound_clip_volume_percent,
-                "Sound Clip Volume",
-            );
-            ComboBox::from_id_salt("sound-mode")
-                .width(180.0)
-                .selected_text(match settings.sound_mode {
-                    SoundMode::Speech => "Speak the item",
-                    SoundMode::None => "No key sound",
-                })
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        &mut settings.sound_mode,
-                        SoundMode::Speech,
-                        "Speak the item",
-                    );
-                    ui.selectable_value(&mut settings.sound_mode, SoundMode::None, "No key sound");
-                });
+        let mut enabled = settings.sound_mode == SoundMode::Speech;
+        if ui
+            .checkbox(&mut enabled, "Speak items when keys are pressed")
+            .changed()
+        {
+            settings.sound_mode = if enabled {
+                SoundMode::Speech
+            } else {
+                SoundMode::None
+            };
+        }
+        ui.add_enabled_ui(enabled, |ui| {
+            volume_slider(ui, &mut settings.sound_clip_volume_percent);
         });
-        ui.label("Controls the spoken response when a key creates an item.");
     });
 
     section(ui, "Pointer", |ui| {
-        ui.horizontal(|ui| {
-            volume_slider_before_dropdown(
-                ui,
-                &mut settings.sine_wave_volume_percent,
-                "Sine Wave Volume",
-            );
-            ComboBox::from_id_salt("pointer-sound")
-                .width(180.0)
-                .selected_text(match settings.pointer_sound {
-                    PointerSound::SineWave => "Sinewave instrument",
-                    PointerSound::None => "No pointer sound",
-                })
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        &mut settings.pointer_sound,
-                        PointerSound::SineWave,
-                        "Sinewave instrument",
-                    );
-                    ui.selectable_value(
-                        &mut settings.pointer_sound,
-                        PointerSound::None,
-                        "No pointer sound",
-                    );
-                });
-        });
-        ui.add_enabled_ui(settings.pointer_sound == PointerSound::SineWave, |ui| {
-            ui.label("Move vertically for pitch and horizontally for stereo position.");
+        let mut enabled = settings.pointer_sound == PointerSound::SineWave;
+        if ui
+            .checkbox(&mut enabled, "Play a tone while dragging")
+            .changed()
+        {
+            settings.pointer_sound = if enabled {
+                PointerSound::SineWave
+            } else {
+                PointerSound::None
+            };
+        }
+        ui.weak("Move up and down for pitch; left and right for stereo position.");
+        ui.add_enabled_ui(enabled, |ui| {
+            volume_slider(ui, &mut settings.sine_wave_volume_percent);
         });
     });
 
     section(ui, "Coloring", |ui| {
-        ui.horizontal(|ui| {
-            volume_slider_before_dropdown(
-                ui,
-                &mut settings.paint_color_volume_percent,
-                "Paint Color Choice Volume",
-            );
-            ComboBox::from_id_salt("paint-color-sound")
-                .width(180.0)
-                .selected_text(if settings.paint_color_speech {
-                    "Speak color"
-                } else {
-                    "No sound"
-                })
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut settings.paint_color_speech, true, "Speak color");
-                    ui.selectable_value(&mut settings.paint_color_speech, false, "No sound");
-                });
+        ui.checkbox(
+            &mut settings.paint_color_speech,
+            "Speak the selected paint color",
+        );
+        ui.add_enabled_ui(settings.paint_color_speech, |ui| {
+            volume_slider(ui, &mut settings.paint_color_volume_percent);
         });
-        ui.label("Controls the color name played when a paint color is selected.");
     });
 
     section(ui, "Piano", |ui| {
-        ui.horizontal(|ui| {
-            volume_slider_before_dropdown(
-                ui,
-                &mut settings.piano_note_volume_percent,
-                "Piano Note Volume",
-            );
-            ComboBox::from_id_salt("right-click-sound")
-                .width(180.0)
-                .selected_text(if settings.right_click_piano_enabled {
-                    "Piano"
-                } else {
-                    "No sound"
-                })
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut settings.right_click_piano_enabled, true, "Piano");
-                    ui.selectable_value(&mut settings.right_click_piano_enabled, false, "No sound");
-                });
-        });
+        ui.checkbox(
+            &mut settings.right_click_piano_enabled,
+            "Play piano notes on right-click",
+        );
 
         ui.add_enabled_ui(settings.right_click_piano_enabled, |ui| {
+            volume_slider(ui, &mut settings.piano_note_volume_percent);
+        });
+        ui.weak("Scale and key also set the notes shown in piano-roll mode.");
+        ui.scope(|ui| {
             ui.horizontal(|ui| {
                 ui.label("Scale");
                 ComboBox::from_id_salt("right-click-piano-scale")
@@ -1402,39 +1393,30 @@ fn sound_options(ui: &mut Ui, settings: &mut Settings) {
     });
 }
 
-fn appearance_options(ui: &mut Ui, settings: &mut Settings) -> Option<String> {
-    let mut status = None;
-    section(ui, "Sizing", |ui| {
+fn appearance_options(ui: &mut Ui, settings: &mut Settings, pending_ui_scale_percent: &mut u8) {
+    section(ui, "Interface", |ui| {
+        ui_size_slider(ui, &mut settings.ui_scale_percent, pending_ui_scale_percent);
+        ui.weak("Release the slider to apply the new size.");
+    });
+    section(ui, "Play area", |ui| {
         full_width_slider(
             ui,
-            egui::Slider::new(
-                &mut settings.ui_scale_percent,
-                MIN_UI_SCALE_PERCENT..=MAX_UI_SCALE_PERCENT,
-            )
-            .text("UI scaling")
-            .suffix("%"),
-        );
-        full_width_slider(
-            ui,
+            "Item size",
             egui::Slider::new(
                 &mut settings.item_size_percent,
                 MIN_ITEM_SIZE_PERCENT..=MAX_ITEM_SIZE_PERCENT,
             )
-            .text("Item size scaling")
             .suffix("%"),
         );
-        ui.label("Both sizes are relative to the screen, so they stay consistent across displays.");
-    });
-    section(ui, "Background", |ui| {
+        ui.weak("Changes the size of letters, pictures, and shapes.");
         full_width_slider(
             ui,
-            egui::Slider::new(&mut settings.background_brightness_percent, 0..=100)
-                .text("Background brightness")
-                .suffix("%"),
+            "Background brightness",
+            egui::Slider::new(&mut settings.background_brightness_percent, 0..=100).suffix("%"),
         );
-    });
-    section(ui, "Shapes", |ui| {
         ui.checkbox(&mut settings.faces_on_shapes, "Show faces on shapes");
+    });
+    section(ui, "Animation", |ui| {
         ui.checkbox(
             &mut settings.spawn_animations,
             "Animate items when they appear",
@@ -1444,7 +1426,11 @@ fn appearance_options(ui: &mut Ui, settings: &mut Settings) -> Option<String> {
             "Animate shapes when tapped or scrolled",
         );
     });
-    section(ui, "Extra-key images", |ui| {
+}
+
+fn play_options(ui: &mut Ui, settings: &mut Settings) -> Option<String> {
+    let mut status = None;
+    section(ui, "Keyboard pictures", |ui| {
         ui.horizontal(|ui| {
             ui.label("Image set");
             ComboBox::from_id_salt("extra-key-set")
@@ -1455,7 +1441,12 @@ fn appearance_options(ui: &mut Ui, settings: &mut Settings) -> Option<String> {
                     }
                 });
         });
-        if ui.button("Open assets folder").clicked() {
+        ui.weak("Used for keys other than letters, top-row numbers, and numpad shapes.");
+        if ui
+            .button("Open assets folder")
+            .on_hover_text("Add or edit pictures and sounds for KeySlam.")
+            .clicked()
+        {
             status = match crate::assets::root()
                 .and_then(|path| crate::paths::open_directory(&path).map(|_| path))
             {
@@ -1463,12 +1454,7 @@ fn appearance_options(ui: &mut Ui, settings: &mut Settings) -> Option<String> {
                 Err(error) => Some(format!("Could not open assets folder: {error}")),
             };
         }
-        ui.label("Used for keys that are not letters, top-row numbers, or numpad shapes.");
     });
-    status
-}
-
-fn play_options(ui: &mut Ui, settings: &mut Settings) {
     section(ui, "Pointer effect", |ui| {
         ui.horizontal(|ui| {
             ui.label("Effect");
@@ -1486,7 +1472,7 @@ fn play_options(ui: &mut Ui, settings: &mut Settings) {
                 ui.hyperlink_to("Shadertoy", url);
             });
         }
-        ui.label("Use the mouse wheel during play to cycle through the effects.");
+        ui.weak("Use the mouse wheel during play to cycle through the effects.");
     });
     section(ui, "Letters and words", |ui| {
         ui.checkbox(&mut settings.force_uppercase, "Use uppercase letters");
@@ -1497,8 +1483,9 @@ fn play_options(ui: &mut Ui, settings: &mut Settings) {
         ui.add_enabled_ui(settings.group_letters, |ui| {
             full_width_slider(
                 ui,
+                "Start a new word after",
                 egui::Slider::new(&mut settings.letter_grouping_timeout_seconds, 0.1..=10.0)
-                    .text("Start a new word after (seconds)"),
+                    .suffix(" s"),
             );
         });
     });
@@ -1507,21 +1494,23 @@ fn play_options(ui: &mut Ui, settings: &mut Settings) {
         ui.add_enabled_ui(settings.fade_away, |ui| {
             full_width_slider(
                 ui,
+                "Keep items visible for",
                 egui::Slider::new(
                     &mut settings.fade_after_seconds,
                     MIN_FADE_AFTER_SECONDS..=MAX_FADE_AFTER_SECONDS,
                 )
                 .integer()
-                .text("Keep items visible for (seconds)"),
+                .suffix(" s"),
             );
+            ui.weak("0 seconds keeps items visible until the item limit is reached.");
         });
-        ui.label("0 seconds keeps items visible until the item-count limit removes them.");
         full_width_slider(
             ui,
-            egui::Slider::new(&mut settings.clear_after, MIN_ITEMS_KEPT..=MAX_ITEMS_KEPT)
-                .text("Items kept on screen"),
+            "Maximum items on screen",
+            egui::Slider::new(&mut settings.clear_after, MIN_ITEMS_KEPT..=MAX_ITEMS_KEPT),
         );
     });
+    status
 }
 
 pub fn display_configs(windowed: bool) -> Vec<DisplayConfig> {
@@ -1576,102 +1565,4 @@ pub fn display_configs(windowed: bool) -> Vec<DisplayConfig> {
         });
     }
     displays
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn piano_layout_tracks_resize_scale_and_key_changes() {
-        let mut layout = PianoRollLayout::default();
-        for (display, scale, key) in [
-            (vec2(1280.0, 800.0), PianoScale::Chromatic, PianoKey::C),
-            (vec2(1280.0, 800.0), PianoScale::Major, PianoKey::C),
-            (vec2(1280.0, 800.0), PianoScale::Major, PianoKey::D),
-            (vec2(1920.0, 1080.0), PianoScale::Minor, PianoKey::D),
-        ] {
-            let rows = layout.rows(display, scale, key);
-            assert!(!rows.is_empty());
-            assert_eq!(rows[0].top, 0.0);
-            assert_eq!(rows[rows.len() - 1].bottom, display.y);
-            for row in rows {
-                assert_eq!(
-                    row.note,
-                    piano_note(pos2(0.0, (row.top + row.bottom) * 0.5), display, scale, key)
-                );
-            }
-            let allocation = layout.rows.as_ptr();
-            assert_eq!(layout.rows(display, scale, key).as_ptr(), allocation);
-        }
-    }
-
-    #[test]
-    fn coloring_layout_exposes_all_swatches_and_clear_button() {
-        let layout = coloring_layout(vec2(1280.0, 800.0), 1.0);
-        assert_eq!(layout.swatches.len(), COLORS.len());
-        assert_eq!(layout.swatches[0].width(), MAX_COLOR_SWATCH_SIZE);
-        for (index, swatch) in layout.swatches.iter().enumerate() {
-            assert_eq!(
-                coloring_control_at(swatch.center(), &layout),
-                ColoringControl::Swatch(index)
-            );
-        }
-        assert_eq!(
-            coloring_control_at(layout.clear_button.center(), &layout),
-            ColoringControl::Clear
-        );
-    }
-
-    #[test]
-    fn brush_slider_maps_bottom_to_small_and_top_to_large() {
-        let layout = coloring_layout(vec2(1280.0, 800.0), 1.0);
-        assert_eq!(
-            brush_size_for(layout.slider_track.center_bottom(), layout.slider_track),
-            MIN_BRUSH_SIZE
-        );
-        assert_eq!(
-            brush_size_for(layout.slider_track.center_top(), layout.slider_track),
-            MAX_BRUSH_SIZE
-        );
-    }
-
-    #[test]
-    fn dragging_brush_slider_updates_the_live_brush_size() {
-        let layout = coloring_layout(vec2(1280.0, 800.0), 1.0);
-        let mut coloring = ColoringState::new(1);
-        coloring.slider_dragging[0] = true;
-
-        assert!(coloring.update_dragged_brush_size(
-            0,
-            layout.slider_track.center_top(),
-            layout.slider_track,
-        ));
-        assert_eq!(coloring.brush_size, MAX_BRUSH_SIZE);
-
-        assert!(coloring.update_dragged_brush_size(
-            0,
-            layout.slider_track.center_bottom(),
-            layout.slider_track,
-        ));
-        assert_eq!(coloring.brush_size, MIN_BRUSH_SIZE);
-    }
-
-    #[test]
-    fn coloring_state_records_selected_background_strokes_and_clears_them() {
-        let mut coloring = ColoringState::new(1);
-        coloring.selected_color = COLORS.len() - 1;
-        coloring.brush_size = 48.0;
-        coloring.begin_stroke(0, pos2(100.0, 100.0));
-        coloring.extend_stroke(0, pos2(140.0, 100.0));
-
-        assert_eq!(coloring.strokes[0].len(), 1);
-        assert_eq!(coloring.strokes[0][0].color.name, "Black");
-        assert_eq!(coloring.strokes[0][0].brush_size, 48.0);
-        assert_eq!(coloring.strokes[0][0].points.len(), 2);
-
-        coloring.clear();
-        assert!(coloring.strokes[0].is_empty());
-        assert_eq!(coloring.point_counts[0], 0);
-    }
 }

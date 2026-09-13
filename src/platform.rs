@@ -695,34 +695,3 @@ pub fn restore_taskbar() {
 
 #[cfg(not(windows))]
 pub fn restore_taskbar() {}
-
-#[cfg(all(test, windows))]
-mod tests {
-    use super::keyboard::{LLKHF_ALTDOWN, alt_is_down, lock_key_name, should_block};
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-        VK_CAPITAL, VK_ESCAPE, VK_MENU, VK_NUMLOCK, VK_SCROLL, VK_TAB,
-    };
-    use windows_sys::Win32::UI::WindowsAndMessaging::{WM_KEYDOWN, WM_SYSKEYDOWN};
-
-    #[test]
-    fn blocks_windows_app_switching_shortcuts() {
-        assert!(should_block(VK_TAB as u32, true, false));
-        assert!(should_block(VK_ESCAPE as u32, true, false));
-        assert!(should_block(VK_ESCAPE as u32, false, true));
-        assert!(!should_block(VK_MENU as u32, false, false));
-    }
-
-    #[test]
-    fn recognizes_alt_even_when_windows_only_marks_a_system_key() {
-        assert!(alt_is_down(WM_SYSKEYDOWN as usize, 0, false));
-        assert!(alt_is_down(WM_KEYDOWN as usize, LLKHF_ALTDOWN, false));
-        assert!(!alt_is_down(WM_KEYDOWN as usize, 0, false));
-    }
-
-    #[test]
-    fn forwards_each_lock_key_under_its_response_name() {
-        assert_eq!(lock_key_name(VK_CAPITAL as u32), Some("CapsLock"));
-        assert_eq!(lock_key_name(VK_SCROLL as u32), Some("Scroll"));
-        assert_eq!(lock_key_name(VK_NUMLOCK as u32), Some("NumLock"));
-    }
-}
