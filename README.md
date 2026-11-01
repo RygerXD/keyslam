@@ -104,10 +104,14 @@ and key used by right-click piano playback.
 For a release executable:
 
 ```powershell
-cargo build --release
+powershell -NoProfile -File tools/build_public_release.ps1
 ```
 
-The result is `target/release/keyslam.exe` on Windows.
+The result is `target/release/keyslam.exe` on Windows, with verified synthetic
+assets beside it. The script rebuilds the executable, moves any old runtime
+assets and private path override into `../KeySlam-private/release-backups`, and
+installs a clean public asset folder. A plain `cargo build --release` only rebuilds
+the executable; it preserves existing runtime assets and path overrides.
 
 Release builds use full link-time optimization and a single code generation unit
 to reduce executable size while retaining speed optimizations. This makes release
@@ -177,7 +181,10 @@ recordings belong in a separate folder outside this checkout.
 To keep personal assets, copy the full `assets` folder outside the repository,
 then put its absolute path on one line in `.keyslam-assets-path`. For development,
 this ignored file goes in the repository root. For release executables, it goes
-beside `keyslam.exe`. Alternatively, set `KEYSLAM_ASSETS_DIR` to that absolute
+beside `keyslam.exe`. Keep public releases free of this override. To run your
+personal version, copy `keyslam.exe` into the external personal folder beside its
+`assets` subfolder; no path override is needed there.
+Alternatively, set `KEYSLAM_ASSETS_DIR` to that absolute
 path; the environment variable takes priority. The Settings asset button opens
 the configured folder. This setting is read at runtime and is never embedded.
 
