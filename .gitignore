@@ -3,3 +3,15 @@
 *.log
 .DS_Store
 
+# Personal asset roots and raw recordings never belong in the public repository.
+.keyslam-assets-path
+/private-assets/
+/personal-assets/
+*.wav
+*.m4a
+/assets/packs/*/
+!/assets/packs/animals/
+!/assets/packs/foods/
+!/assets/packs/instruments/
+!/assets/packs/directions/
+

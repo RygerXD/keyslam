@@ -1,5 +1,8 @@
 # Animal sound sources
 
+Historical attribution only: these recordings are no longer bundled. The current
+public assets contain synthetic speech exclusively.
+
 KeySlam's base animal clips say the animal names. The additional clips listed
 below add a recognizable animal sound to the same animal folder. Source
 recordings were converted to mono Ogg Opus and level-adjusted. Longer sources

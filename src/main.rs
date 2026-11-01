@@ -3,6 +3,7 @@
 mod app;
 mod assets;
 mod audio;
+mod dance_mat;
 mod game;
 mod images;
 mod localization;

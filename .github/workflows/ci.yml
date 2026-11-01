@@ -15,6 +15,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Check public assets and synthetic speech
+        run: python tools/check_public_assets.py
       - name: Linux native dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libgl1-mesa-dev libxkbcommon-dev

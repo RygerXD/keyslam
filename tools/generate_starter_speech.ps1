@@ -2,138 +2,134 @@ param(
     [string]$OutputRoot = (Join-Path $PSScriptRoot '..\assets\sounds'),
     [string]$PacksRoot = (Join-Path $PSScriptRoot '..\assets\packs'),
     [switch]$SkipCommon,
-    [switch]$ExtraKeySetsOnly
+    [switch]$ExtraKeySetsOnly,
+    [ValidateSet('animals', 'foods', 'instruments', 'directions')]
+    [string[]]$Sets = @('animals', 'foods', 'instruments', 'directions'),
+    [string]$Voice = 'Microsoft Zira Desktop',
+    [int]$Rate = -1,
+    [switch]$ReplaceExisting
 )
 
+# Generate in isolation first. Never read the personal asset-path setting.
 $ErrorActionPreference = 'Stop'
+$repo = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$staging = Join-Path $repo "target\speech-$([guid]::NewGuid().ToString('N'))"
+$clips = [System.Collections.Generic.List[object]]::new()
 Add-Type -AssemblyName System.Speech
+$synth = [System.Speech.Synthesis.SpeechSynthesizer]::new()
+$synth.SelectVoice($Voice)
+$synth.Rate = $Rate
 
-function New-LocaleSynthesizer([string]$Locale) {
-    $synth = [System.Speech.Synthesis.SpeechSynthesizer]::new()
-    $language = $Locale.Split('-')[0]
-    $voice = $synth.GetInstalledVoices() |
-        ForEach-Object { $_.VoiceInfo } |
-        Where-Object {
-            $_.Culture.Name -ieq $Locale -or $_.Culture.TwoLetterISOLanguageName -ieq $language
-        } |
-        Select-Object -First 1
-    if ($null -ne $voice) {
-        $synth.SelectVoice($voice.Name)
+function Add-Clip([string]$Category, [string]$RelativePath, [string]$Text) {
+    $wav = Join-Path $staging "$Category\$RelativePath.wav"
+    [System.IO.Directory]::CreateDirectory((Split-Path -Parent $wav)) | Out-Null
+    $synth.SetOutputToWaveFile($wav)
+    try { $synth.Speak($Text) }
+    finally { $synth.SetOutputToNull() }
+    if ((Get-Item -LiteralPath $wav).Length -le 46) {
+        throw "The selected voice produced no audio for '$Text'"
     }
-    $synth
+    $clips.Add([pscustomobject]@{
+        category = $Category
+        relative = "$RelativePath.opus"
+        text = $Text
+    })
 }
 
-function Write-Clip($Synth, [string]$RelativePath, [string]$Text) {
-    $path = Join-Path $OutputRoot $RelativePath
-    $parent = Split-Path -Parent $path
-    [System.IO.Directory]::CreateDirectory($parent) | Out-Null
-    $Synth.SetOutputToWaveFile($path)
-    $Synth.Speak($Text)
-    if ((Get-Item -LiteralPath $path).Length -le 46) {
-        Remove-Item -LiteralPath $path -Force
-        throw "The selected voice produced no audio for '$Text' ($RelativePath)"
-    }
-}
-
-function Write-PackClip($Synth, [string]$RelativePath, [string]$Text) {
-    $previousRoot = $script:OutputRoot
-    try {
-        $script:OutputRoot = $PacksRoot
-        Write-Clip $Synth $RelativePath $Text
-    }
-    finally {
-        $script:OutputRoot = $previousRoot
-    }
-}
-
-$commonSynth = $null
-if (-not $SkipCommon -and -not $ExtraKeySetsOnly) {
-    $commonSynth = New-LocaleSynthesizer 'en-EN'
-    try {
+try {
+    if (-not $SkipCommon -and -not $ExtraKeySetsOnly) {
         foreach ($letter in [char[]]'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
-            Write-Clip $commonSynth "letters\$($letter.ToString().ToLowerInvariant()).wav" $letter
+            $name = $letter.ToString().ToLowerInvariant()
+            Add-Clip 'sounds' "letters\$name\$name" "$letter."
         }
         foreach ($digit in 0..9) {
-            Write-Clip $commonSynth "numbers\$digit.wav" $digit
+            Add-Clip 'sounds' "numbers\$digit\$digit" "$digit"
         }
-
-        $animalFolders = Get-ChildItem -LiteralPath (Join-Path $PacksRoot 'animals') -Directory |
-            Select-Object -ExpandProperty Name
-        foreach ($folder in $animalFolders) {
-            $animal = (Get-Culture).TextInfo.ToTitleCase($folder.Replace('-', ' ').Replace('_', ' '))
-            Write-PackClip $commonSynth "animals\$folder\$folder.wav" $animal
-        }
-    }
-    finally {
-        $commonSynth.Dispose()
-    }
-}
-
-$extraSynth = New-LocaleSynthesizer 'en-EN'
-try {
-    $extraItems = Import-Csv (Join-Path $PSScriptRoot '..\assets\images\extra-key-emoji.csv')
-    foreach ($item in $extraItems) {
-        $key = $item.name.ToLowerInvariant()
-        Write-PackClip $extraSynth "$($item.set)\$key\$key.wav" $item.name
-    }
-}
-finally {
-    $extraSynth.Dispose()
-}
-
-if (-not $ExtraKeySetsOnly) {
-    $colors = @('Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Indigo', 'Violet', 'Pink', 'Brown', 'White', 'Gray', 'Black')
-    $shapes = @('Star', 'Cross', 'Heart', 'Oval', 'Rectangle', 'Triangle', 'Square', 'Pentagon', 'Hexagon', 'Septagon', 'Octagon', 'Trapezoid', 'Circle')
-    $locale = 'en-EN'
-    $strings = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\assets\strings\en-EN.json')) | ConvertFrom-Json
-    $synth = New-LocaleSynthesizer $locale
-    try {
-        $strings.PSObject.Properties |
-            Where-Object { $_.Name -match '^[A-Za-z0-9]$' } |
-            ForEach-Object {
-                Write-Clip $synth "letters\$($_.Name.ToLowerInvariant()).wav" $_.Value
-            }
+        # Includes all paint colors, not just the twelve figure colors.
+        $colors = @('Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Indigo', 'Violet',
+            'Pink', 'Brown', 'White', 'Gray', 'Black', 'Amber', 'Lime-green', 'Orange-red', 'Teal')
         foreach ($color in $colors) {
-            $property = $strings.PSObject.Properties[$color]
-            $text = if ($null -eq $property) { $color } else { $property.Value }
-            Write-Clip $synth "colors\standalone\$($color.ToLowerInvariant()).wav" "$text."
-            Write-Clip $synth "colors\modifier\$($color.ToLowerInvariant()).wav" $text
+            $name = $color.ToLowerInvariant()
+            $text = $color.Replace('-', ' ')
+            Add-Clip 'sounds' "colors\standalone\$name\$name" "$text."
+            Add-Clip 'sounds' "colors\modifier\$name\$name" $text
         }
+        $shapes = @('Star', 'Cross', 'Heart', 'Oval', 'Rectangle', 'Triangle',
+            'Square', 'Pentagon', 'Hexagon', 'Septagon', 'Octagon', 'Trapezoid', 'Circle')
         foreach ($shape in $shapes) {
-            $property = $strings.PSObject.Properties[$shape]
-            $text = if ($null -eq $property) { $shape } else { $property.Value }
-            Write-Clip $synth "shapes\$($shape.ToLowerInvariant()).wav" $text
+            $name = $shape.ToLowerInvariant()
+            Add-Clip 'sounds' "shapes\$name\$name" $shape
         }
     }
-    finally {
-        $synth.Dispose()
+    foreach ($set in $Sets) {
+        $directory = Join-Path $PacksRoot $set
+        if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+            throw "Missing public pack: $directory"
+        }
+        $manifest = Get-Content -LiteralPath (Join-Path $directory 'pack.json') -Raw | ConvertFrom-Json
+        foreach ($item in (Get-ChildItem -LiteralPath $directory -Directory | Sort-Object Name)) {
+            $name = $item.Name
+            $label = $manifest.keys | Where-Object { $_.item -eq $name -and $_.name } |
+                Select-Object -First 1 -ExpandProperty name
+            if (-not $label) { $label = $name.Replace('-', ' ').Replace('_', ' ') }
+            Add-Clip 'packs' "$set\$name\$name" $label
+        }
     }
 }
+finally { $synth.Dispose() }
 
-Push-Location (Join-Path $PSScriptRoot '..')
+Push-Location $repo
 try {
-    cargo run --quiet --example encode_speech -- $OutputRoot
-    if ($LASTEXITCODE -ne 0) {
-        throw "The Opus encoder failed with exit code $LASTEXITCODE"
-    }
-    cargo run --quiet --example encode_speech -- $PacksRoot
-    if ($LASTEXITCODE -ne 0) {
-        throw "The pack Opus encoder failed with exit code $LASTEXITCODE"
-    }
+    cargo run --quiet --example encode_speech -- $staging
+    if ($LASTEXITCODE -ne 0) { throw "Opus encoding failed: $LASTEXITCODE" }
 }
-finally {
-    Pop-Location
+finally { Pop-Location }
+
+$outputRoots = @{ sounds = [System.IO.Path]::GetFullPath($OutputRoot); packs = [System.IO.Path]::GetFullPath($PacksRoot) }
+# Refuse to erase existing recordings unless explicitly requested.
+foreach ($clip in $clips) {
+    $destination = Join-Path $outputRoots[$clip.category] $clip.relative
+    $parent = Split-Path -Parent $destination
+    $existing = @(Get-ChildItem -LiteralPath $parent -Filter '*.opus' -File -ErrorAction SilentlyContinue)
+    if ($existing.Count -gt 0 -and -not $ReplaceExisting) {
+        throw "Existing audio in $parent. Back it up, then use -ReplaceExisting to replace the voice cycle."
+    }
 }
 
-$resolvedOutput = [System.IO.Path]::GetFullPath($OutputRoot)
-$expectedOutput = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\assets\sounds'))
-if ($resolvedOutput -eq $expectedOutput) {
-    Get-ChildItem -LiteralPath $resolvedOutput -Recurse -Filter '*.wav' |
-        Remove-Item -Force
+$inventory = @()
+$manifestPath = Join-Path $repo 'assets\public-audio.json'
+if (Test-Path -LiteralPath $manifestPath) {
+    $inventory = @((Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json).clips)
 }
-$resolvedPacks = [System.IO.Path]::GetFullPath($PacksRoot)
-$expectedPacks = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\assets\packs'))
-if ($resolvedPacks -eq $expectedPacks) {
-    Get-ChildItem -LiteralPath $resolvedPacks -Recurse -Filter '*.wav' |
-        Remove-Item -Force
+foreach ($clip in $clips) {
+    $destination = Join-Path $outputRoots[$clip.category] $clip.relative
+    $parent = Split-Path -Parent $destination
+    [System.IO.Directory]::CreateDirectory($parent) | Out-Null
+    # Preserve replaced takes in the ignored staging folder as an extra backup.
+    $backup = Join-Path $staging ("replaced\$($clip.category)\" + (Split-Path -Parent $clip.relative))
+    [System.IO.Directory]::CreateDirectory($backup) | Out-Null
+    Get-ChildItem -LiteralPath $parent -Filter '*.opus' -File |
+        ForEach-Object { Move-Item -LiteralPath $_.FullName -Destination $backup }
+    Copy-Item -LiteralPath (Join-Path $staging "$($clip.category)\$($clip.relative)") -Destination $destination
+    $publicPath = "assets/$($clip.category)/$($clip.relative.Replace('\', '/'))"
+    $inventory = @($inventory | Where-Object { $_.path -ne $publicPath })
+    $inventory += [pscustomobject]@{
+        path = $publicPath
+        text = $clip.text
+        engine = 'Windows System.Speech'
+        voice = $Voice
+        rate = $Rate
+        sha256 = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
 }
+# Only the standard public destinations update the checked-in provenance inventory.
+if ($outputRoots.sounds -eq (Join-Path $repo 'assets\sounds') -and
+    $outputRoots.packs -eq (Join-Path $repo 'assets\packs')) {
+    [pscustomobject]@{ clips = @($inventory | Sort-Object path) } |
+        ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+    $rules = @('# Generated by tools/generate_starter_speech.ps1; only approved audio is tracked.',
+        '*.opus', '*.mp3', '*.ogg', '*.flac')
+    $rules += @($inventory | Sort-Object path | ForEach-Object { '!/' + $_.path.Substring(7) })
+    $rules | Set-Content -LiteralPath (Join-Path $repo 'assets\.gitignore') -Encoding UTF8
+}
+Write-Output "Generated $($clips.Count) synthetic clips with $Voice."

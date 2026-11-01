@@ -61,6 +61,7 @@ fn available_in(root: &Path) -> Vec<String> {
         .flatten()
         .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
         .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter(|name| !name.eq_ignore_ascii_case("directions"))
         .collect::<Vec<_>>();
     packs.sort_by_key(|name| name.to_ascii_lowercase());
     packs
@@ -180,5 +181,23 @@ fn humanize(folder: &str) -> String {
     match characters.next() {
         Some(first) => first.to_uppercase().chain(characters).collect(),
         None => String::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn built_in_directions_are_not_a_selectable_picture_set() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/packs");
+        assert_eq!(
+            super::available_in(&root),
+            ["animals", "foods", "instruments"]
+        );
+        let mut settings = crate::settings::Settings {
+            extra_key_set: "Directions".to_owned(),
+            ..Default::default()
+        };
+        settings.normalize();
+        assert_eq!(settings.extra_key_set, "animals");
     }
 }

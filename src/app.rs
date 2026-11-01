@@ -2,6 +2,7 @@ use std::time::{Duration, Instant};
 
 use crate::{
     audio::AudioSystem,
+    dance_mat::DanceMat,
     game::{
         BabyColor, COLORS, FigureKind, Game, chroma_color_for_note, piano_note, piano_tone,
         pointer_tone, screen_percent_scale,
@@ -388,6 +389,7 @@ pub struct KeySlamApp {
     coloring: ColoringState,
     piano_layouts: Vec<PianoRollLayout>,
     platform_events: Receiver<PlatformEvent>,
+    dance_mat: DanceMat,
     _keyboard_guard: Option<KeyboardGuard>,
     close_protection: bool,
     options_open: bool,
@@ -433,6 +435,7 @@ impl KeySlamApp {
             coloring,
             piano_layouts,
             platform_events,
+            dance_mat: DanceMat::default(),
             _keyboard_guard: keyboard_guard,
             close_protection,
             options_open: false,
@@ -1201,6 +1204,12 @@ impl KeySlamApp {
 impl eframe::App for KeySlamApp {
     fn logic(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.process_platform_events(ctx);
+        for key in self
+            .dance_mat
+            .poll(!self.options_open && !self.exit_requested)
+        {
+            self.process_key(key);
+        }
         self.enforce_kiosk(ctx);
         // eframe can skip UI rendering while Task View or another shell surface
         // occludes the app, but logic still runs for explicitly requested frames.

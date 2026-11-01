@@ -9,15 +9,15 @@ under the notices that accompanied BabySmash.
 
 ## Microsoft Fluent Emoji
 
-The Fluent artwork in `assets/images/animals`, `assets/images/foods`, and
-`assets/images/instruments` comes from
+The Fluent artwork in `assets/packs/animals`, `assets/packs/foods`,
+`assets/packs/instruments`, and `assets/packs/directions` comes from
 [Microsoft Fluent Emoji](https://github.com/microsoft/fluentui-emoji) and is
 licensed under the MIT License. Copyright Microsoft Corporation.
 
 ## Google Noto Emoji
 
-The Android-style artwork in `assets/images/animals`, `assets/images/foods`,
-and `assets/images/instruments` comes from
+The Android-style artwork in `assets/packs/animals`, `assets/packs/foods`,
+`assets/packs/instruments`, and `assets/packs/directions` comes from
 [Google Noto Emoji](https://github.com/googlefonts/noto-emoji). The image
 resources are licensed under the Apache License 2.0. Copyright Google LLC.
 
@@ -26,13 +26,15 @@ resources are licensed under the Apache License 2.0. Copyright Google LLC.
 The remaining BabySmash resources and original application are licensed under
 the MIT License. Copyright Scott Hanselman and contributors. See `LICENSE`.
 
-## Wikimedia Commons animal sounds
+## Synthetic speech and historical animal sounds
 
-The animal-sound clips in `assets/sounds/animals` are converted and,
-where noted, shortened derivatives of recordings from Wikimedia Commons. They
-include public-domain and CC0 recordings as well as recordings redistributed
-under CC BY-SA 3.0 or CC BY-SA 4.0. Complete per-file attribution, source links,
-license links, and modification details are in
+All current bundled audio is synthetic speech generated using Windows
+System.Speech and Microsoft Zira Desktop. Text, voice settings, and file hashes
+are recorded in `assets/public-audio.json`.
+
+Earlier versions included Wikimedia Commons animal sounds. Those recordings
+are no longer bundled. Their historical per-file attribution, source links,
+license links, and modification details are retained in
 [`assets/sounds/ANIMAL-SOUNDS.md`](assets/sounds/ANIMAL-SOUNDS.md).
 
 ## Shadertoy trail reference

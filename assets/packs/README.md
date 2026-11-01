@@ -1,6 +1,8 @@
 # Item packs
 
 Each child folder is a pack shown dynamically in KeySlam's Settings dropdown.
+The reserved `directions` folder supplies keyboard and dance-pad arrows and is
+excluded from that dropdown.
 Each item folder holds all PNG images and Ogg Opus sounds for that item. Files
 of each type are sorted case-insensitively and cycled independently.
 
@@ -26,13 +28,20 @@ manifest, KeySlam assigns item folders alphabetically.
 
 Numpad digits and Decimal, Multiply, and Add remain KeySlam's built-in shapes,
 so pack manifests do not assign items to those keys.
+Arrow keys always show and announce their direction using the `directions`
+pack, independently of the selected pack. Edit its item images and recordings
+to customize those responses.
 
 When developing with `cargo run`, KeySlam reads this `assets/packs` folder
 directly, including manifest edits made while the app is running. Packaged
 release builds read the editable `packs` folder beside `keyslam.exe`.
+An external personal asset root can override either location; see the main
+README. Keep Family and other personal packs there, outside the repository.
+The public packs are Animals, Foods, Instruments, and Directions, with synthetic
+speech for every item.
 
 Bundled PNG filenames identify their source set and Unicode sequence. The
 Android images are from Google Noto Emoji and the Fluent images are from
 Microsoft Fluent Emoji. `../images/extra-key-emoji.csv` records the pinned
-source names and Unicode codepoints for food and instrument artwork. See
+source names and Unicode codepoints for food, instrument, and arrow artwork. See
 `THIRD-PARTY-NOTICES.md` and `../images/APACHE-2.0.txt` for licensing details.

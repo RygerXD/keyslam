@@ -19,8 +19,10 @@ executable.
 
 - Letters, top-row numbers, numpad shapes, and selectable Animals, Foods, or
   Instruments picture sets for every other key
-- Pre-recorded English Opus speech, including distinct standalone and modifier
-  performances for color names
+- Arrow keys and RedOctane USB soft-mat arrows show matching arrow pictures
+  and speak “Up,” “Down,” “Left,” or “Right”
+- Synthetic English Opus speech for every built-in item, including standalone
+  and modifier readings for color names; personal recordings can be kept locally
 - Matching defaults, letter grouping, fading, item limits, faces, spawn
   animation, and tap animation
 - Speech, continuous stereo sinewave, and configurable paint-color and right-click audio
@@ -75,11 +77,19 @@ Controls:
 | Input | Action |
 |---|---|
 | Any key | Show and announce its letter, selected picture, or shape |
+| Arrow keys / dance mat arrows | Show and announce Up, Down, Left, or Right |
 | `Alt+O` | Open settings |
 | `Alt+F4` | Exit all KeySlam windows |
 | Left-click / drag | Tap items, draw the pointer effect, and play pointer audio |
 | Right-click | Play the configured sound and show a fading ripple |
 | Mouse wheel | Cycle pointer effects |
+
+On Windows, the ten-button RedOctane USB soft mat is detected automatically,
+including when plugged in after KeySlam starts. Each panel triggers once per
+press; lift your foot before stepping again. Multiple panels can be pressed
+together, including opposite arrows. The other six panels use the selected
+picture pack (F1–F4, Escape, and Space). Mat input is active while a KeySlam
+window has focus and settings are closed. No keyboard mapper is needed.
 
 Coloring mode adds the 12-color palette and Clear screen button along the
 bottom edge, plus a vertical brush-size slider on the left. Paint remains behind
@@ -118,8 +128,8 @@ Settings are saved beside the executable at
 `Desktop\keyslam\settings\settings.json`. KeySlam does not create settings or
 asset folders in AppData or elsewhere on the computer.
 
-All editable game assets are under `assets` beside `keyslam.exe`. The Settings
-button opens this folder directly. KeySlam installs any missing built-in files
+By default, editable game assets are under `assets` beside `keyslam.exe`. The
+Settings button opens this folder directly. KeySlam installs any missing built-in files
 without overwriting existing files, so end-user edits are preserved.
 
 Each pack is a folder under `assets\packs`, and each item is a folder inside its
@@ -148,9 +158,53 @@ Key names are case-insensitive. Optional `name` and `emoji` fields override the
 spoken/display name and the fallback shown when no valid PNG exists. A key
 omitted from the manifest displays the generic star item. Numpad digits and
 Decimal, Multiply, and Add always produce KeySlam's built-in shapes.
+The four arrow keys always use the built-in `directions` pack, regardless of
+the selected pack or its manifest. Its PNGs and Opus recordings are editable
+in `assets\packs\directions` just like animal pictures and voices. Directions
+is reserved for the keyboard and dance-pad arrows and does not appear in the
+set selector. Arrows keep their orientation during animations.
 
 Development builds read the repository `assets` folder directly. Packaged
-builds read `assets` beside `keyslam.exe`.
+builds read `assets` beside `keyslam.exe`, unless a personal asset root is configured.
+
+### Personal assets and public builds
+
+The repository contains Animals, Foods, Instruments, and the built-in Directions
+assets. Every public audio clip is synthetic speech generated with the installed
+Windows voice Microsoft Zira Desktop. Family packs, personal voices, and raw
+recordings belong in a separate folder outside this checkout.
+
+To keep personal assets, copy the full `assets` folder outside the repository,
+then put its absolute path on one line in `.keyslam-assets-path`. For development,
+this ignored file goes in the repository root. For release executables, it goes
+beside `keyslam.exe`. Alternatively, set `KEYSLAM_ASSETS_DIR` to that absolute
+path; the environment variable takes priority. The Settings asset button opens
+the configured folder. This setting is read at runtime and is never embedded.
+
+Only the repository `assets` folder is embedded in builds, even when development
+runs use a personal folder. Missing built-in assets are installed into the
+configured folder. An item that already has Opus recordings keeps its existing
+voice cycle without adding synthetic takes. Add custom packs and recordings to
+the personal folder, and back that folder up separately from Git.
+
+Regenerate the public voice on Windows with:
+
+```powershell
+powershell -NoProfile -File tools/generate_starter_speech.ps1 -ReplaceExisting
+python tools/check_public_assets.py
+```
+
+`-Voice` selects another installed System.Speech voice and `-Rate` controls its
+speed. Generation stages WAV/Opus files under ignored `target`, preserves replaced
+takes there, and records the generated text, voice, and SHA-256 in
+`assets/public-audio.json`. Its generated `assets/.gitignore` allows only inventoried
+audio filenames to be newly tracked. CI checks the inventory, complete item coverage, and
+the allowed public packs. No speech service credentials or network access are
+needed for generation or playback.
+
+Removing a recording from the current files does not remove earlier Git commits
+or published releases containing it. Cleaning those copies requires a separate
+history/release cleanup; `.gitignore` cannot erase existing history.
 
 Put any number of PNG or Opus files in an item folder; KeySlam sorts each type
 alphabetically and cycles through it. New filenames are picked up while the app
@@ -201,12 +255,15 @@ Source layout:
 | `src/audio.rs` | Embedded sound decoding, mixer, sinewave, piano |
 | `src/settings.rs` | Typed defaults, validation, atomic persistence |
 | `src/platform.rs` | Windows kiosk keyboard guard |
+| `src/dance_mat.rs` | Windows RedOctane soft-mat detection and button input |
 
 ## Verify
 
 ```powershell
+python tools/check_public_assets.py
 cargo fmt -- --check
 cargo clippy --all-targets -- -D warnings
+cargo test --all-targets
 ```
 
 ## BabySmash roots, license, and attribution

@@ -285,6 +285,7 @@ pub fn draw_figure(
         FigureKind::ExtraItem {
             image,
             fallback_emoji,
+            set,
             ..
         } => {
             draw_animal(
@@ -294,7 +295,8 @@ pub fn draw_figure(
                 rect,
                 (image.as_deref(), fallback_emoji),
                 opacity,
-                angle,
+                // An arrow must keep pointing in its named direction while animating.
+                if set == "directions" { 0.0 } else { angle },
             );
         }
         FigureKind::Shape(kind) => {

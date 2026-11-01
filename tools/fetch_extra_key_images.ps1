@@ -1,5 +1,6 @@
 param(
-    [string]$OutputRoot = (Join-Path $PSScriptRoot '..\assets\packs')
+    [string]$OutputRoot = (Join-Path $PSScriptRoot '..\assets\packs'),
+    [string[]]$Sets = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,6 +13,7 @@ function Escape-PathSegment([string]$Value) {
 }
 
 foreach ($item in $manifest) {
+    if ($Sets.Count -gt 0 -and $item.set -notin $Sets) { continue }
     $itemName = $item.name.ToLowerInvariant()
     $directory = Join-Path $OutputRoot (Join-Path $item.set $itemName)
     [System.IO.Directory]::CreateDirectory($directory) | Out-Null

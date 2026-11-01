@@ -143,6 +143,24 @@ const OTHER_KEYS: [(&str, &str); 67] = [
 ];
 
 pub fn response_for_set(key_name: &str, extra_key_set: &str) -> KeyResponse {
+    // Directions are built in, independent of the selected picture pack.
+    let direction = match key_name {
+        "Up" | "ArrowUp" | "Up Arrow" => Some(("up", "Up", "⬆️")),
+        "Down" | "ArrowDown" | "Down Arrow" => Some(("down", "Down", "⬇️")),
+        "Left" | "ArrowLeft" | "Left Arrow" => Some(("left", "Left", "⬅️")),
+        "Right" | "ArrowRight" | "Right Arrow" => Some(("right", "Right", "➡️")),
+        _ => None,
+    };
+    if let Some((folder, label, emoji)) = direction {
+        return KeyResponse::extra(
+            PackItem {
+                folder: folder.to_owned(),
+                label: label.to_owned(),
+                fallback_emoji: emoji.to_owned(),
+            },
+            "directions",
+        );
+    }
     match key_name {
         "Decimal" | "NumpadDecimal" => return KeyResponse::shape(ShapeKind::Circle),
         "NumPad0" => return KeyResponse::shape(ShapeKind::Oval),
@@ -249,4 +267,66 @@ fn stable_hash(value: &str) -> u32 {
     value.chars().fold(2_166_136_261_u32, |hash, character| {
         (hash ^ character.to_ascii_uppercase() as u32).wrapping_mul(16_777_619)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ResponseKind, ShapeKind, response_for_set};
+
+    #[test]
+    fn arrows_keep_their_direction_across_picture_packs_and_key_names() {
+        for pack in ["animals", "foods", "instruments", "family", "custom-pack"] {
+            for (name, emoji) in [
+                ("Up", "⬆️"),
+                ("Down", "⬇️"),
+                ("Left", "⬅️"),
+                ("Right", "➡️"),
+            ] {
+                for key in [
+                    name.to_owned(),
+                    format!("Arrow{name}"),
+                    format!("{name} Arrow"),
+                ] {
+                    let response = response_for_set(&key, pack);
+                    assert_eq!(response.kind, ResponseKind::Emoji(emoji.to_owned()));
+                    assert_eq!(response.spoken_text, name);
+                    assert_eq!(response.extra_key_set.as_deref(), Some("directions"));
+                    assert_eq!(response.item_folder, Some(name.to_ascii_lowercase()));
+                }
+            }
+        }
+        // Keyboard numpad directions continue to produce their original shapes.
+        assert_eq!(
+            response_for_set("NumPad8", "animals").kind,
+            ResponseKind::Shape(ShapeKind::Octagon)
+        );
+        assert_eq!(
+            response_for_set("A", "animals").kind,
+            ResponseKind::Glyph('A')
+        );
+    }
+
+    #[test]
+    fn direction_assets_have_decodable_pictures_and_audible_speech()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/packs/directions");
+        for (name, codepoint) in [
+            ("up", "2b06"),
+            ("down", "2b07"),
+            ("left", "2b05"),
+            ("right", "27a1"),
+        ] {
+            let folder = root.join(name);
+            for style in ["android", "fluent"] {
+                let picture = image::open(folder.join(format!("{style}-{codepoint}.png")))?;
+                assert!(picture.width() >= 128 && picture.height() >= 128);
+            }
+            let bytes = std::fs::read(folder.join(format!("{name}.opus")))?;
+            let (samples, header) = ruopus::decode_ogg_opus(&bytes)?;
+            assert_eq!(header.channel_count, 1);
+            assert!(samples.len() > 4_800);
+            assert!(samples.iter().any(|sample| sample.abs() > 0.01));
+        }
+        Ok(())
+    }
 }

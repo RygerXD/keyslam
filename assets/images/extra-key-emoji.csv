@@ -84,3 +84,7 @@ instruments,Headphones,1f3a7,Headphone
 instruments,Horn,1f4ef,Postal horn
 instruments,Bell,1f514,Bell
 instruments,Musical score,1f3bc,Musical score
+directions,Up,2b06,Up arrow
+directions,Down,2b07,Down arrow
+directions,Left,2b05,Left arrow
+directions,Right,27a1,Right arrow

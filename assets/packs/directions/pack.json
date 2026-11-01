@@ -1,0 +1,8 @@
+{
+  "keys": [
+    { "key": "Up Arrow", "item": "up", "name": "Up", "emoji": "⬆️" },
+    { "key": "Down Arrow", "item": "down", "name": "Down", "emoji": "⬇️" },
+    { "key": "Left Arrow", "item": "left", "name": "Left", "emoji": "⬅️" },
+    { "key": "Right Arrow", "item": "right", "name": "Right", "emoji": "➡️" }
+  ]
+}

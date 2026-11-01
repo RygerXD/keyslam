@@ -1,0 +1,2156 @@
+﻿{
+    "clips":  [
+                  {
+                      "path":  "assets/packs/animals/ant/ant.opus",
+                      "text":  "ant",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "09f432589410fb3a5ac5499f2d6ad54455072d75fe02cb1472aab182478a23b1"
+                  },
+                  {
+                      "path":  "assets/packs/animals/badger/badger.opus",
+                      "text":  "badger",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "1f949ed49f13aa23142716e516406b765592561716a95ae1bbda4ca8c5ed25bf"
+                  },
+                  {
+                      "path":  "assets/packs/animals/bat/bat.opus",
+                      "text":  "bat",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "328ca42278e508b6cd6de7063fdb6f354f0bbb1db1074e2b0a54f9cb3a98079b"
+                  },
+                  {
+                      "path":  "assets/packs/animals/bear/bear.opus",
+                      "text":  "bear",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "80af6bb421d29fb130ab171ec1345ef5860dece10bb8fe1fd7c7f0dc6e2701db"
+                  },
+                  {
+                      "path":  "assets/packs/animals/beaver/beaver.opus",
+                      "text":  "beaver",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "76fe2b8dc1f7d678dc339fcd4485b889eb0c7ac9b2420eab1813efb97b24bfa0"
+                  },
+                  {
+                      "path":  "assets/packs/animals/bee/bee.opus",
+                      "text":  "bee",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "3a69c50f3e1643a116268d8caad0ab26fa855702389bda23013609ce43af9636"
+                  },
+                  {
+                      "path":  "assets/packs/animals/beetle/beetle.opus",
+                      "text":  "beetle",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "2ffdd053e7edfd0c97eb237c7ad77d0de8f6848bafb8fd252062c8f4d820969c"
+                  },
+                  {
+                      "path":  "assets/packs/animals/bird/bird.opus",
+                      "text":  "bird",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "4bf59ad50afffdf7a1c466516ae46caab23f44ab1bc2205b19d0a7ead1b51f7f"
+                  },
+                  {
+                      "path":  "assets/packs/animals/bison/bison.opus",
+                      "text":  "bison",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "73a47b4930f426443984092625287f037745516714cb9653f540ae54afb3e13f"
+                  },
+                  {
+                      "path":  "assets/packs/animals/blowfish/blowfish.opus",
+                      "text":  "blowfish",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "27bdf55def3134e0a67b68af7b11ab426da4b4ddda878951dc294b4062acef3f"
+                  },
+                  {
+                      "path":  "assets/packs/animals/boar/boar.opus",
+                      "text":  "boar",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "2832e618a870491ef50e3baac09065847186818ed48cda031a62d92fd55e9bcc"
+                  },
+                  {
+                      "path":  "assets/packs/animals/butterfly/butterfly.opus",
+                      "text":  "butterfly",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "145a777b2bf0a4a0df3b165eef48392e48e6fe6e10bb1b00b3325011932733fb"
+                  },
+                  {
+                      "path":  "assets/packs/animals/camel/camel.opus",
+                      "text":  "camel",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "33d26d200a39d33229f7063183d6f6cb25adc0c682516310883f40f3ba6c6900"
+                  },
+                  {
+                      "path":  "assets/packs/animals/cat/cat.opus",
+                      "text":  "cat",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "ed4b3938e8a14dff3c5ad007e304327ab5088199c13e4d76d84b72440abd86d3"
+                  },
+                  {
+                      "path":  "assets/packs/animals/caterpillar/caterpillar.opus",
+                      "text":  "caterpillar",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "60273d0c7b4c1a8c64037d5733b6ecb4fe074eb625fbf8b2c9a6a54e3aa482eb"
+                  },
+                  {
+                      "path":  "assets/packs/animals/chick/chick.opus",
+                      "text":  "chick",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "5a5dde6a7f0e728ebb75557200ed885d95db842b65ea63841af18a2824cee4a7"
+                  },
+                  {
+                      "path":  "assets/packs/animals/chicken/chicken.opus",
+                      "text":  "chicken",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "571f5744e6f81d87243c54a999f4d01a4d3b6ad55adf625bdcb4cdfdcafcd2c6"
+                  },
+                  {
+                      "path":  "assets/packs/animals/cockroach/cockroach.opus",
+                      "text":  "cockroach",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "387a2b42a5bf5d347c128906ea1527c25cc997fa6b82b3080f1bbf8be7803869"
+                  },
+                  {
+                      "path":  "assets/packs/animals/cow/cow.opus",
+                      "text":  "cow",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "a520ab88c16f697cfddc59d1eff87caa5576ae80c04145b75c950ad0b86e45b4"
+                  },
+                  {
+                      "path":  "assets/packs/animals/crab/crab.opus",
+                      "text":  "crab",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "5b3084dba255153869ff8d55ef02b8fe278a6c0b14899de53865d6a3704db3f7"
+                  },
+                  {
+                      "path":  "assets/packs/animals/cricket/cricket.opus",
+                      "text":  "cricket",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "c51c984d94c4f98d54cf5c2c8859cf6178e6181b1262e32bf28250b532ad2446"
+                  },
+                  {
+                      "path":  "assets/packs/animals/crocodile/crocodile.opus",
+                      "text":  "crocodile",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "266cca3048f6a60ccb8afe8378516477f19f0485f9e7fac8ebe81bc1c9363226"
+                  },
+                  {
+                      "path":  "assets/packs/animals/deer/deer.opus",
+                      "text":  "deer",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "8cdfb83302d99723d29751b3bd107167301cab7851ecc6f77751919a271962fe"
+                  },
+                  {
+                      "path":  "assets/packs/animals/dodo/dodo.opus",
+                      "text":  "dodo",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "9cabf7860d08240ccc0b45cb822c1c126b0f7480687b6fff882b3a996d1e0ee5"
+                  },
+                  {
+                      "path":  "assets/packs/animals/dog/dog.opus",
+                      "text":  "dog",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "bb970950d5ebd83759415fe9ff2eff5ee41f0f5c05d80e3d98f1edb2c8b29146"
+                  },
+                  {
+                      "path":  "assets/packs/animals/dolphin/dolphin.opus",
+                      "text":  "dolphin",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "21a5104391681191f6a86f8eeff61bccc59d1aa9a225c068262736f3e209867c"
+                  },
+                  {
+                      "path":  "assets/packs/animals/donkey/donkey.opus",
+                      "text":  "donkey",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "73dd3bfb687b0ea73728e56d7a4958afb25062a82db6443de86b18f5c6bf1a8d"
+                  },
+                  {
+                      "path":  "assets/packs/animals/dove-of-peace/dove-of-peace.opus",
+                      "text":  "dove of peace",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "36aa99345e77dbd07facf3a770c27443adb2d29ac1ab952c24d4fbc32ffd1bff"
+                  },
+                  {
+                      "path":  "assets/packs/animals/dragon/dragon.opus",
+                      "text":  "dragon",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "a65a35fb77c58050aeab15d1066e0c0f1bf5e1306dbe8eefb5b9e52e4321dae6"
+                  },
+                  {
+                      "path":  "assets/packs/animals/duck/duck.opus",
+                      "text":  "duck",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "eaa59d6107465dd003f5e9fcd53f529a8297856aa309777a71872fc860437189"
+                  },
+                  {
+                      "path":  "assets/packs/animals/eagle/eagle.opus",
+                      "text":  "eagle",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "0294608abaacf2e94d3fd67930d40726cd5fccc8032c7c4d1999113243a90583"
+                  },
+                  {
+                      "path":  "assets/packs/animals/elephant/elephant.opus",
+                      "text":  "elephant",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "bc9310511805a03a855fe19a5f012f44748b116c965d7ccbff4f10bd814ef26a"
+                  },
+                  {
+                      "path":  "assets/packs/animals/fish/fish.opus",
+                      "text":  "fish",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "e84cc50da4d45f43bf579e26f9a60860fe7225271cb8240a77b55a49120a73d2"
+                  },
+                  {
+                      "path":  "assets/packs/animals/flamingo/flamingo.opus",
+                      "text":  "flamingo",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "86c6ba65032ab13e3672216964c571703e71d88c34c6032665978e22e9a9490d"
+                  },
+                  {
+                      "path":  "assets/packs/animals/fly/fly.opus",
+                      "text":  "fly",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "82ccf2580ee879e15dee81aae0ca84bcec83ebde310bfa93a9703c667270969f"
+                  },
+                  {
+                      "path":  "assets/packs/animals/fox/fox.opus",
+                      "text":  "fox",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "e303220ed647ea3318749cc1ac537191e63bf23337f34e91a3e463024af9ae4c"
+                  },
+                  {
+                      "path":  "assets/packs/animals/frog/frog.opus",
+                      "text":  "frog",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "136714415cf69608516fe6300cb951d0949424bd0dcde5fdc16fb776e3b8ebf0"
+                  },
+                  {
+                      "path":  "assets/packs/animals/giraffe/giraffe.opus",
+                      "text":  "giraffe",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "fcfbea10832adffdd21a04a2575b0e732307caf27df2a3c32dedecd7889e7203"
+                  },
+                  {
+                      "path":  "assets/packs/animals/goat/goat.opus",
+                      "text":  "goat",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "7d0b419a4678932de13b52c82a054800426cd581ad21fa85834e2e24aed601b7"
+                  },
+                  {
+                      "path":  "assets/packs/animals/goose/goose.opus",
+                      "text":  "goose",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "36d9d078e1b1f023bce0a12499930c39adf83f0f7c484562334d83a61fb3debe"
+                  },
+                  {
+                      "path":  "assets/packs/animals/gorilla/gorilla.opus",
+                      "text":  "gorilla",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "f2193cf07b196cd78ffcc590cd167c086d5d2e27849ced221a0a7289c9312b5f"
+                  },
+                  {
+                      "path":  "assets/packs/animals/hedgehog/hedgehog.opus",
+                      "text":  "hedgehog",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "4d2ce30622cc42a0e0f4159bbca210f83afc45dc6a3005ac32c8732cad60053b"
+                  },
+                  {
+                      "path":  "assets/packs/animals/hippopotamus/hippopotamus.opus",
+                      "text":  "hippopotamus",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "e08f8c34f5c34d246ccd71ec8d21bb8571a39d647218f580660a1e4efa358523"
+                  },
+                  {
+                      "path":  "assets/packs/animals/horse/horse.opus",
+                      "text":  "horse",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "2400b2af220c159f8ec63ef4f86a35cd2e688abc69adf5ece7410e84e88c7a02"
+                  },
+                  {
+                      "path":  "assets/packs/animals/jellyfish/jellyfish.opus",
+                      "text":  "jellyfish",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "aa146424a76ffa2c1ffcd87cc6d76145f41287ece1adefff346f707d208df65d"
+                  },
+                  {
+                      "path":  "assets/packs/animals/kangaroo/kangaroo.opus",
+                      "text":  "kangaroo",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "b835d1e93dd7cf0ac3de60c981e99174a111a912b60279cf283fe239e55ed05d"
+                  },
+                  {
+                      "path":  "assets/packs/animals/koala/koala.opus",
+                      "text":  "koala",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "747386ca1806bc7ccae067b3121f5e454a75cdcc23934444e108a1319e4396e3"
+                  },
+                  {
+                      "path":  "assets/packs/animals/ladybug/ladybug.opus",
+                      "text":  "ladybug",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "f7f92e29f7b39242395a1b42bddcb95df7afd7cdd56c5cdfe6ba178ce7bcbb28"
+                  },
+                  {
+                      "path":  "assets/packs/animals/leopard/leopard.opus",
+                      "text":  "leopard",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "ad41b7f435ad8e06465e4070e262d0efb61a8ab00301c3b3c760fa4f193e4b97"
+                  },
+                  {
+                      "path":  "assets/packs/animals/lion/lion.opus",
+                      "text":  "lion",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "19f4c9228fad401b0bb6eaf3c1f930e6c1777fb8b133bb30fc0b675a60f3aa39"
+                  },
+                  {
+                      "path":  "assets/packs/animals/lizard/lizard.opus",
+                      "text":  "lizard",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "aed78f7294b611045dd6f1dd276e0c99a71cf859d5443c17809512e501d930ac"
+                  },
+                  {
+                      "path":  "assets/packs/animals/llama/llama.opus",
+                      "text":  "llama",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "dca4fc6c961f4c6f4d661ec2d2c46fb6bb21edb8bdba22b71a3bc78e9c49057e"
+                  },
+                  {
+                      "path":  "assets/packs/animals/mammoth/mammoth.opus",
+                      "text":  "mammoth",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "b3be9406e6a87720b1df22bb9245cc5d3e819e0ff786b8685c7b224712eb6789"
+                  },
+                  {
+                      "path":  "assets/packs/animals/monkey/monkey.opus",
+                      "text":  "monkey",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "0e9cc3a872e7c10d81bf5efb0a69eec2bcf7eaff9f1465bae9a51dd20c4e6f69"
+                  },
+                  {
+                      "path":  "assets/packs/animals/moose/moose.opus",
+                      "text":  "moose",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "2cf6ab073f024176b3f19a3f7ffe4d6b9e53d614a3bb529431fef25522b6a687"
+                  },
+                  {
+                      "path":  "assets/packs/animals/mosquito/mosquito.opus",
+                      "text":  "mosquito",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "38c7d17e05aacdf0db38eb4f5e4099f96b997a07063bf37c4857799b2bbb2f1f"
+                  },
+                  {
+                      "path":  "assets/packs/animals/mouse/mouse.opus",
+                      "text":  "mouse",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "b3a87602e3b2de47d7aa75f1bffbbcd3bea3f4c4a0c1dd6347591c94d4f15000"
+                  },
+                  {
+                      "path":  "assets/packs/animals/octopus/octopus.opus",
+                      "text":  "octopus",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "14e81b7f9642a9feb2039a74846289fc4ce2484a60dcf673b2acdea2fb15101c"
+                  },
+                  {
+                      "path":  "assets/packs/animals/orangutan/orangutan.opus",
+                      "text":  "orangutan",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "78422a2b39d45656ee9ae340a9e100eeef92e7c0ecec1b9535eed01ca3df03ca"
+                  },
+                  {
+                      "path":  "assets/packs/animals/otter/otter.opus",
+                      "text":  "otter",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "d0b72beadca873e7b607df50e17702a7a1f8906d37b81cb8e10ea83a107a024c"
+                  },
+                  {
+                      "path":  "assets/packs/animals/owl/owl.opus",
+                      "text":  "owl",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "b64422cdfcc6512930e160cee7a6f683edb26bb54df1889a9daf7744f1250709"
+                  },
+                  {
+                      "path":  "assets/packs/animals/ox/ox.opus",
+                      "text":  "ox",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "f8f5e104363d1f72e15e709152106def477f65c656b5d135c035ea6d07cc4435"
+                  },
+                  {
+                      "path":  "assets/packs/animals/panda/panda.opus",
+                      "text":  "panda",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "f6eb73f3a6de990088eacf57a1f994f1ad8c3548c71dd8f0ca7b5f15d4c3691e"
+                  },
+                  {
+                      "path":  "assets/packs/animals/parrot/parrot.opus",
+                      "text":  "parrot",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "507043716d4736d2e1817f646a41f75bbb43e92feedd9f5b40152a0ed0b44021"
+                  },
+                  {
+                      "path":  "assets/packs/animals/peacock/peacock.opus",
+                      "text":  "peacock",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "d6309e41c114d18466a3e46f9c4f37e19324219971dcd7af8d2d06b7a9419736"
+                  },
+                  {
+                      "path":  "assets/packs/animals/penguin/penguin.opus",
+                      "text":  "penguin",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "0bedf7b58e58d00a80572b64d1e35ea3f16e15050a8cec863d21b1bf566992f8"
+                  },
+                  {
+                      "path":  "assets/packs/animals/phoenix/phoenix.opus",
+                      "text":  "phoenix",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "a1f1192e0a37600b1bea36347314d58ca1640105d53aefa549f67bbdd541bddd"
+                  },
+                  {
+                      "path":  "assets/packs/animals/pig/pig.opus",
+                      "text":  "pig",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "3de5a5e0b039f6bcb5d2dc31dfae23ac6356bae929359c4400683afd282a49b2"
+                  },
+                  {
+                      "path":  "assets/packs/animals/polar-bear/polar-bear.opus",
+                      "text":  "polar bear",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "5f1d7bddfa16ce39462e752eb554ee0d8ff67bb940e4d0a02d452291f8b56efb"
+                  },
+                  {
+                      "path":  "assets/packs/animals/poodle/poodle.opus",
+                      "text":  "poodle",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "ccdfdb5fffc976c95cd7fc35ed0832adf8e04926812639843657985052d06ed7"
+                  },
+                  {
+                      "path":  "assets/packs/animals/rabbit/rabbit.opus",
+                      "text":  "rabbit",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "ca4f7f8e652f15370795d1ab132faeb87b8968dc1016808b2b154272a55c24aa"
+                  },
+                  {
+                      "path":  "assets/packs/animals/raccoon/raccoon.opus",
+                      "text":  "raccoon",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "74a10cc5caa57730318507ac36d3a5b25819b6ca10158bc8dba617f1b7b5609a"
+                  },
+                  {
+                      "path":  "assets/packs/animals/ram/ram.opus",
+                      "text":  "ram",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "201fef081c7a73b82a0220c7727411a2009d59036f203fa10e38055a4dc5d302"
+                  },
+                  {
+                      "path":  "assets/packs/animals/rat/rat.opus",
+                      "text":  "rat",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "44a356b133a164148ceba746c0e49c65a11911b5022880270ac7b4a2adcfeea7"
+                  },
+                  {
+                      "path":  "assets/packs/animals/rhinoceros/rhinoceros.opus",
+                      "text":  "rhinoceros",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "63d03a6c1a84d2351fa2f712bdfba606dd2a770a0223eb33fda32b538d0efdcc"
+                  },
+                  {
+                      "path":  "assets/packs/animals/rooster/rooster.opus",
+                      "text":  "rooster",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "6cb76bdaaeabd6251a1a65d50881a17f193c88e078a3386bf100e8dd6eafa9ff"
+                  },
+                  {
+                      "path":  "assets/packs/animals/sauropod/sauropod.opus",
+                      "text":  "sauropod",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "9614d25846faec3608b6cb8b3f96a5b85b48eab78989d5e83fbf81b6ba1ce541"
+                  },
+                  {
+                      "path":  "assets/packs/animals/scorpion/scorpion.opus",
+                      "text":  "scorpion",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "401e802153e0559a20348be21e53b1d45b61f5f3f6fa2c4e35f1b1d438c96b87"
+                  },
+                  {
+                      "path":  "assets/packs/animals/seal/seal.opus",
+                      "text":  "seal",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "bb2e9045967fb3f94c75e460cf2ddcf360f28ecc45143c0ca31543972dd39d5d"
+                  },
+                  {
+                      "path":  "assets/packs/animals/shark/shark.opus",
+                      "text":  "shark",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "fad2d7823c42666c2aae967e87a42c299c2b7b01c3522fcea5c239fcaa1ae151"
+                  },
+                  {
+                      "path":  "assets/packs/animals/sheep/sheep.opus",
+                      "text":  "sheep",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "0c7bcf6930852bd079fba94f362fe329cdaaf6955739710fb9e53476d7ad0485"
+                  },
+                  {
+                      "path":  "assets/packs/animals/skunk/skunk.opus",
+                      "text":  "skunk",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "136848eb01a3e250f083506ae3b2f89e2018a9256c1d4b49e4b8e814efa4110e"
+                  },
+                  {
+                      "path":  "assets/packs/animals/sloth/sloth.opus",
+                      "text":  "sloth",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "1cd7d9336cb64c6e8c5b1235dda54e491a25f1ab5f1e34aa12f18720a28f35dc"
+                  },
+                  {
+                      "path":  "assets/packs/animals/snail/snail.opus",
+                      "text":  "snail",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "d9f43857671adb9f4a9a728396a76910bbb42b919acddd058a3f27db12ef36c6"
+                  },
+                  {
+                      "path":  "assets/packs/animals/snake/snake.opus",
+                      "text":  "snake",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "15335d8564933ee9d16d8f061691e572c0ec10dbcb66aef1bc6c717a3f5ca59e"
+                  },
+                  {
+                      "path":  "assets/packs/animals/spider/spider.opus",
+                      "text":  "spider",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "7ca5d1f12f98be511b95e2e1a4ef4d28edbe68a201b9ae21b28f5462e45862b0"
+                  },
+                  {
+                      "path":  "assets/packs/animals/squirrel/squirrel.opus",
+                      "text":  "squirrel",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "372aa09a83a51949105cc1f44c0e4d6fc822947b08ab439ba0e10f99fd6862c0"
+                  },
+                  {
+                      "path":  "assets/packs/animals/swan/swan.opus",
+                      "text":  "swan",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "8bd8248884816eaa24b697b573653f499b8965e3cb4282679bae1826ff4c3037"
+                  },
+                  {
+                      "path":  "assets/packs/animals/tiger/tiger.opus",
+                      "text":  "tiger",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "c424e9ced3979e8fb16a0f52fdd4c116479a0405cd50b87509706c07d98b8480"
+                  },
+                  {
+                      "path":  "assets/packs/animals/toucan/toucan.opus",
+                      "text":  "toucan",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "75cb3925c7bd9f6a2b8819f0fa8496fc006b88a5b6b8e8b3936ab7409c6d5f4f"
+                  },
+                  {
+                      "path":  "assets/packs/animals/t-rex/t-rex.opus",
+                      "text":  "t rex",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "333fd56c02ab7967c1147e66e5d6d73d3ece6dde2f148ebac74a05885ab0aaae"
+                  },
+                  {
+                      "path":  "assets/packs/animals/tropical-fish/tropical-fish.opus",
+                      "text":  "tropical fish",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "0a894b5d6203936d1c276916369fc6e9c4b3ee7b30d3bbb13027f1a87f891c98"
+                  },
+                  {
+                      "path":  "assets/packs/animals/turkey/turkey.opus",
+                      "text":  "turkey",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "17cf2f6bd96ba825c686800141bce0651c070ecefc9c740aa7028e2593d96a38"
+                  },
+                  {
+                      "path":  "assets/packs/animals/turtle/turtle.opus",
+                      "text":  "turtle",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "f4cc50319173972e94d14dc0978ac38fc059f323de1080d0292461260bba85b9"
+                  },
+                  {
+                      "path":  "assets/packs/animals/unicorn-face/unicorn-face.opus",
+                      "text":  "unicorn face",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "08d405644fd76c1b67d410b007967dfcafbc897e14beae2481047112edc5aa44"
+                  },
+                  {
+                      "path":  "assets/packs/animals/water-buffalo/water-buffalo.opus",
+                      "text":  "water buffalo",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "060a4d2b8653eb636fe448d47368a3a2200a66f69cc4e70211ae53fe7004729c"
+                  },
+                  {
+                      "path":  "assets/packs/animals/whale/whale.opus",
+                      "text":  "whale",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "2f33ce78f83d4eeda5a9b2b8d8c9e87cf02a2a6f71cf93fa77f484e0625b753a"
+                  },
+                  {
+                      "path":  "assets/packs/animals/worm/worm.opus",
+                      "text":  "worm",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "5bbf0a719a8a93dea73f8e454693bdb8153886092637ad429f84d2f2ae1f666b"
+                  },
+                  {
+                      "path":  "assets/packs/animals/zebra/zebra.opus",
+                      "text":  "zebra",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "dd843d28dfac0f28fb64422d1ddf3758785cde249e9f55b24d662c5c79972ef9"
+                  },
+                  {
+                      "path":  "assets/packs/directions/down/down.opus",
+                      "text":  "Down",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "ea912282edc28c0658a7f51455de41468e26f5ef70c59d77147f29512edf6a69"
+                  },
+                  {
+                      "path":  "assets/packs/directions/left/left.opus",
+                      "text":  "Left",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "b132118494c2915a3f3d3d962b24bfedef450cbce173fc95c78493ee96c39576"
+                  },
+                  {
+                      "path":  "assets/packs/directions/right/right.opus",
+                      "text":  "Right",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "e9ec3af8c8d014320ba49111a5c06c13f977c70023b85e45a9a27d5fb1b72981"
+                  },
+                  {
+                      "path":  "assets/packs/directions/up/up.opus",
+                      "text":  "Up",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "6e3be926d13f6212e5e902a7730c08e08380f03ba38880a2ae14bb2bc6014bde"
+                  },
+                  {
+                      "path":  "assets/packs/foods/avocado/avocado.opus",
+                      "text":  "avocado",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "d558a3ee1d4206b0d29e4e4ef5d5b156809e7828338aa474e5357eda052b8901"
+                  },
+                  {
+                      "path":  "assets/packs/foods/bacon/bacon.opus",
+                      "text":  "bacon",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "7ad77846a49ca14859df593ccab007da705bc95cf2c608da98667eb8936a01f6"
+                  },
+                  {
+                      "path":  "assets/packs/foods/bagel/bagel.opus",
+                      "text":  "bagel",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "dcc25a76276c80f681831736b3c9ae02b9452eb93d921217e527f9a8ac633041"
+                  },
+                  {
+                      "path":  "assets/packs/foods/baguette/baguette.opus",
+                      "text":  "baguette",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "81c1a49a18a27957e9261314906d749c7229cb70b898748a323f36b944a815e1"
+                  },
+                  {
+                      "path":  "assets/packs/foods/banana/banana.opus",
+                      "text":  "banana",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "180d5caa842924ce3e08ff403dd6ed112c7b65ea7eab2b464ef3a1741ae415c5"
+                  },
+                  {
+                      "path":  "assets/packs/foods/beans/beans.opus",
+                      "text":  "beans",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "2cd89bca292ae355a542bd265252a066b884ee3d8977d5124009d6ed235de16e"
+                  },
+                  {
+                      "path":  "assets/packs/foods/bell pepper/bell pepper.opus",
+                      "text":  "bell pepper",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "cce48b245adb20afcc37c27b7ce591b37b934bce0bd8870115b80027cd593dc4"
+                  },
+                  {
+                      "path":  "assets/packs/foods/birthday cake/birthday cake.opus",
+                      "text":  "birthday cake",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "96f195acc055a5a807cd447c31973b4b75b212ee14c20e11fbb8ac09996b63c7"
+                  },
+                  {
+                      "path":  "assets/packs/foods/blueberries/blueberries.opus",
+                      "text":  "blueberries",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "ca1b26bc1f3c9ce52d3fc1d0b8accb49934c87f7150e3410d5c28cbe7899e749"
+                  },
+                  {
+                      "path":  "assets/packs/foods/bread/bread.opus",
+                      "text":  "bread",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "11ca3f44323ae4f3f16cffa8298ea44b03afc9c4aa83c37726e460ebb2564bf4"
+                  },
+                  {
+                      "path":  "assets/packs/foods/broccoli/broccoli.opus",
+                      "text":  "broccoli",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "b23ccea9aa04cfedc7bacfb6b2f9f0880af22a33286f3de1bdab0d38fe249ef4"
+                  },
+                  {
+                      "path":  "assets/packs/foods/burrito/burrito.opus",
+                      "text":  "burrito",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "11067c0a12656845e076737790ebe84fa266d1848a520179461b8448ac473eea"
+                  },
+                  {
+                      "path":  "assets/packs/foods/butter/butter.opus",
+                      "text":  "butter",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "924d49bea3b5564d4313754dd32c6f4fc27cf8bd40fd97db162b6588c795cc08"
+                  },
+                  {
+                      "path":  "assets/packs/foods/carrot/carrot.opus",
+                      "text":  "carrot",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "078043676e5b20150c8a4f05b7eb9f406c82555f9965fc1fba3becf52f78c306"
+                  },
+                  {
+                      "path":  "assets/packs/foods/cereal/cereal.opus",
+                      "text":  "cereal",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "cebae7c653c7c04ceaf78c4f4170082c4a7872a0e393f468b09ef57c9e316f58"
+                  },
+                  {
+                      "path":  "assets/packs/foods/cheese/cheese.opus",
+                      "text":  "cheese",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "6e9fb996f188a5ed1ef38fb0350b2a4a9d5743a165791633c89ce72b495ab9b2"
+                  },
+                  {
+                      "path":  "assets/packs/foods/cherries/cherries.opus",
+                      "text":  "cherries",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "6e279bae62287e6fd9d49e12dd7ff7ea39692a2f519b0f7fe96f28f7e874ae69"
+                  },
+                  {
+                      "path":  "assets/packs/foods/chestnut/chestnut.opus",
+                      "text":  "chestnut",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "abff66ff31fb85db94b1f84ef991b19fe7c121e967040f8969e2216c238b1192"
+                  },
+                  {
+                      "path":  "assets/packs/foods/chocolate/chocolate.opus",
+                      "text":  "chocolate",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "0a899b29679fdf7cae75d2f70bcb3ac27aa22d93cb05f78a1aad62ee4252cc07"
+                  },
+                  {
+                      "path":  "assets/packs/foods/coconut/coconut.opus",
+                      "text":  "coconut",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "d6108c8c9f6f795be570d1a7969b7934f7dfd92fca38bbf8e9c0f0c12a704921"
+                  },
+                  {
+                      "path":  "assets/packs/foods/cookie/cookie.opus",
+                      "text":  "cookie",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "60cd3bd1b1ca00f693f306556943bea803c0558274027049831abfb429f04167"
+                  },
+                  {
+                      "path":  "assets/packs/foods/corn/corn.opus",
+                      "text":  "corn",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "a31c1eb136c5dc8433d7963604a66eb461131f5a01e1ba6e4c487f3c584fe3a5"
+                  },
+                  {
+                      "path":  "assets/packs/foods/croissant/croissant.opus",
+                      "text":  "croissant",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "b55c98d68cc51605d56513e87902db0447cf3cb0c2ce1da89c249d830776a980"
+                  },
+                  {
+                      "path":  "assets/packs/foods/cucumber/cucumber.opus",
+                      "text":  "cucumber",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "31669dd721fcf151f9d290a99f9022d369d12ec655aadf71c91d3490426081b3"
+                  },
+                  {
+                      "path":  "assets/packs/foods/doughnut/doughnut.opus",
+                      "text":  "doughnut",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "63cd36598d0b23249fae870d529ebb35b7010bda3875df9801cb5294e74bdcb1"
+                  },
+                  {
+                      "path":  "assets/packs/foods/egg/egg.opus",
+                      "text":  "egg",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "510b622e04cef52000cc6489ec013a097f1223f24ac6599cd561082111db7555"
+                  },
+                  {
+                      "path":  "assets/packs/foods/eggplant/eggplant.opus",
+                      "text":  "eggplant",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "273a2d4dfb46b9f9c5c8f75edc9ab268452a6992cb3c53c2fb7b7b418a2d2f0b"
+                  },
+                  {
+                      "path":  "assets/packs/foods/falafel/falafel.opus",
+                      "text":  "falafel",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "c1d53a63546be8e398f38016dca28f2467a3d34714ba267e7efd3fe0a00d8f21"
+                  },
+                  {
+                      "path":  "assets/packs/foods/flatbread/flatbread.opus",
+                      "text":  "flatbread",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "7856ef7a78fe5444700d3135e031e335fe4d5542e587b63e22102516e27e7406"
+                  },
+                  {
+                      "path":  "assets/packs/foods/french fries/french fries.opus",
+                      "text":  "french fries",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "806f20ae0a27e75ae05952887e6918203c5c9ba2772244020f877d6a10e18111"
+                  },
+                  {
+                      "path":  "assets/packs/foods/fried egg/fried egg.opus",
+                      "text":  "fried egg",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "96e2d21363ecbe532ab4d319ce8af1ba00717a23eab0287d45b4ad49f286cf69"
+                  },
+                  {
+                      "path":  "assets/packs/foods/garlic/garlic.opus",
+                      "text":  "garlic",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "f1b3a796ae9f77a8276625f4deb9bf080e24a5d89a8abf90bdb20e5265bc3997"
+                  },
+                  {
+                      "path":  "assets/packs/foods/grapes/grapes.opus",
+                      "text":  "grapes",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "44d2c1e892fee91606dcc9773d490fb1082386b31fa01bae6965b125be2f74a8"
+                  },
+                  {
+                      "path":  "assets/packs/foods/green apple/green apple.opus",
+                      "text":  "green apple",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "d2024ab06cc8cf69e2ff5934bff9f723a49bce5f421645eec7c59f7f3af4e47c"
+                  },
+                  {
+                      "path":  "assets/packs/foods/hamburger/hamburger.opus",
+                      "text":  "hamburger",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "27fb767c20149cf4f3b8c839641346c71320199a67306b1a18379f749e8bd727"
+                  },
+                  {
+                      "path":  "assets/packs/foods/hot dog/hot dog.opus",
+                      "text":  "hot dog",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "2da88e169235584b01a8484379fcdc40ae34a036612c2045fa3c32b413a22b61"
+                  },
+                  {
+                      "path":  "assets/packs/foods/hot pepper/hot pepper.opus",
+                      "text":  "hot pepper",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "35bef3872c9aa748734d4a7ac5c86ea6797057e2c2f612cc4c642c0aa3911556"
+                  },
+                  {
+                      "path":  "assets/packs/foods/ice cream/ice cream.opus",
+                      "text":  "ice cream",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "9b6e2313a82aa93242334bc7e0bd48d424a2398209fdb8d1c9409bb8ca97e9f8"
+                  },
+                  {
+                      "path":  "assets/packs/foods/kiwi fruit/kiwi fruit.opus",
+                      "text":  "kiwi fruit",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "83b8408d9aca0c35b13dc754088c0f7cf55b93f7367890c73bf44aad55ce21b6"
+                  },
+                  {
+                      "path":  "assets/packs/foods/leafy green/leafy green.opus",
+                      "text":  "leafy green",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "63a28ac6cf965398fd46c0271466a00b38610d4b41fd0d5163b25f5364b013c4"
+                  },
+                  {
+                      "path":  "assets/packs/foods/lemon/lemon.opus",
+                      "text":  "lemon",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "8779739cf8a8f3d4502e85c9b7ef3c454a8ffafdbe7d09f6c25f48dddaee4579"
+                  },
+                  {
+                      "path":  "assets/packs/foods/mango/mango.opus",
+                      "text":  "mango",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "dad41a45caa61aa7964d5b89656d6adf526016a32882835a6ef0bfa68a16139e"
+                  },
+                  {
+                      "path":  "assets/packs/foods/meat on bone/meat on bone.opus",
+                      "text":  "meat on bone",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "cb13dace5d35ffe2162ff0263f1dbb23c384a56e5cb1e3c4ec83365968d8b258"
+                  },
+                  {
+                      "path":  "assets/packs/foods/melon/melon.opus",
+                      "text":  "melon",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "da9b5230918d24dbc17e235432a0326b7bdd70e5a8de462e42514be52b7c170c"
+                  },
+                  {
+                      "path":  "assets/packs/foods/olive/olive.opus",
+                      "text":  "olive",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "037d53e0fa4bf42dd07c42a43065d8d42eccd1f4b8f064e3b832e30320820755"
+                  },
+                  {
+                      "path":  "assets/packs/foods/onion/onion.opus",
+                      "text":  "onion",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "55cf499a9926c323d3eb7c0858e8bb418adda6cde38b31f6ecb920ae151511ac"
+                  },
+                  {
+                      "path":  "assets/packs/foods/paella/paella.opus",
+                      "text":  "paella",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "1514d703f941d325190212790ecd9231218836615335168c0e91002b333f5269"
+                  },
+                  {
+                      "path":  "assets/packs/foods/pancakes/pancakes.opus",
+                      "text":  "pancakes",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "6bce0282990c34d4924008b0438f3f32bfcb49432100053f80e4fdfd31e2348d"
+                  },
+                  {
+                      "path":  "assets/packs/foods/peach/peach.opus",
+                      "text":  "peach",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "e6aec8dd3412eb1f73fef9168c7e7678bddae80ba1bf2ed7f3cb45dda5ee638a"
+                  },
+                  {
+                      "path":  "assets/packs/foods/peanuts/peanuts.opus",
+                      "text":  "peanuts",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "46b8acea2483d4cdb7ac6d979403192d9bc0aa39cff48716dcde3df1182fa3e6"
+                  },
+                  {
+                      "path":  "assets/packs/foods/pear/pear.opus",
+                      "text":  "pear",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "0c857ed3d5566278794796f7595274eb5dc86e87f5fabfeffa298095a891595d"
+                  },
+                  {
+                      "path":  "assets/packs/foods/pineapple/pineapple.opus",
+                      "text":  "pineapple",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "ead00099fb8e8e6b7278319d98e2b1d1211ddd9c6292391afe02df0ea8c540b8"
+                  },
+                  {
+                      "path":  "assets/packs/foods/pizza/pizza.opus",
+                      "text":  "pizza",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "0fdc962c6e5b005bc4a154365c92a78e2a19a8e8d438b029f50859e3e7a33cad"
+                  },
+                  {
+                      "path":  "assets/packs/foods/popcorn/popcorn.opus",
+                      "text":  "popcorn",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "3be2bd89758fff5ee9b1bf2b2b2bb8544de43c3a6985fe144663b005fe46a33a"
+                  },
+                  {
+                      "path":  "assets/packs/foods/potato/potato.opus",
+                      "text":  "potato",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "9a24a1de3162f4cedd93a661e35c375ec4da3e741fec321ab61877cbc213370e"
+                  },
+                  {
+                      "path":  "assets/packs/foods/poultry leg/poultry leg.opus",
+                      "text":  "poultry leg",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "5be869aa02f51ecb299d5c109afc131a4452f57d11d05fb023a3ef09322e5b7b"
+                  },
+                  {
+                      "path":  "assets/packs/foods/pretzel/pretzel.opus",
+                      "text":  "pretzel",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "2f648a475bc081a54866da93c2390cf3e2f0d6be8fa727a4ce382780add8b9e5"
+                  },
+                  {
+                      "path":  "assets/packs/foods/red apple/red apple.opus",
+                      "text":  "red apple",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "2fdf101245b766605008d72ffb5fb435d6def8619cc86c7957fa6ddd6ceee911"
+                  },
+                  {
+                      "path":  "assets/packs/foods/salad/salad.opus",
+                      "text":  "salad",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "fcd3e502bcb3e44ebe0fe1f4372da395c4b2392e7e8667f8ee484d7076ba3559"
+                  },
+                  {
+                      "path":  "assets/packs/foods/sandwich/sandwich.opus",
+                      "text":  "sandwich",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "0e9a3932d795a0f637293fc54d9878a0c9cb9d4be8d2134165259af1cfd45c48"
+                  },
+                  {
+                      "path":  "assets/packs/foods/steak/steak.opus",
+                      "text":  "steak",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "9c4507df6e4ac5a8c130369c0e2e9230d6b0d6c9ddc0e6e5bc3ed9eff3e7813e"
+                  },
+                  {
+                      "path":  "assets/packs/foods/stew/stew.opus",
+                      "text":  "stew",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "f91c6960a5aae6ea0584dffc9c8998675fe88a5cefd8ae9d1b01774737296baa"
+                  },
+                  {
+                      "path":  "assets/packs/foods/strawberry/strawberry.opus",
+                      "text":  "strawberry",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "c346d5c3c59ac0b5e938cd88a30e6cc5ffc206b1a59e3d5b8c134f45cfccaae1"
+                  },
+                  {
+                      "path":  "assets/packs/foods/sweet potato/sweet potato.opus",
+                      "text":  "sweet potato",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "d92fa120579d9aebf2415048f49cb026a2f77ed5ce456481a6082c09a1cd0f77"
+                  },
+                  {
+                      "path":  "assets/packs/foods/taco/taco.opus",
+                      "text":  "taco",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "03974e8bb9986f73bd484c1b1acf2f5667ebb0424af50671e45b5611151d4e87"
+                  },
+                  {
+                      "path":  "assets/packs/foods/tangerine/tangerine.opus",
+                      "text":  "tangerine",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "5b6472e4c55f53ed5daf43148bdcdc4a1fe60b11e32f6ef8df658fff32ec7434"
+                  },
+                  {
+                      "path":  "assets/packs/foods/tomato/tomato.opus",
+                      "text":  "tomato",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "6564a45141bb9d5df824e01c5034615b86656a89c0cc23c8b3943c17e44c1e24"
+                  },
+                  {
+                      "path":  "assets/packs/foods/waffle/waffle.opus",
+                      "text":  "waffle",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "cc286f3adff2e3ed1dce9b12b9ef2b3cb8caea74ac70ebe37cfb036eca934b55"
+                  },
+                  {
+                      "path":  "assets/packs/foods/watermelon/watermelon.opus",
+                      "text":  "watermelon",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "fef1e0a3d7d4948a279b60b532df94615029e7b99be24b4cc8babb204590c13e"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/accordion/accordion.opus",
+                      "text":  "accordion",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "52e047d02e40f0bfbae1ab15f77c8b989af192daac3cd2b1cbe9a75c8755ab32"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/banjo/banjo.opus",
+                      "text":  "banjo",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "9f4af910e3aa4dc08f37b3c91e5440b00787c54b096ec1a8162fdd3e0d2ec275"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/bell/bell.opus",
+                      "text":  "bell",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "5c6dae086cc152d0201c1a95ebfea0cea596dd5394e44295acb6c73eab2779eb"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/drum/drum.opus",
+                      "text":  "drum",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "378f40ce15e9f36b78b8ca4bbe57a7aae99637dc8cc8810314019999b7dbdb4c"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/flute/flute.opus",
+                      "text":  "flute",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "b07af66a91b6ce744cf1f9aae81711cfe28860088d5dc3103e821af108fbf01a"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/guitar/guitar.opus",
+                      "text":  "guitar",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "4a894c3aa99c0716f80d7258f11b8ee5878d80415a7314e81cfb343661421ade"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/headphones/headphones.opus",
+                      "text":  "headphones",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "457ae2796b7d3e5b3849dd85668bc3666b988ffafe4e498d2635069dd5efc987"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/horn/horn.opus",
+                      "text":  "horn",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "2a6d4ce48f920260d459c46dddb90a33bbfe9a262f3300dcef0fa798ded6cf88"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/keyboard/keyboard.opus",
+                      "text":  "keyboard",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "6135831f170cd644cfddca0da4f776afbffc5626cece96eac5f92b81f19f446e"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/long drum/long drum.opus",
+                      "text":  "long drum",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "7a1fe053a0b09e95d12fc476c6534e020f609a99152cc4eb143489b0933f630b"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/maracas/maracas.opus",
+                      "text":  "maracas",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "7e57ab5807ff3c40ac49bb4541b4893d2f3c48202c777aa84e5171a154856257"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/microphone/microphone.opus",
+                      "text":  "microphone",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "4a9a63d1bb9a7508b4a6aecf257b59064686969954655db215e3a155d599c788"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/musical score/musical score.opus",
+                      "text":  "musical score",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "e932c62a1774c1ccfafc74813a31c91cbe66bb2a1d8b0bbb2f82d58e36c3b1e8"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/saxophone/saxophone.opus",
+                      "text":  "saxophone",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "7c7753a541364cbe224928c8c407d446cab1cb22dae8c923146506ac40d82579"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/trumpet/trumpet.opus",
+                      "text":  "trumpet",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "0ab76a046f06ab30805ad239690d4e183106f67073f5ff91365881ecbd460aed"
+                  },
+                  {
+                      "path":  "assets/packs/instruments/violin/violin.opus",
+                      "text":  "violin",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "aa7d8ea87f57aaca9d1bd1e7ca5e5b6fb7825a420f0c3abe6e06904cc2f82bb4"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/amber/amber.opus",
+                      "text":  "Amber",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "6d9634772a9bdfad947cf94e4f928a198aa167dc7c39dd37b5ae2f23e8d57ee8"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/black/black.opus",
+                      "text":  "Black",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "1ba04558683b982d8adb3d6c3dbde62540004cd0723a7461fb22c591df644b3a"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/blue/blue.opus",
+                      "text":  "Blue",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "697c262e47b2a80686906882dbbe3df9bb09b0be2ea3d723a6b68ff0788def8a"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/brown/brown.opus",
+                      "text":  "Brown",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "5383c0763cecfacd4fab3a6eabf5d0ee7c60ccb2bc709daa50a18cba17638472"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/gray/gray.opus",
+                      "text":  "Gray",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "4633235dd225f59f435a49550e27ce78ba7b9dc849039199db51abf85013efcc"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/green/green.opus",
+                      "text":  "Green",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "76f187bbdda46d28f02202b9de7c29000972e9606366cde985e0da66812ed06f"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/indigo/indigo.opus",
+                      "text":  "Indigo",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "361540e4e358600abe2b43741946de74150fb0b17ebfa2fd595159f47c6d646b"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/lime-green/lime-green.opus",
+                      "text":  "Lime green",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "ac842f7444fc7189b09d61176add32eec4a980a73a20ddadf6e4a11887230788"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/orange/orange.opus",
+                      "text":  "Orange",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "d9bf9af192c6058410d9b924b09d65fe17d1d289ef778fbe03a8166426cb87ab"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/orange-red/orange-red.opus",
+                      "text":  "Orange red",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "9cd4b06e7ec2955c42af45772dbd9d6b16fb97f46c7b69f31aed4cdbb36e043b"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/pink/pink.opus",
+                      "text":  "Pink",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "38896e9ba90925be595d6411b2c8a30b1450c91d1173a72f8291470f7ac52de3"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/red/red.opus",
+                      "text":  "Red",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "b61c129517c6ca3d2f249d1b032bae036acedcd75c1ad5c46755f6cf6c5ffdaa"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/teal/teal.opus",
+                      "text":  "Teal",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "e17a054e3dbdc6e5793fddb505dc1610bcf3393a2ff14fb2d45a0ddab0a0255d"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/violet/violet.opus",
+                      "text":  "Violet",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "461d43c8de28632d7fa896eb6165034a850bceaa8903548d46599e6729bccad0"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/white/white.opus",
+                      "text":  "White",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "50d0296f2cf597598feb71afb266a3ccd49832102d163dde76bde11fb7ea5045"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/modifier/yellow/yellow.opus",
+                      "text":  "Yellow",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "9a056e8c87efd43e1575e16e721735e01fccf5b86854a99e41e330b6a385cbc2"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/amber/amber.opus",
+                      "text":  "Amber.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "6d9634772a9bdfad947cf94e4f928a198aa167dc7c39dd37b5ae2f23e8d57ee8"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/black/black.opus",
+                      "text":  "Black.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "1ba04558683b982d8adb3d6c3dbde62540004cd0723a7461fb22c591df644b3a"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/blue/blue.opus",
+                      "text":  "Blue.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "697c262e47b2a80686906882dbbe3df9bb09b0be2ea3d723a6b68ff0788def8a"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/brown/brown.opus",
+                      "text":  "Brown.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "5383c0763cecfacd4fab3a6eabf5d0ee7c60ccb2bc709daa50a18cba17638472"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/gray/gray.opus",
+                      "text":  "Gray.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "4633235dd225f59f435a49550e27ce78ba7b9dc849039199db51abf85013efcc"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/green/green.opus",
+                      "text":  "Green.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "76f187bbdda46d28f02202b9de7c29000972e9606366cde985e0da66812ed06f"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/indigo/indigo.opus",
+                      "text":  "Indigo.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "361540e4e358600abe2b43741946de74150fb0b17ebfa2fd595159f47c6d646b"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/lime-green/lime-green.opus",
+                      "text":  "Lime green.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "ac842f7444fc7189b09d61176add32eec4a980a73a20ddadf6e4a11887230788"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/orange/orange.opus",
+                      "text":  "Orange.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "d9bf9af192c6058410d9b924b09d65fe17d1d289ef778fbe03a8166426cb87ab"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/orange-red/orange-red.opus",
+                      "text":  "Orange red.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "9cd4b06e7ec2955c42af45772dbd9d6b16fb97f46c7b69f31aed4cdbb36e043b"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/pink/pink.opus",
+                      "text":  "Pink.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "38896e9ba90925be595d6411b2c8a30b1450c91d1173a72f8291470f7ac52de3"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/red/red.opus",
+                      "text":  "Red.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "b61c129517c6ca3d2f249d1b032bae036acedcd75c1ad5c46755f6cf6c5ffdaa"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/teal/teal.opus",
+                      "text":  "Teal.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "e17a054e3dbdc6e5793fddb505dc1610bcf3393a2ff14fb2d45a0ddab0a0255d"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/violet/violet.opus",
+                      "text":  "Violet.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "461d43c8de28632d7fa896eb6165034a850bceaa8903548d46599e6729bccad0"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/white/white.opus",
+                      "text":  "White.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "50d0296f2cf597598feb71afb266a3ccd49832102d163dde76bde11fb7ea5045"
+                  },
+                  {
+                      "path":  "assets/sounds/colors/standalone/yellow/yellow.opus",
+                      "text":  "Yellow.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "9a056e8c87efd43e1575e16e721735e01fccf5b86854a99e41e330b6a385cbc2"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/a/a.opus",
+                      "text":  "A.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "b0f482ee3c92fe2d8b561a466015fc9c1c3cbd3e011d1cb05da499d391f1629d"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/b/b.opus",
+                      "text":  "B.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "3a69c50f3e1643a116268d8caad0ab26fa855702389bda23013609ce43af9636"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/c/c.opus",
+                      "text":  "C.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "28f04c68d8ad62bbc1f2d889cdfe24c2dec4d65e128cf4f727a487fb137f9899"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/d/d.opus",
+                      "text":  "D.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "7f5009dd7a3c4ff9e9d73d451b678ba025a00f1ff1228693b11b103896250546"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/e/e.opus",
+                      "text":  "E.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "278dec2374c95cb3650aedc5063f65de7ac1f9357d8f67ba479a5553822d6280"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/f/f.opus",
+                      "text":  "F.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "210ab21ece23ac98c52f8a867313dc4917cb5feb69b79dbb37b4494e8a6dfbd4"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/g/g.opus",
+                      "text":  "G.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "7bdf478674a940b0c90bb09e1ec1aeaf4d0a248135fda5e8cc763626e0b96af5"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/h/h.opus",
+                      "text":  "H.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "2916d2fe3cc6607c1ab16776df71a6541a365c3084c9a9491832bbf810ff5e88"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/i/i.opus",
+                      "text":  "I.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "84af918fa2c2d79806a38dab3500387669df7d7c23a348206cadea8ce4d3f62c"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/j/j.opus",
+                      "text":  "J.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "7165980b64e19f238562dc444642d17a0fd314671cefb7f382627332905d0169"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/k/k.opus",
+                      "text":  "K.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "a47266500e744c79ac69f5b7d120f195db02e5deb324f88c373a7c08d3bed472"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/l/l.opus",
+                      "text":  "L.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "14c8b6f8f20dca6f4f64ca85ee4542bfb4b0cc629fab61a425b380ea69074fd7"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/m/m.opus",
+                      "text":  "M.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "865c7d82925d4e3ce091e934f5b971fa213ec4f0c9c694ba5908594b197451d1"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/n/n.opus",
+                      "text":  "N.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "1e08a72aab6245009765b0143d76ce00735cfc9c5ba0727099562cf419b1b075"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/o/o.opus",
+                      "text":  "O.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "fdba81831bcfaa0d08ff81aaabca7c66f6dd1dd015a0fdecc4c6fdc3776d431a"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/p/p.opus",
+                      "text":  "P.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "a9a7837951a18127dfac1ebca207bd0f775f39ec7c73aea0177d7251dc8af24a"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/q/q.opus",
+                      "text":  "Q.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "6baedabd1597ade9276b6de915786292fba3970a5749e9b66e4efc96d12e39c9"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/r/r.opus",
+                      "text":  "R.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "d786f0852e3c51a5772d242b5d72384464ace043116db3786e4b7d3c9cce9a65"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/s/s.opus",
+                      "text":  "S.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "10f8b24f662110399fc7ebd1b8c4c73e01d56ad7705c12ec1c60fda47d335be3"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/t/t.opus",
+                      "text":  "T.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "14b6c3981382255df5e2916b839d3886c787c9c83bb8fad8d1a949da612baf1f"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/u/u.opus",
+                      "text":  "U.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "99a9826a6297f1b4b58d0d97788f15670a50ad1f3743c1771e90f1dadbaa66dc"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/v/v.opus",
+                      "text":  "V.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "4307a92c5f61e6db5b88c389f9480e8045053efb7410571034c073ff0996a808"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/w/w.opus",
+                      "text":  "W.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "5c57a0cdf389753592a1b8217698415cb2c3580f4845d6212b215f900a80a0b0"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/x/x.opus",
+                      "text":  "X.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "c3a05752e7cc6c6a57d7fc98a58d4c61ba062d1faf8fd004442f6398ef795425"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/y/y.opus",
+                      "text":  "Y.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "b4b67454fa503f41e1c82cc43db63a2573e7f792aad137e79432423fb62e2d31"
+                  },
+                  {
+                      "path":  "assets/sounds/letters/z/z.opus",
+                      "text":  "Z.",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "0cc2efa873381d9619ad544c94c1aa6033e21e531e0f20fa781166824ee09ec1"
+                  },
+                  {
+                      "path":  "assets/sounds/numbers/0/0.opus",
+                      "text":  "0",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "9e0133dd4ffbfc90608d27c9d6a22bf3280373913295cbe5e5cc2c034be91246"
+                  },
+                  {
+                      "path":  "assets/sounds/numbers/1/1.opus",
+                      "text":  "1",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "a4a491d0d21e2338da2218dbbb7d0d7e3e2e5253f7d324fb292d022a73aa040c"
+                  },
+                  {
+                      "path":  "assets/sounds/numbers/2/2.opus",
+                      "text":  "2",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "b75641a50728114daa2b116a1481def800f9220ca0218e29774d7d47e80f282d"
+                  },
+                  {
+                      "path":  "assets/sounds/numbers/3/3.opus",
+                      "text":  "3",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "cce2f54f232da85fa6154ad4a3c67338ce01a700a66acf5919f8cbb3ac671457"
+                  },
+                  {
+                      "path":  "assets/sounds/numbers/4/4.opus",
+                      "text":  "4",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "7595ea0f7f8f958c003060af6b6f229d9427807cb248c5ffb2486e3b124b0987"
+                  },
+                  {
+                      "path":  "assets/sounds/numbers/5/5.opus",
+                      "text":  "5",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "73e20d4c17849707882e88f72afe2f9147931b45253a88207bb8d8c104e46e27"
+                  },
+                  {
+                      "path":  "assets/sounds/numbers/6/6.opus",
+                      "text":  "6",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "180605dd2911a9a4dc146885b325f447f23c214192993e7aa7f19524eff410a0"
+                  },
+                  {
+                      "path":  "assets/sounds/numbers/7/7.opus",
+                      "text":  "7",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "fb86db4ad038dc787875c26f3b964dbb45f8acdec846b44f630210b07ea15e50"
+                  },
+                  {
+                      "path":  "assets/sounds/numbers/8/8.opus",
+                      "text":  "8",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "4473b96f41f54eaabf4f7cffe8564d40afba6118bd51657f5f07fd5fd7ed36bb"
+                  },
+                  {
+                      "path":  "assets/sounds/numbers/9/9.opus",
+                      "text":  "9",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "ab80936c8efb666fe898fb8b0845fc1f7cc7eec153e5aebc0dfed436ca1c2e3f"
+                  },
+                  {
+                      "path":  "assets/sounds/shapes/circle/circle.opus",
+                      "text":  "Circle",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "0db230b3a527280718d2d4eebad2de35c5948fe8bd91f6dce37b39634d6d63c3"
+                  },
+                  {
+                      "path":  "assets/sounds/shapes/cross/cross.opus",
+                      "text":  "Cross",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "91c7f0e2847caeba53c3ac6e574a9160672ca907627c5932fee7b7b120dc7133"
+                  },
+                  {
+                      "path":  "assets/sounds/shapes/heart/heart.opus",
+                      "text":  "Heart",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "61b1e5f439d830fb383e0c739a15b892d94f858e17bf9a8a4570c5bd800dfdfc"
+                  },
+                  {
+                      "path":  "assets/sounds/shapes/hexagon/hexagon.opus",
+                      "text":  "Hexagon",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "267e0232fb87238ee493fb2a6e21e2f439b47f4a8b5c656b93e1f414f3c7bd4f"
+                  },
+                  {
+                      "path":  "assets/sounds/shapes/octagon/octagon.opus",
+                      "text":  "Octagon",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "c42f33b459cb7c6af1b70f59c7c19c7fc8868c1f8ab48951fe7d59995b24a036"
+                  },
+                  {
+                      "path":  "assets/sounds/shapes/oval/oval.opus",
+                      "text":  "Oval",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "b520d48de053f0a89aea51f97128907a244cd2524a56c1b6f27406030fced530"
+                  },
+                  {
+                      "path":  "assets/sounds/shapes/pentagon/pentagon.opus",
+                      "text":  "Pentagon",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "4bb6e19f79b2abf7571cb6f438a395b43ab5173e3e01fb6cc405cfdfa5170b1c"
+                  },
+                  {
+                      "path":  "assets/sounds/shapes/rectangle/rectangle.opus",
+                      "text":  "Rectangle",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "12edf96e79fcb0b603c44567a5b26a21a2e1d5f7c82d5ce65ea993b030fa6344"
+                  },
+                  {
+                      "path":  "assets/sounds/shapes/septagon/septagon.opus",
+                      "text":  "Septagon",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "acaa5f434cecdae58a4d54492e5489cece955cca8966eefcca6fecd23e86187e"
+                  },
+                  {
+                      "path":  "assets/sounds/shapes/square/square.opus",
+                      "text":  "Square",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "e8294bd5d3a2e1f9635d2aad1c0da5ec05601819ccd014bad3189f0b7cebb850"
+                  },
+                  {
+                      "path":  "assets/sounds/shapes/star/star.opus",
+                      "text":  "Star",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "eff323c0fd7fd48a7105a09951de0fd334515f13238c6265eb7fb99bd5a1bab1"
+                  },
+                  {
+                      "path":  "assets/sounds/shapes/trapezoid/trapezoid.opus",
+                      "text":  "Trapezoid",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "516ef0d50cc4cb7df8d58b6117ebc85a6bdf6239692697419e8c744dcc0cffb1"
+                  },
+                  {
+                      "path":  "assets/sounds/shapes/triangle/triangle.opus",
+                      "text":  "Triangle",
+                      "engine":  "Windows System.Speech",
+                      "voice":  "Microsoft Zira Desktop",
+                      "rate":  -1,
+                      "sha256":  "2f9adbf538d995d14d8bebf3cad333a032269542c80bb3a995feb0886e8f9d2e"
+                  }
+              ]
+}

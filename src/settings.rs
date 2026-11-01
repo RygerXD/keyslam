@@ -232,6 +232,7 @@ impl Settings {
             "Animals" => "animals".to_owned(),
             "Foods" => "foods".to_owned(),
             "Instruments" => "instruments".to_owned(),
+            name if name.eq_ignore_ascii_case("directions") => "animals".to_owned(),
             _ => self.extra_key_set.clone(),
         };
         self.fade_after_seconds = self
