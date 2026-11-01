@@ -492,6 +492,20 @@ impl KeySlamApp {
 
     fn process_key(&mut self, key_name: &str) {
         let now = Instant::now();
+        if let Some(effect) = CursorEffect::from_number_key(key_name)
+            && effect != self.settings.cursor_effect
+        {
+            self.audio.stop_sine();
+            self.coloring.end_all_strokes();
+            for display in &mut self.game.displays {
+                display.pointer.release(now);
+                display.pointer.pulse_cursor(true, now);
+            }
+            self.settings.cursor_effect = effect;
+            if let Err(error) = self.settings_store.save(&self.settings) {
+                self.status = Some(format!("Could not save pointer effect: {error}"));
+            }
+        }
         self.game.add_response(
             response_for_set(key_name, &self.settings.extra_key_set),
             &self.settings,
@@ -976,7 +990,11 @@ impl KeySlamApp {
                         Key::Num9 => Some(9),
                         _ => None,
                     };
+                    // The Windows guard forwards numpad events separately. Polling
+                    // held keys here would misclassify a top-row digit while the
+                    // matching numpad key is also held.
                     let key_name = digit
+                        .filter(|_| !self.close_protection)
                         .and_then(pressed_numpad_key)
                         .unwrap_or(selected.name());
                     self.process_key(key_name);
@@ -1074,16 +1092,6 @@ impl KeySlamApp {
                                 self.settings.piano_note_gain(),
                             );
                         }
-                    }
-                }
-                Event::MouseWheel { delta, .. } if delta.y != 0.0 => {
-                    self.coloring.end_all_strokes();
-                    if let Some(display) = self.game.displays.get_mut(display_index) {
-                        display.pointer.pulse_cursor(delta.y > 0.0, now);
-                    }
-                    self.settings.cursor_effect = self.settings.cursor_effect.cycle(delta.y > 0.0);
-                    if let Err(error) = self.settings_store.save(&self.settings) {
-                        self.status = Some(format!("Could not save pointer effect: {error}"));
                     }
                 }
                 Event::PointerGone => {
@@ -1432,7 +1440,7 @@ fn appearance_options(ui: &mut Ui, settings: &mut Settings, pending_ui_scale_per
         );
         ui.checkbox(
             &mut settings.interaction_animations,
-            "Animate shapes when tapped or scrolled",
+            "Animate shapes when tapped",
         );
     });
 }
@@ -1468,10 +1476,18 @@ fn play_options(ui: &mut Ui, settings: &mut Settings) -> Option<String> {
         ui.horizontal(|ui| {
             ui.label("Effect");
             ComboBox::from_id_salt("cursor-effect")
-                .selected_text(settings.cursor_effect.label())
+                .selected_text(format!(
+                    "{} — {}",
+                    settings.cursor_effect.number_key(),
+                    settings.cursor_effect.label()
+                ))
                 .show_ui(ui, |ui| {
                     for effect in CursorEffect::ALL {
-                        ui.selectable_value(&mut settings.cursor_effect, effect, effect.label());
+                        ui.selectable_value(
+                            &mut settings.cursor_effect,
+                            effect,
+                            format!("{} — {}", effect.number_key(), effect.label()),
+                        );
                     }
                 });
         });
@@ -1481,7 +1497,7 @@ fn play_options(ui: &mut Ui, settings: &mut Settings) -> Option<String> {
                 ui.hyperlink_to("Shadertoy", url);
             });
         }
-        ui.weak("Use the mouse wheel during play to cycle through the effects.");
+        ui.weak("During play, use top-row keys 1–6 to select the left mouse button effect.");
     });
     section(ui, "Letters and words", |ui| {
         ui.checkbox(&mut settings.force_uppercase, "Use uppercase letters");

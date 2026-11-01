@@ -27,8 +27,8 @@ executable.
   animation, and tap animation
 - Speech, continuous stereo sinewave, and configurable paint-color and right-click audio
 - Original blue hand pointer plus rainbow, fading-afterimage,
-  sparkle, bubble, background-coloring, and piano-roll modes; the mouse wheel cycles
-  effects and briefly pulses the hand larger or smaller
+  sparkle, bubble, background-coloring, and piano-roll modes; top-row keys 1–6
+  select the effect
 - One borderless, always-on-top game viewport per monitor (Windows uses native
   borderless fullscreen)
 - Single-instance protection and Windows low-level protection for Windows keys,
@@ -82,7 +82,13 @@ Controls:
 | `Alt+F4` | Exit all KeySlam windows |
 | Left-click / drag | Tap items, draw the pointer effect, and play pointer audio |
 | Right-click | Play the configured sound and show a fading ripple |
-| Mouse wheel | Cycle pointer effects |
+| Top-row `1`–`6` | Select the left mouse button effect (numbers still display and speak) |
+| Mouse wheel | No gameplay action |
+
+Left mouse button effects: **1** Rainbow ribbon, **2** Fading mouse trails,
+**3** Sparkles, **4** Bubbles, **5** Coloring mode, **6** Piano roll. These
+shortcuts do not apply to the numpad and are inactive while settings are open.
+Top-row **7–0** retain their usual number responses.
 
 On Windows, the ten-button RedOctane USB soft mat is detected automatically,
 including when plugged in after KeySlam starts. Each panel triggers once per

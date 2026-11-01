@@ -154,13 +154,22 @@ impl CursorEffect {
         }
     }
 
-    pub fn cycle(self, forward: bool) -> Self {
-        let current = Self::ALL
-            .iter()
-            .position(|value| *value == self)
-            .unwrap_or(0);
-        let offset = if forward { 1 } else { Self::ALL.len() - 1 };
-        Self::ALL[(current + offset) % Self::ALL.len()]
+    pub const fn number_key(self) -> &'static str {
+        match self {
+            Self::Rainbow => "1",
+            Self::FadingTrail => "2",
+            Self::Sparkles => "3",
+            Self::Bubbles => "4",
+            Self::Coloring => "5",
+            Self::PianoRoll => "6",
+        }
+    }
+
+    pub fn from_number_key(key_name: &str) -> Option<Self> {
+        let digit = key_name.strip_prefix('D').unwrap_or(key_name);
+        Self::ALL
+            .into_iter()
+            .find(|effect| effect.number_key() == digit)
     }
 }
 
